@@ -1,0 +1,33 @@
+# MiCASA_v1 pipeline — track scripts + docs only, not data products
+# ----------------------------------------------------------------
+
+# Data products (regenerated from upstream + processing scripts)
+*.nc
+*.nc4
+
+# Large R workspaces (e.g. fit.piqs.rda — 226 MB)
+*.rda
+
+# SLURM job logs — both in jobs/ and anywhere they land in root
+jobs/
+*.o[0-9]*
+
+# Bulk data / output subdirectories (regenerated, too large for git)
+daily_1x1/
+monthly_1x1/
+ERA5/
+portal.nccs.nasa.gov/
+figures/
+
+# HTTP mirror cruft from upstream NCCS portal listings
+index.html*
+
+# Editor / OS / scratch
+.DS_Store
+.~
+*~
+.*.swp
+
+# Local convenience — uncomment if needed
+# *.local
+# scratch/

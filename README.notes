@@ -1,0 +1,66 @@
+**  2025-05-13 15:49:51 by Ashley Pera <ashley.pera@noaa.gov> **
+
+  Downloaded 2024 data, symlinked older data. Older data hashes don't match.
+
+**  Thu 14 Nov 2024 02:40:38 PM UTC by Andy Jacobson <andy.jacobson@noaa.gov> **
+
+  Note that we use daily_1x1 (created by ingest_byyear.r) for
+  fire/fuel inputs, and the monthly_1x1 -> ERA5 pipeline via
+  diurnalize.r for GPP and Resp.
+
+**  Mon 01 Apr 2024 23:07:32 UTC by Andy Jacobson <andy.jacobson@noaa.gov> **
+
+  Use fire (and fuel) emissions from daily files, but use monthly
+  files to create downscaled NEE.
+
+
+
+**  Fri 05 Apr 2024 14:33:02 UTC by Andy Jacobson <andy.jacobson@noaa.gov> **
+
+  Need to rerun diurnalize for 2023 and 2024 when ERA5 meteo becomes
+  available.
+
+
+
+**  Sun 19 May 2024 23:15:21 UTC by Andy Jacobson <andy.jacobson@noaa.gov> **
+
+  v1 pre-release daily and monthly downloaded. Note change of file
+  names,
+
+  MiCASAv1_flux.x3600_y1800.monthly.%d%02d.nc to
+  MiCASA_v1_flux_x3600_y1800_monthly_%d%02d.nc
+
+  Re-ran ingest-monthly.r
+
+  Created check_daily_downloads.r since there were connection-refused
+  error messages. All files apparently present, can proceed with
+  ingest_daily.r.
+  
+
+**  Mon 20 May 2024 13:07:16 UTC by Andy Jacobson <andy.jacobson@noaa.gov> **
+
+  Need to re-run 2023 and 2024 when we have meteo past 20231031.
+
+
+  
+
+**  Thu 13 Feb 2025 09:40:40 PM UTC by Andy Jacobson <andy.jacobson@noaa.gov> **
+
+  Bug in 2018-01 has caused all kinds of unexpected trouble. At some
+  point, Brad Weir changed the units of fluxes in daily and monthly
+  files from Kg C m-2 day-1 to gC m-2 s-1. This was not noticed, and
+  needed to be corrected in the ingest_byyear.r (for fire and fuel)
+  and ingest_monthly.r (for NPP and Rh, thereafter PIQS, thereafter
+  diurnalize).
+
+  Just caught the monthly file units change today, fixing, and will
+  rewind the p8 CT2024 runs.
+
+  Monthly procedure:
+  ingest_monthly.r
+  cat_monthly.sh (new)
+  compute_clim.sh
+  write_piqs.r
+  Rscript diurnalize-ERA5.r
+  daysplitter.sh
+  
