@@ -7,163 +7,88 @@
 #SBATCH --output jobs/%x.o%j
 #SBATCH --partition orion
 #SBATCH --mail-type=FAIL
-#SBATCH --mail-user=ashley.pera@noaa.gov
+
+## Ingest raw 0.1° MiCASA daily files → aggregated 1° daily files.
+##
+## Year-parallel: when launched without $INGEST_YEAR set, self-submits one
+## SBATCH job per year in [$MICASA_YEAR_START, $MICASA_YEAR_END]. When run
+## inside an SBATCH job (with $INGEST_YEAR set), processes that single year.
+##
+## Tracers ingested: NPP, Rh, FIRE, FUEL (FIRE and FUEL come from the daily
+## stream; NPP and Rh from the daily stream are also retained for QC).
 
 ct.setup()
-ingest.weir.timestamp <- "Time-stamp: <orion-login-3.hpc.msstate.edu:/work2/noaa/co2/GFED-CASA/2025/MiCASA_v1/ingest_byyear.r: 2025-05-14 10:24:22 MT>"
+script.name <- "ingest_byyear.r"
 
-year <- Sys.getenv("INGEST_YEAR")
-if (nchar(year)==0) {
-  for (year in 2025:2025) {
-    system(sprintf("sbatch -J ingest-%d --export=ALL,INGEST_YEAR=%d ingest_byyear.r",year,year))
+work.dir <- Sys.getenv("WORK_DIR", getwd())
+source(file.path(work.dir, "config.r"))
+source(file.path(work.dir, "lib", "ingest_common.r"))
+cfg <- micasa.config()
+
+year.env <- Sys.getenv("INGEST_YEAR")
+
+if (nchar(year.env) == 0) {
+  ## Driver mode — fan out one SBATCH per year. Inherit env so the workers
+  ## see the same MICASA_YEAR/VERSION/etc. as the driver.
+  for (year in cfg$year.start:cfg$year.end) {
+    cmd <- sprintf("sbatch -J ingest-%d --mail-user=%s --export=ALL,INGEST_YEAR=%d ingest_byyear.r",
+                   year, cfg$mail.user, year)
+    cat(cmd, "\n")
+    system(cmd)
   }
-} else {
+  quit(save = "no")
+}
 
-  year <- as.integer(year)
-  
-  srcdir <- 'portal.nccs.nasa.gov/daily/'
-  outdir <- "daily_1x1"
+## ---- Worker mode -----------------------------------------------------------
 
-  if(!dir.exists(outdir)) {
-    cat(sprintf("Creating output dir \"%s\"\n",outdir))
-    dir.create(outdir,recursive=TRUE,showWarnings=TRUE)
-  }
+year <- as.integer(year.env)
 
-  this.year <- 2001
-  month <- 1
-  day <- 1
-  regs <- load.ncdf(sprintf('%s/%d/%02d/MiCASA_v1_flux_x3600_y1800_daily_%d%02d%02d.nc4',srcdir,this.year,month,this.year,month,day))
+setwd(work.dir)
+if (!dir.exists(cfg$daily.1x1)) {
+  cat(sprintf("Creating output dir \"%s\"\n", cfg$daily.1x1))
+  dir.create(cfg$daily.1x1, recursive = TRUE, showWarnings = TRUE)
+}
 
-  nms <- c("NPP","Rh","FIRE","FUEL")
+## Pre-compute lat-cell-area vector once (depends only on the input grid).
+## Use any existing raw daily file to read the lat coordinate.
+probe.year  <- cfg$year.start
+probe       <- load.ncdf(micasa.raw.daily(cfg, probe.year, 1, 1))
+gca         <- compute.gca(probe$lat)
 
-  # compute the area of a single grid cell with corners at lons and lats
-  archimedes <- function(lons,lats) {
-    if(length(lons)!=2) {
-      stop("Lons vector length not 2")
-    }
-    if(length(lats)!=2) {
-      stop("Lats vector length not 2")
-    }
-    if(any(abs(range(lons))>pi)) {
-      stop("abs(lons) vector exceeds pi")
-    }
-    if(any(abs(range(lats))>(pi/2))) {
-      stop("abs(lats) vector exceeds pi/2")
-    }
-    R <- 6371007.2 # mean radius of the earth, in meters
-    return((sin(lats[2]) - sin(lats[1])) * (lons[2]-lons[1]) * R^2)
-  }
+dim.lon <- micasa.dim.lon()
+dim.lat <- micasa.dim.lat()
 
-  aggregate.to.1x1 <- function(fld,gca) {
-    retval <- matrix(0,360,180)
-    for (jlat in 1:180) {
-      inlats <- 1:10 + 10*(jlat-1)
-      for(ilon in 1:360) {
-        inlons <- 1:10 + 10*(ilon-1)
-        retval[ilon,jlat] <- 0
-        for (inlon in inlons) {
-          retval[ilon,jlat] <- retval[ilon,jlat]+weighted.mean(fld[inlons,inlats],weights=gca[inlats],na.rm=T)
-        }
-        retval[ilon,jlat] <- retval[ilon,jlat]/10
-      }
-    }
-    return(retval)
-  }
+dpm <- days.in.month(year)
+pb  <- progress.bar.start(message = sprintf("%d: %d days", year, sum(dpm)),
+                          nx = sum(dpm))
 
-  #
-  write.netcdf <- function(ncout,vars,vals,srcnm) {
-    if(file.exists(ncout)) {
+iday <- 0
+for (month in 1:12) {
+  for (day in 1:dpm[month]) {
+    iday <- iday + 1
+
+    this.date <- ISOdatetime(year, month, day, 0, 0, 0, tz = "UTC") + 86400 / 2
+    dim.time  <- micasa.time.dim(this.date)
+
+    srcnm <- micasa.raw.daily(cfg, year, month, day)
+    ncout <- micasa.out.daily(cfg, year, month, day)
+
+    if (file.exists(ncout)) {
+      cat(sprintf("Removing existing \"%s\"\n", ncout))
       file.remove(ncout)
     }
-    ncf <- nc_create(ncout,vars=vars)
-    
-    # add attributes
-    ncatt_put(ncf,0,"history",
-              attval=sprintf("Created on %s\nby script '%s'",
-                             format(Sys.time(), "%a %b %d %Y %H:%M:%S %Z"),ingest.weir.timestamp),
-              prec="text")
 
-    ncatt_put(ncf,0,"Source",attval=srcnm,prec="text")
+    ncin <- load.ncdf(srcnm)
+    vars <- make.tracer.vars(ncin, dim.lon, dim.lat, dim.time)
 
-    for (nm in names(vars)) {
-      ncvar_put(ncf,vars[[nm]],vals[[nm]])
+    vals <- list()
+    for (nm in micasa.tracers) {
+      ## Source units kg C m-2 s-1 → output gC m-2 s-1.
+      vals[[nm]] <- aggregate.to.1x1(ncin[[nm]], gca) * 1e3
     }
 
-    nc_close(ncf)
+    write.netcdf(ncout, vars, vals, srcnm, script.name)
+    pb <- progress.bar.print(pb, iday)
   }
-
-  gca <- rep(NA,1800)
-
-
-  lon.rad <- c(-0.05,0.05)*(pi/180)
-
-  for (ilat in 1:1800) {
-    lat.rad <- (pi/180)*(regs$lat[ilat]+c(-0.05,0.05))
-    gca[ilat] <- archimedes(lon.rad,lat.rad)
-  }
-
-  dim.lon <- ncdim_def("longitude","degrees_east",vals=seq(-179.5,179.5,1))
-  dim.lat <- ncdim_def("latitude","degrees_north",vals=seq(-89.5,89.5,1))
-
-  epoch <- ISOdatetime(1970,1,1,0,0,0,tz="UTC")
-  timeunits <- "seconds"
-  timeunits.difftime <- "secs"
-
-  vals <- list()
-
-  # for (year in 2001:2023) {
-  dpm <- days.in.month(year)
-  pb <- progress.bar.start(message=sprintf("%d: %d days",year,sum(dpm)),nx=sum(dpm))
-
-  iday <- 0
-  for (month in 1:12) {
-    
-    for (day in 1:dpm[month]) {
-      
-      iday <- iday + 1
-      
-      this.date <- ISOdatetime(year,month,day,0,0,0,tz="UTC")+86400/2
-
-      # subtract the epoch to make timeunits-since
-      time.vals <- as.numeric(difftime(this.date,epoch,units=timeunits.difftime)) 
-      
-      dim.time <- ncdim_def("time",
-                            sprintf("%s since %s",timeunits,format(epoch,format="%Y-%m-%d %H:%M:%S UTC")),
-                            vals=time.vals,unlim=TRUE)
-      
-      vars <- list()
-      
-      srcnm <- sprintf('%s/%d/%02d/MiCASA_vNRT_flux_x3600_y1800_daily_%d%02d%02d.nc4',srcdir,year,month,year,month,day)
-      ncout <- sprintf('%s/MiCASA_vNRT_flux_x360_y180_daily_%d%02d%02d.nc',outdir,year,month,day)
-
-      if(file.exists(ncout)) {
-#        cat(sprintf("Skipping existing \"%s\"\n",ncout))
-        #        next
-        cat(sprintf("Removing existing \"%s\"\n",ncout))
-        file.remove(ncout)
-      }
-
-      ncin <- load.ncdf(srcnm)
-
-      for (nm in nms) {
-        vars[[nm]] <- ncvar_def(name=nm,units="gC m^-2 s^-1",
-                                dim=list(dim.lon,dim.lat,dim.time),
-                                missval=-1e34,compression=9,
-                                longname=attributes(ncin[[nm]])$long_name,
-                                prec="float")
-        
-        vals[[nm]] <- aggregate.to.1x1(ncin[[nm]])*1e3 # source units are (now) kg C m-2 s-1; convert to gC m-2 s-1
-#        vals[[nm]] <- aggregate.to.1x1(ncin[[nm]])/86400. # from day-1 to s-1
-      }
-
-      write.netcdf(ncout,vars,vals,srcnm)
-
-      pb <- progress.bar.print(pb,iday)
-      
-    } # day
-    
-  } # month
-  progress.bar.end(pb)  
-  #} # year
-
-} # if-else
+}
+progress.bar.end(pb)
