@@ -19,6 +19,11 @@
 : "${MICASA_YEAR_START:=2001}"
 : "${MICASA_YEAR_END:=${MICASA_YEAR}}"
 
+# Month range for partial-year operations (e.g. mid-year NRT updates).
+# Defaults to all of $MICASA_YEAR; override for FastTrack-style runs.
+: "${MICASA_MONTH_START:=1}"
+: "${MICASA_MONTH_END:=12}"
+
 # ---- Site config ------------------------------------------------------------
 
 # SLURM mail contact.
@@ -42,5 +47,6 @@ RAW_SRC_DIR="portal.nccs.nasa.gov"
 JOBS_DIR="jobs"
 
 export MICASA_YEAR MICASA_VERSION MICASA_YEAR_START MICASA_YEAR_END
+export MICASA_MONTH_START MICASA_MONTH_END
 export MAIL_USER BASE_DIR WORK_DIR PORTAL_URL_BASE
 export DAILY_1X1_DIR MONTHLY_1X1_DIR ERA5_DIR RAW_SRC_DIR JOBS_DIR

@@ -8,13 +8,15 @@
 
 micasa.config <- function() {
   list(
-    year         = as.integer(Sys.getenv("MICASA_YEAR",       "2025")),
-    version      = Sys.getenv("MICASA_VERSION",               "v1"),
-    year.start   = as.integer(Sys.getenv("MICASA_YEAR_START", "2001")),
-    year.end     = as.integer(Sys.getenv("MICASA_YEAR_END",   "2025")),
-    mail.user    = Sys.getenv("MAIL_USER",                    "ashley.pera@noaa.gov"),
-    base.dir     = Sys.getenv("BASE_DIR",                     "/work2/noaa/co2/GFED-CASA"),
-    work.dir     = Sys.getenv("WORK_DIR",                     getwd()),
+    year         = as.integer(Sys.getenv("MICASA_YEAR",        "2025")),
+    version      = Sys.getenv("MICASA_VERSION",                "v1"),
+    year.start   = as.integer(Sys.getenv("MICASA_YEAR_START",  "2001")),
+    year.end     = as.integer(Sys.getenv("MICASA_YEAR_END",    "2025")),
+    month.start  = as.integer(Sys.getenv("MICASA_MONTH_START", "1")),
+    month.end    = as.integer(Sys.getenv("MICASA_MONTH_END",   "12")),
+    mail.user    = Sys.getenv("MAIL_USER",                     "ashley.pera@noaa.gov"),
+    base.dir     = Sys.getenv("BASE_DIR",                      "/work2/noaa/co2/GFED-CASA"),
+    work.dir     = Sys.getenv("WORK_DIR",                      getwd()),
     portal.url   = Sys.getenv("PORTAL_URL_BASE",
                               "https://portal.nccs.nasa.gov/datashare/gmao/geos_carb/MiCASA"),
     daily.1x1    = Sys.getenv("DAILY_1X1_DIR",   "daily_1x1"),
@@ -51,4 +53,10 @@ micasa.out.daily <- function(cfg, year, month, day) {
 micasa.out.monthly <- function(cfg, year, month) {
   sprintf("%s/MiCASA_%s_flux_x360_y180_monthly_%d%02d.nc",
           cfg$monthly.1x1, cfg$version, year, month)
+}
+
+# Concatenated multi-year monthly file (output of cat_monthly.sh).
+micasa.out.monthly.cat <- function(cfg) {
+  sprintf("%s/MiCASA_%s_flux_x360_y180_monthly.nc",
+          cfg$monthly.1x1, cfg$version)
 }
