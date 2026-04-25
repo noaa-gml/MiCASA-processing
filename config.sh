@@ -4,8 +4,9 @@
 # Override any value on the command line, e.g.:
 #     MICASA_YEAR=2026 MICASA_VERSION=vNRT ./run_year.sh
 #
-# After sourcing, $WORK_DIR is the repo/working directory. All other paths
-# (DAILY_1X1_DIR etc.) are relative names; combine with $WORK_DIR as needed.
+# WORK_DIR is the working/checkout directory (the location of these scripts
+# and where intermediate outputs land). MICASA_YEAR is the *data year* being
+# processed — these are independent: a single checkout can process any year.
 
 # ---- Per-invocation knobs ---------------------------------------------------
 
@@ -29,11 +30,20 @@
 # SLURM mail contact.
 : "${MAIL_USER:=ashley.pera@noaa.gov}"
 
-# Top of the GFED-CASA tree on /work2. Each year lives at $BASE_DIR/$YEAR/MiCASA_v1.
+# Top of the GFED-CASA tree on /work2. Each year may live at $BASE_DIR/$YEAR/MiCASA_v1
+# (used by link_old_micasa_*.sh and check_unchanged.sh).
 : "${BASE_DIR:=/work2/noaa/co2/GFED-CASA}"
 
-# Working directory — defaults to this year's tree.
-: "${WORK_DIR:=${BASE_DIR}/${MICASA_YEAR}/MiCASA_v1}"
+# Working directory — defaults to the directory of the invoking script.
+# A single checkout can process any year by exporting MICASA_YEAR; WORK_DIR
+# need not change. Set explicitly to point at a different checkout.
+if [ -z "${WORK_DIR:-}" ]; then
+    if [ -n "${BASH_SOURCE:-}" ]; then
+        WORK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    else
+        WORK_DIR="$(pwd)"
+    fi
+fi
 
 # Upstream NCCS portal (no trailing slash).
 : "${PORTAL_URL_BASE:=https://portal.nccs.nasa.gov/datashare/gmao/geos_carb/MiCASA}"
