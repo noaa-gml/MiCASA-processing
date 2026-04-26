@@ -1,5 +1,5 @@
 #!/usr/bin/env Rscript
-## Self-contained tests for aggregate.to.1x1 in lib/ingest_common.r.
+## Self-contained tests + benchmark for aggregate.to.1x1.
 ##
 ## Doesn't require ct.setup() or netCDF tooling — sources ingest_common.r
 ## (whose ncdim/ncvar wrappers are lazy and never invoked here) and
@@ -17,11 +17,35 @@ lats <- seq(-89.95, 89.95, 0.1)
 gca  <- compute.gca(lats)
 
 pass <- function(label, ok, info = "") {
-  cat(sprintf("[%s] %-32s %s%s\n",
+  cat(sprintf("[%s] %-44s %s%s\n",
               if (ok) "PASS" else "FAIL",
               label, info, if (!ok) " <<<" else ""))
   invisible(ok)
 }
+
+## ---------------------------------------------------------------------------
+## Reference scalar implementation, kept here so the vectorized version in
+## lib/ingest_common.r has something to compare against. This is the
+## "correct, slow" formulation — bug-fixed in 2026-04-26 to weight lat-area
+## along the latitude axis (not longitude) in the inner weighted mean.
+## ---------------------------------------------------------------------------
+aggregate.to.1x1.scalar <- function(fld, gca) {
+  retval <- matrix(0, 360, 180)
+  for (jlat in 1:180) {
+    inlats <- 1:10 + 10 * (jlat - 1)
+    w <- rep(gca[inlats], each = 10)
+    for (ilon in 1:360) {
+      inlons <- 1:10 + 10 * (ilon - 1)
+      retval[ilon, jlat] <- weighted.mean(
+        as.vector(fld[inlons, inlats]), w = w, na.rm = TRUE)
+    }
+  }
+  retval
+}
+
+## ---------------------------------------------------------------------------
+## Synthetic-field correctness tests
+## ---------------------------------------------------------------------------
 
 ## --- Test 1: constant field aggregates to itself ----------------------------
 fld <- matrix(7.5, 3600, 1800)
@@ -51,7 +75,7 @@ err <- max(abs(out[1, ] - expected))
 pass("sin(lat) field — area-weighted",
      err < 1e-12, sprintf("max|err|=%.2e", err))
 
-## --- Test 4: regression check — old buggy formula must NOT pass test 3 -----
+## --- Test 4: regression — pre-fix buggy formula must NOT match expected ----
 old.aggregate.to.1x1 <- function(fld, gca) {
   retval <- matrix(0, 360, 180)
   for (jlat in 1:180) {
@@ -76,4 +100,65 @@ pass("regression: old formula is wrong",
      old.err.abs > 1e-6,
      sprintf("max|err|=%.2e (rel %.2e)", old.err.abs, old.err.rel))
 
-cat("--- done ---\n")
+## --- Test 5: vectorized matches scalar reference on random no-NA field ------
+set.seed(42)
+fld <- matrix(rnorm(3600 * 1800), 3600, 1800)
+out_v <- aggregate.to.1x1(fld, gca)
+out_s <- aggregate.to.1x1.scalar(fld, gca)
+err <- max(abs(out_v - out_s))
+pass("vectorized vs scalar — random field",
+     err < 1e-10, sprintf("max|err|=%.2e", err))
+
+## --- Test 6: vectorized matches scalar with sparse NAs ----------------------
+set.seed(43)
+fld_na <- fld
+fld_na[sample(length(fld_na), length(fld_na) %/% 100)] <- NA  # ~1% NA
+out_v <- aggregate.to.1x1(fld_na, gca)
+out_s <- aggregate.to.1x1.scalar(fld_na, gca)
+err <- max(abs(out_v - out_s), na.rm = TRUE)
+pass("vectorized vs scalar — 1% NA",
+     err < 1e-10, sprintf("max|err|=%.2e", err))
+
+## --- Test 7: all-NA block becomes NaN, not 0 or NA --------------------------
+fld_blk <- matrix(1, 3600, 1800)
+fld_blk[1:10, 1:10] <- NA   # entire (lon-block 1, lat-block 1) is NA
+out_v <- aggregate.to.1x1(fld_blk, gca)
+out_s <- aggregate.to.1x1.scalar(fld_blk, gca)
+pass("all-NA block → NaN, scalar agrees",
+     is.nan(out_v[1, 1]) && is.nan(out_s[1, 1]) &&
+       max(abs(out_v[-1, -1] - 1)) < 1e-12,
+     sprintf("v[1,1]=%s s[1,1]=%s", out_v[1, 1], out_s[1, 1]))
+
+## ---------------------------------------------------------------------------
+## Benchmark: vectorized vs scalar on a realistic-size random field.
+## ingest_byyear.r calls aggregate.to.1x1 ~1460 times per year (4 tracers
+## × 365 days), so the per-call speedup compounds.
+## ---------------------------------------------------------------------------
+
+cat("\n--- benchmark (random 3600x1800 field, 1% NA) ---\n")
+set.seed(44)
+bench_fld <- matrix(rnorm(3600 * 1800), 3600, 1800)
+bench_fld[sample(length(bench_fld), length(bench_fld) %/% 100)] <- NA
+
+n_v <- 5
+t_v <- system.time({ for (i in 1:n_v) out_v <- aggregate.to.1x1(bench_fld, gca) })
+cat(sprintf("vectorized: %.3f s/call (mean of %d)\n", t_v["elapsed"] / n_v, n_v))
+
+n_s <- 1
+t_s <- system.time({ out_s <- aggregate.to.1x1.scalar(bench_fld, gca) })
+cat(sprintf("scalar:     %.3f s/call (n=%d)\n", t_s["elapsed"] / n_s, n_s))
+
+speedup <- (t_s["elapsed"] / n_s) / (t_v["elapsed"] / n_v)
+cat(sprintf("speedup:    %.1fx\n", speedup))
+
+## Project to ingest_byyear.r wall time.
+calls_per_year <- 4 * 365
+cat(sprintf("\nProjected per-year aggregate-only cost (ignoring I/O):\n"))
+cat(sprintf("  scalar:     %.0f s = %.1f h\n",
+            calls_per_year * (t_s["elapsed"] / n_s),
+            calls_per_year * (t_s["elapsed"] / n_s) / 3600))
+cat(sprintf("  vectorized: %.0f s = %.1f min\n",
+            calls_per_year * (t_v["elapsed"] / n_v),
+            calls_per_year * (t_v["elapsed"] / n_v) / 60))
+
+cat("\n--- done ---\n")
