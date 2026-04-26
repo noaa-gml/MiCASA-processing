@@ -1,15 +1,25 @@
 #!/bin/bash
-# For each year in $MICASA_CLIM_YEARS (space-separated), symlink missing daily
-# files to the day-of-year climatology produced by compute_daily_clim.sh.
-# Used when "real" data are unavailable (early/late edges of the record).
+# For each year in $MICASA_CLIM_YEARS (space-separated), symlink missing
+# daily files to the day-of-year climatology produced by
+# compute_daily_clim.sh. Used when "real" data are unavailable —
+# i.e. the year is outside the ERA5 record (2000 and earlier) or has not
+# yet been fully published (the present calendar year).
 #
-# Default: 2000 (no ERA5 before this) and $MICASA_YEAR (current/NRT year).
+# Default: MICASA_CLIM_YEARS = "2000 <current calendar year>".
+#
+# Why "current calendar year" rather than $MICASA_YEAR:
+# Climatology gap-filling is driven by *what's missing on disk right now*
+# (no ERA5 before 2000; the present year is still being published), not by
+# which year we're processing. If you backfill an earlier year via
+# `./run_year.sh 2024`, that year's data is already complete — no clim
+# needed for it. Set MICASA_CLIM_YEARS explicitly to override (e.g. for
+# upstream outages that left holes in a specific historical year).
 
 set -e
 
 . "$(dirname "$0")/config.sh"
 
-: "${MICASA_CLIM_YEARS:=2000 ${MICASA_YEAR}}"
+: "${MICASA_CLIM_YEARS:=2000 $(date +%Y)}"
 
 prefix="MiCASA_${MICASA_VERSION}_flux_x360_y180_daily"
 

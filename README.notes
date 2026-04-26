@@ -64,3 +64,29 @@
   Rscript diurnalize-ERA5.r
   daysplitter.sh
   
+**  2026-04-26 by Ash Pera <ashley.pera@colorado.edu> **
+
+  Latent-bug sweep after the Tier-1 refactor. Six fixes; the headline
+  is a numerical bug in the area-weighted aggregator
+  (lib/ingest_common.r:aggregate.to.1x1) where lat-area weights were
+  being recycled along the longitude axis instead of latitude, AND the
+  inner per-longitude loop was dead. Fix builds an explicit length-100
+  weight vector that mirrors weighted.mean's column-major flatten of
+  the 10x10 sub-block. Added lib/test_aggregate.r as a self-contained
+  regression test (passes; the old buggy formula is verified to fail
+  on a sin(lat) test field).
+
+  Other fixes: run_year.sh trailing comma in --export, write_piqs.r
+  hardcoded v1 filename, check_hashes.py 202[4-5] year glob,
+  link_old_micasa_raw.sh layout-detection (handles both 2024 from_weir
+  and 2025+ flat layouts), check_unchanged.sh self-blessing reference
+  chain. See README.ash "Latent-bug sweep" section for the full list.
+
+  Also documented the v1+vNRT hybrid stream model: download.sh now
+  supports MICASA_VERSION=both, and link_vNRT_to_v1.sh is the post-
+  ingest step that exposes vNRT-tagged outputs as v1 for downstream
+  consumers, while v1 (when present) always wins via -e checks.
+
+  MICASA_CLIM_YEARS default changed from "2000 ${MICASA_YEAR}" to
+  "2000 $(date +%Y)" so backfilling an earlier year doesn't
+  accidentally clim a fully-published year.

@@ -15,8 +15,12 @@
 ## per year in [$MICASA_YEAR_START, $MICASA_YEAR_END]. Months processed are
 ## [$MICASA_MONTH_START, $MICASA_MONTH_END] (default 1..12).
 ##
-## Climatology fallback: years in $MICASA_CLIM_YEARS (space-separated env var,
-## default "2000 $MICASA_YEAR") use Rh/NPP climatology instead of monthly files.
+## Climatology fallback: years in $MICASA_CLIM_YEARS (space-separated env
+## var) use Rh/NPP day-of-year climatology instead of monthly files.
+## Default: "2000 <current calendar year>" — i.e. the years where ERA5 is
+## either not yet (pre-2000) or not yet fully (current year, NRT phase)
+## available. Independent of $MICASA_YEAR (the year being processed) so
+## backfills don't accidentally clim a fully-published year.
 
 script.name <- "diurnalize-ERA5.r"
 
@@ -27,13 +31,14 @@ cfg <- micasa.config()
 product.name <- sprintf("MiCASA_%s_flux_x360_y180_monthly", cfg$version)
 
 clim.yrs <- as.integer(strsplit(
-  Sys.getenv("MICASA_CLIM_YEARS", sprintf("2000 %d", cfg$year)), "\\s+")[[1]])
+  Sys.getenv("MICASA_CLIM_YEARS",
+             sprintf("2000 %s", format(Sys.Date(), "%Y"))),
+  "\\s+")[[1]])
 
 ## Hourly 1° ERA5 from the TM5 meteo tree.
 era5dir <- sprintf("%s/METEO/tm5-nc/ec/ea_0005/h06h18tr1/sfc/glb100x100",
                    Sys.getenv("CARBONTRACKER", ""))
 era5template <- "YYYY/MM/VVV_YYYYMMDD_00p01.nc"
-metstr <- "ERA5"
 
 yr.env <- Sys.getenv("diurn_year")
 

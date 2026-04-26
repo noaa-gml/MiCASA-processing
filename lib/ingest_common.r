@@ -51,18 +51,34 @@ compute.gca <- function(lats) {
 
 # Aggregate a 3600x1800 0.1° field to 360x180 1° using cell-area weights.
 # `gca` is the 1800-element latitude-area vector from compute.gca().
+#
+# NOTE — bug fix April 2026 (latent-bug sweep). The previous implementation
+# passed a length-10 latitude-weight vector to weighted.mean() with a 10×10
+# matrix argument. R recycled those weights column-major across the
+# flattened matrix, applying lat-area weights along the *longitude* axis
+# instead of the latitude axis. The inner `for (inlon in inlons)` loop was
+# also dead code (×10 then /10 cancelled out). Net effect: ~3% bias in
+# mid-latitudes for any field with a meridional gradient inside a 1° block
+# (i.e. essentially all biospheric fields, worst near the poles where
+# cos(lat) varies fastest within 10 cells).
+#
+# The fix below builds a flat length-100 weight vector that mirrors
+# weighted.mean()'s column-major flattening of fld[inlons, inlats], so
+# weight gca[inlats[k]] applies to all 10 longitudes within latitude k.
+# See lib/test_aggregate.r for self-contained verification.
 aggregate.to.1x1 <- function(fld, gca) {
   retval <- matrix(0, 360, 180)
   for (jlat in 1:180) {
     inlats <- 1:10 + 10 * (jlat - 1)
+    # fld[inlons, inlats] is 10 lons × 10 lats. weighted.mean flattens
+    # column-major, so element k → (lon = ((k-1) %% 10) + 1,
+    #                               lat = ((k-1) %/% 10) + 1).
+    # Each cell wants weight gca[inlats[lat_position]]:
+    w <- rep(gca[inlats], each = 10)
     for (ilon in 1:360) {
       inlons <- 1:10 + 10 * (ilon - 1)
-      retval[ilon, jlat] <- 0
-      for (inlon in inlons) {
-        retval[ilon, jlat] <- retval[ilon, jlat] +
-          weighted.mean(fld[inlons, inlats], weights = gca[inlats], na.rm = TRUE)
-      }
-      retval[ilon, jlat] <- retval[ilon, jlat] / 10
+      retval[ilon, jlat] <- weighted.mean(
+        as.vector(fld[inlons, inlats]), w = w, na.rm = TRUE)
     }
   }
   retval

@@ -1,4 +1,5 @@
 README written by Ash Pera 2025-05-13 17:03:37
+Updated 2026-04-26 — Tier-1 refactor + latent-bug sweep documented
 
 ##########################
 # Overview
@@ -14,190 +15,376 @@ net ecosystem exchange (NEE), and net biosphere exchange (NBE) derived from the 
 https://earth.gov/ghgcenter/data-catalog/micasa-carbonflux-grid-v1
 
 ##########################
+# Quick start
+##########################
+
+Run the whole pipeline for one year:
+
+    ./run_year.sh 2026                    # full v1 pipeline for 2026
+    ./run_year.sh 2026 vNRT               # near-real-time stream
+    ./run_year.sh 2026 v1 --skip-download # data already on disk
+    ./run_year.sh 2026 --dry-run          # show stages without running
+
+Stage skip flags: --skip-download, --skip-ingest, --skip-aggregate,
+--skip-piqs, --skip-diurnalize, --skip-daysplit. SBATCH stages are
+submitted with --wait so the driver blocks until completion.
+
+##########################
+# Versions: v1 vs vNRT (the hybrid stream)
+##########################
+
+MiCASA publishes two parallel streams from the same upstream pipeline:
+
+  * v1     The final/authoritative stream. Lags the source data by some
+           weeks; what you want for production-quality NEE.
+  * vNRT   Near-real-time. Available within days of the source data, but
+           may be revised once v1 lands and supersedes it.
+
+Both streams use version-tagged basenames so they coexist in one tree:
+
+    portal.nccs.nasa.gov/daily/<YYYY>/<MM>/
+        MiCASA_v1_flux_x3600_y1800_daily_<YYYYMMDD>.nc4    ← preferred
+        MiCASA_vNRT_flux_x3600_y1800_daily_<YYYYMMDD>.nc4  ← fallback
+        …_sha256.txt                                       (also versioned)
+
+Operational policy:  use v1 wherever it exists, fall back to vNRT for
+the trailing window where v1 has not yet been published. Concretely:
+
+  1. Download both streams for the current year:
+        MICASA_VERSION=both ./download.sh
+     (v1 is downloaded first; --no-clobber means vNRT only fills gaps.)
+
+  2. Ingest with whichever version you intend to use *for the gap days*.
+     v1 days that already exist on disk will be ingested as v1; vNRT
+     days fill the rest. Set MICASA_VERSION=v1 to ingest both as v1
+     (the file basename then determines which you read), or
+     MICASA_VERSION=vNRT to keep the vNRT-tagged outputs.
+
+  3. After ingest, expose vNRT-tagged 1° outputs as v1-tagged for any
+     downstream consumer that doesn't know about vNRT:
+        ./link_vNRT_to_v1.sh                  (per current year)
+     This skips days where MiCASA_v1_*.nc already exists, so v1 always
+     wins.
+
+  4. When the upstream v1 record catches up, re-run ingest for those
+     days with MICASA_VERSION=v1 — the v1 outputs replace the symlinks,
+     and CarbonTracker silently switches over.
+
+##########################
+# Configuration (env-driven)
+##########################
+
+config.sh and config.r read the same environment variables, so any knob
+can be set on the command line or in run_year.sh. Defaults match the
+operational 2025+ setup.
+
+  MICASA_YEAR          single-year focus, used by SBATCH workers and
+                       by run_year.sh
+  MICASA_VERSION       v1 (default), vNRT, or both (download.sh only)
+  MICASA_YEAR_START    first year for multi-year stages (default 2001)
+  MICASA_YEAR_END      last year  (default 2025)
+  MICASA_MONTH_START   first month for diurnalize (default 1)
+  MICASA_MONTH_END     last month  (default 12)
+  MICASA_CLIM_YEARS    space-separated years that should use day-of-year
+                       climatology instead of real ERA5 data.
+                       Default: "2000 <current calendar year>"
+                       — i.e. the years where ERA5 is either not yet
+                       (pre-2000) or not yet fully (current NRT year)
+                       available. Independent of MICASA_YEAR so
+                       backfilling an earlier year doesn't accidentally
+                       clim it.
+  MAIL_USER            SBATCH --mail-user
+  BASE_DIR             /work2/noaa/co2/GFED-CASA   (parent of YYYY trees)
+  WORK_DIR             auto-detected from script path; this directory
+  PORTAL_URL_BASE      NCCS download base URL
+  DAILY_1X1_DIR        daily_1x1
+  MONTHLY_1X1_DIR      monthly_1x1
+  ERA5_DIR             ERA5
+  RAW_SRC_DIR          portal.nccs.nasa.gov   (raw 0.1° mirror)
+  JOBS_DIR             jobs
+
+Runtime-only knobs:
+  INGEST_YEAR          set by ingest_byyear.r driver; do not set manually
+  diurn_year           set by diurnalize-ERA5.r driver; do not set manually
+  RECOMPUTE_EXISTING   1 to force ingest_monthly.r to re-write existing
+                       outputs (default: skip them)
+  MICASA_NO_BLESS_REFERENCE
+                       1 to skip auto-blessing this year's downloaded
+                       file as next year's reference in check_unchanged.sh
+
+##########################
 # Flowchart
 ##########################
 
-symlink_old_micasa.sh
-        |
-download_and_check.sh--------\
-(download.sh)                |
-(check_daily_downloads.r)    |
-(check_hashes.py)            |
-(check_unchanged.sh)         |
-        |                    |
- ingest_monthly.r      ingest_byyear.r
-        |                    |
-  cat_monthly.sh    compute_daily_clim.sh 
- (check_bounds.sh)           |
-        |            link_daily_clim.sh   
- compute_clim.sh
-        |      
-  write_piqs.r 
-        |
-diurnalize-ERA5.r
-        |                 test_gca.r  
-  daysplitter.sh
+run_year.sh
+   |
+   |--- link_old_micasa_raw.sh (auto-detect 2024 vs 2025+ layout)
+   |
+   |--- download.sh ---> portal.nccs.nasa.gov/{daily,monthly}/YYYY/...
+   |       check_daily_downloads.r
+   |       check_hashes.py            (year range from MICASA_YEAR_*)
+   |       check_unchanged.sh         (auto-blesses next year's reference)
+   |
+   |--- ingest_monthly.r       ingest_byyear.r
+   |       (both source lib/ingest_common.r — area-weighted aggregator
+   |        bug-fixed 2026-04-26; see lib/test_aggregate.r)
+   |
+   |--- cat_monthly.sh                compute_daily_clim.sh
+   |       check_bounds.sh                    |
+   |                                  link_daily_clim.sh
+   |       compute_clim.sh
+   |       write_piqs.r
+   |
+   |--- diurnalize-ERA5.r
+   |
+   `--- daysplitter.sh
+                |
+        link_vNRT_to_v1.sh  (only if MICASA_VERSION=vNRT was used)
 
 ##########################
 # Programs
 ##########################
 
-download_and_check.sh:
-    Calls download.sh, check_daily_downloads.sh, check_hashes.py, and check_unchanged.sh
+run_year.sh:
+    Top-level driver. Sets MICASA_YEAR, sources config.sh, and calls
+    each pipeline stage in order. SBATCH stages submitted with --wait.
 
-test_gca.r:
-    Compute the lat-lon grid cell areas, Load CARBONTRACKER/tools/shared/aux/regions.nc, and print the relative error.
-    Should be on the order of 2.7e-6, consistent with single-precision numerics.
+config.sh / config.r:
+    Single source of truth for env-driven knobs (see Configuration).
+    Sourced by every other script.
+
+lib/ingest_common.r:
+    Shared helpers between ingest_byyear.r and ingest_monthly.r.
+    Defines: archimedes(), compute.gca(), aggregate.to.1x1(),
+    micasa.dim.lon(), micasa.dim.lat(), micasa.time.dim(),
+    make.tracer.vars(), write.netcdf(), and the constants
+    micasa.tracers and EARTH_RADIUS_M.
+
+lib/test_aggregate.r:
+    Self-contained Rscript test harness for aggregate.to.1x1, with a
+    regression test against the pre-2026-04-26 buggy implementation.
 
 download.sh:
-    Make the from_weir dir, and wget https://portal.nccs.nasa.gov/datashare/gmao/geos_carb/MiCASA/v1/netcdf/daily to
-    get daily MiCASA data (in nc4 format). Can also get monthlies.
-    Should (but doesn't) check the hash.
-
-download.sh-orig:
-    Same, but from https://portal.nccs.nasa.gov/datashare/gmao/geos_carb/MiCASA/v1/netcdf/MICASA_D_FLUX/ instead. Depricated.
+    wget MiCASA daily + monthly files for $MICASA_YEAR / $MICASA_VERSION
+    from the NCCS portal. Supports MICASA_VERSION=both for the hybrid
+    v1+vNRT stream (v1 downloads first, then vNRT fills gaps via
+    --no-clobber). Writes to portal.nccs.nasa.gov/{daily,monthly}/<YYYY>/
+    in the work directory.
 
 check_daily_downloads.r:
-    Verify that the data downloaded to from_weir/portal.nccs.nasa.gov/datashare/gmao/geos_carb/MiCASA/v1/netcdf/daily/
-    have NPP, Rh, FIRE, and FUEL for every day from 2001-2023.
+    Verify NPP, Rh, FIRE, FUEL exist for every day in
+    [MICASA_YEAR_START, MICASA_YEAR_END].
 
 check_hashes.py:
-   Runs through all the monthly and daily data and checks their sha256 hash against the ones provided.
+    Verify SHA-256 of each downloaded file. Year range from
+    MICASA_YEAR_START / MICASA_YEAR_END (silently skips years outside).
+    Handles both v1 and vNRT files in the same directory.
 
 check_unchanged.sh:
-   Checks what has changed in the headers from a referance file (January 2012) 
+    Diff ncdump -h headers of new vs reference (previous year's tree).
+    Catches silent provider-side metadata changes (e.g. the 2018 kg→g
+    units flip). On a clean diff, automatically blesses this year's
+    first daily/monthly as the *next* year's reference, so the chain
+    self-bootstraps after the initial 2024 reference.
+    Set MICASA_NO_BLESS_REFERENCE=1 to skip the auto-bless step.
 
 check_bounds.sh:
-   Computes a simple average of data, and print out. Does NOT correctly average by cell areas. Called by cat_monthly.sh
+    Simple unweighted-area average sanity check, called by cat_monthly.sh.
+    NOT used in production aggregation (that's aggregate.to.1x1).
 
 ingest_byyear.r:
-    Take raw from_weir/~/daily/*.nc4 files for a given year and--for every month and day--aggregate NPP, Rh, FIRE, and FUEL
-    from the original 0.1 deg grid to a 1 deg grid. Write the results to daily_1x1/MiCASA_v1_flux_x360_y180_daily_YYYYMMDD.nc
-
-    Parallel job; if INGEST_YEAR is not in env, launch 23 recursive jobs where it's set to [2001:2023].
+    For a given INGEST_YEAR, aggregate every day's raw 0.1° NPP/Rh/FIRE/
+    FUEL to 1° via lib/ingest_common.r:aggregate.to.1x1, write to
+    daily_1x1/MiCASA_<VER>_flux_x360_y180_daily_<YYYYMMDD>.nc.
+    Driver mode (no INGEST_YEAR): fans out one SBATCH per year in
+    [MICASA_YEAR_START, MICASA_YEAR_END].
 
 ingest_monthly.r:
-    Take raw from_weir/~/monthly/*.nc4 files from [2001:2023] for every month and aggregate NPP, Rh, FIRE, and FUEL
-    from the original 0.1 deg grid to a 1 deg grid. Write the results to monthly_1x1/MiCASA_v1_flux_x360_y180_daily_MMDD.nc
+    Plain year-loop monthly aggregator. Skips outputs that already
+    exist unless RECOMPUTE_EXISTING=1.
 
-ingest_monthly_special_201801.r:
-    Ingest only January 2018, load from from_weir/~/monthly/*.nc instead of .nc4.
-    Depricated, 1-time bug fix.
-
-ingest.r:
-    For every day of every month in the years [2001:2023], take raw from_weir/~/monthly/*.nc4 files and aggregate NPP, Rh,
-    FIRE, and FUEL from the original 0.1 deg grid to a 1 deg grid; skipping files that exist already.
-    Write the results to monthly_1x1/MiCASA_v1_flux_x360_y180_daily_MMDD.nc
-
-    Hooked job--submit a dependency recursive job to continue if it didn't finish.
-    Deprecated, replaced with ingest_monthly and ingest_byyear.
-
-cat_monthly.sh :
-    Takes monthly data and combines to monthly_1x1/MiCASA_v1_flux_x360_y180_monthly.nc. Calls check_bounds.sh
+cat_monthly.sh:
+    Concatenate monthly_1x1/MiCASA_<VER>_flux_x360_y180_monthly_<YYYYMM>.nc
+    into a single time-stacked monthly_1x1/MiCASA_<VER>_flux_x360_y180_monthly.nc.
+    Runs check_bounds.sh.
 
 compute_clim.sh:
-    Using Ferret, load monthly_1x1/MiCASA_v1_flux_x360_y180_monthly.nc and take a modulo average of each
-    month of NPP and Rh, writing the outputs to monthly_1x1/Rhclim.nc and monthly_1x1/NPPclim.nc
+    Ferret-driven modulo-month average of the concatenated monthly file.
+    Writes monthly_1x1/{NPP,Rh}clim.nc.
 
 compute_daily_clim.sh:
-    Use ncea to average every day of the year in daily_1x1/MiCASA_v1_flux_x360_y180_dailyYYYYMMDD.nc across all years,
-    and save output as daily_1x1/MiCASA_v1_flux_x360_y180_daily_0000MMDD.nc
+    ncea across-year average per day-of-year, writing
+    daily_1x1/MiCASA_<VER>_flux_x360_y180_daily_0000<MMDD>.nc.
 
 link_daily_clim.sh:
-    For every day [2000:2024], if there is no MiCASA_v1_flux_x360_y180_daily_YYYYMMDD.nc, link it to the 
-    MiCASA_v1_flux_x360_y180_daily_0000MMDD.nc climate average for that day of the year.
+    For each year in $MICASA_CLIM_YEARS (default: 2000 + current
+    calendar year), symlink missing daily files to the 0000<MMDD> clim.
+
+link_old_micasa_raw.sh:
+    Auto-detect the previous year's raw layout (legacy from_weir/...
+    or current portal.nccs.nasa.gov/...) and absolute-path-symlink
+    daily/monthly into this year's tree, range
+    [MICASA_YEAR_START, MICASA_YEAR-1]. New layouts can be added
+    to its layout_candidates array.
+
+link_old_micasa_finals.sh:
+    Same idea but for the 1° outputs.
+
+link_vNRT_to_v1.sh:
+    Symlink ingested vNRT daily files as v1-named files for the same
+    year. Run this once vNRT-stream ingest is complete so downstream
+    consumers (CarbonTracker, etc.) read MiCASA_v1_*.nc transparently.
+    Skips days where MiCASA_v1_*.nc already exists, so v1 always wins.
 
 write_piqs.r:
-    Load monthly_1x1/MiCASA_v1_flux_x360_y180_monthly.nc and for every grid cell do a piecewise integral quadratic splines (PIQS)
-    fit of GPP and rtot, and save the results to fit.piqs.rda. Can also make a pdf of plots of TSER quadradic fits from 2000-2016.
-    Skips cells where nee2 = 0. 
-    Time Series Extrinsic Regression (TSER), Gross Primary Production (GPP = -2*NPP), total respiration (rtot = Rh + NPP)
-    nee1 (Rh - NPP), and nee2 (gpp + rtot). 
+    Source config.r and load monthly_1x1/MiCASA_<VER>_flux_x360_y180_monthly.nc
+    via micasa.out.monthly.cat(cfg). Per grid cell, fit GPP and rtot
+    with piecewise integral quadratic splines (PIQS), save to
+    fit.piqs.rda.
     https://gml.noaa.gov/ccgg/carbontracker/documentation.php#tth_sEc2.2
 
 diurnalize-ERA5.r:
-    For a year, load PIQS coefficients (from fit.piqs.rda) to smooth month-month variability. Load climatic averages of
-    NPP and respiration (from NPP and Rhclim.nc). Load ERA5 surface solar radiation (ssrd), volumetric soil water layer (swvl1),
-    and average 2-meter temperature (t2m) from CARBONTRACKER/METEO/tm5-nc/ec/ea/h06h18tr1/sfc/glb100x100/YYYY/MM/VVV_YYYYMMDD_00p01.nc,
-    to get ssr and q10, and find the monthly means. Subtract those, and insert the smoothed PIQS fit. Use to diernalize gpp, resp, nee,
-    qgpp and qresp. Write GPP, resp, NEE, QGPP, qresp, ssr, t2m, stl1 and swvl1  to ERA5/fluxes_YYYYMM.nc.
-
-    Parallel job; if diurn_year is not in env, launch 25 recursive jobs where it's set to [2000:2024].
+    Apply ERA5 hourly meteo (ssrd, t2m, stl1, swvl1) to the PIQS-smoothed
+    monthly fluxes to get hourly GPP/RESP/NEE per (year, month).
+    Writes ERA5/fluxes_<YYYYMM>.nc.
+    Driver mode (no diurn_year): fans out per year in
+    [MICASA_YEAR_START, MICASA_YEAR_END].
+    Years in MICASA_CLIM_YEARS use day-of-year climatology (NPPclim.nc,
+    Rhclim.nc) instead of monthly real data.
 
 daysplitter.sh:
-    For every year [2000:2004] and month in ERA5/fluxes_YYYYMM.nc, split into ERA5/MiCASA_v1.nee.YYYYMMDD.nc dailies,
-    keeping only NEE. NEE=GPP+RESP (positive is source to atm). GPP=gross_primary_production, twice the modeled NPP,
-    RESP=ecosystem_respiration, sum of Rhetero and Rauto.
+    For every (year, month) in ERA5/fluxes_<YYYYMM>.nc, split into
+    ERA5/MiCASA_v1.nee.<YYYYMMDD>.nc dailies, keeping only NEE.
+    Range from MICASA_YEAR_START..END and MICASA_MONTH_START..END.
 
-    Use ncdump, grep and sed to find the number of timeslices, divide by 24 for the days, and split/subset with ncks.
-
-
-
+Deprecated / kept-for-reference:
+    ingest.r                       — superseded by ingest_byyear/monthly
+    download_and_check.sh          — superseded by run_year.sh stage 1
+    test_gca.r                     — geometry sanity test (pre-refactor)
+    create_era5_move.py            — one-time data-move script
+    download-NRT.sh                — merged into download.sh
 
 ##########################
-# Data
+# Latent-bug sweep — 2026-04-26
 ##########################
 
-from_weir/portal.nccs.nasa.gov/datashare/gmao/geos_carb/MiCASA/v1/netcdf/daily/YYYY/MM/MiCASA_v1_flux_x3600_y1800_daily_YYYYMMDD.nc4
-    Created by download.sh, intial data. See end of this file for header dump.
+Six bugs found and fixed during the post-refactor audit (commits
+9ea6970 and following):
 
-daily_1x1/MiCASA_v1_flux_x360_y180_dailyYYYYMMDD.nc
-    Created by ingest_byyear.rm from inital daily data
+  1. lib/ingest_common.r:aggregate.to.1x1
+     Latitude-area weights were being recycled column-major across a
+     10×10 sub-block, applying them along the LONGITUDE axis instead
+     of latitude. The inner `for (inlon in inlons)` loop was also dead
+     (×10 then ÷10). Fix: build a flat length-100 weight vector that
+     correctly assigns gca[inlats[k]] to every cell at lat-position k.
+     Magnitude depends on field gradient within a 1° block — typically
+     <0.01% for smooth fields, growing toward the poles. See
+     lib/test_aggregate.r for verification + regression test.
 
-daily_1x1/MiCASA_v1_flux_x360_y180_daily_0000MMDD.nc
-    Created by compute_daily_clim.sh from daily_1x1/MiCASA_v1_flux_x360_y180_dailyYYYYMMDD.nc
+  2. run_year.sh:sbatch_wait
+     `--export="ALL,${exports}"` produced a trailing comma when called
+     with empty exports (e.g. for ingest_monthly.r). Now passes
+     "ALL" alone in that case.
 
-monthly_1x1/MiCASA_v1_flux_x360_y180_monthly_YYYYMM.nc
-    Created by ingest_monthly.r from inital monthly data (TODO: where's that from?)
+  3. write_piqs.r
+     load.ncdf() path was hardcoded to MiCASA_v1_*.nc. Now sources
+     config.r and uses micasa.out.monthly.cat(cfg), so it works under
+     MICASA_VERSION=vNRT too.
 
-monthly_1x1/NPPclim.nc monthly_1x1/NPPclim.nc 
-    Created by compute_clim.sh (Ferret) from monthly_1x1/MiCASA_v1_flux_x360_y180_monthly.nc
+  4. check_hashes.py
+     Directory glob 202[4-5] silently skipped any year outside
+     2024-2025 — verification would pass vacuously for 2026+. Now
+     reads MICASA_YEAR_START/END from env and globs the requested
+     years. Also added a missing-checksum-file warning.
 
-monthly_1x1/MiCASA_v1_flux_x360_y180_monthly.nc
-    [MISSING, but uses NCO from monthly_1x1/MiCASA_v1_flux_x360_y180_monthly_YYYYMM.nc]
+  5. link_old_micasa_raw.sh
+     Hardcoded the legacy from_weir/portal.nccs.nasa.gov/... path,
+     which only existed in the 2024 layout. Now auto-detects between
+     legacy and 2025+ layouts via a `layout_candidates` array, and
+     uses absolute paths so the link survives WORK_DIR moves.
 
-ERA5/MiCASA_v1.nee.YYYYMMDD.nc
-    Created by daysplitter.sh from ERA5/fluxes_YYYYMM.nc
+  6. check_unchanged.sh
+     Used to silently warn-and-continue when the previous-year
+     reference was missing; new years would slip through unchecked.
+     Now: clearer warning with bootstrap instructions, and on a
+     successful clean diff it auto-blesses the new year's file as
+     next year's reference — chain bootstraps itself once the initial
+     2024 reference is in place.
 
-ERA5/fluxes_YYYYMM.nc
-    Created by diurnalize-ERA5.r from and 
-    CARBONTRACKER/METEO/tm5-nc/ec/ea/h06h18tr1/sfc/glb100x100/YYYY/MM/VVV_YYYYMMDD_00p01.nc and NPPclim.nc and fit.piqs.rda
+Also: link_daily_clim.sh and diurnalize-ERA5.r now default
+MICASA_CLIM_YEARS to "2000 <current calendar year>" instead of
+"2000 $MICASA_YEAR" — climatology fallback should track *what's
+missing on disk right now*, not which year you happen to be
+processing.
 
+##########################
+# Data layout
+##########################
+
+portal.nccs.nasa.gov/{daily/<YYYY>/<MM>,monthly/<YYYY>}/
+                MiCASA_<VER>_flux_x3600_y1800_<freq>_<...>.nc4
+    Created by download.sh. Both v1 and vNRT files coexist here.
+
+daily_1x1/MiCASA_<VER>_flux_x360_y180_daily_<YYYYMMDD>.nc
+    Created by ingest_byyear.r (1° area-weighted aggregate of NPP,
+    Rh, FIRE, FUEL).
+
+daily_1x1/MiCASA_<VER>_flux_x360_y180_daily_0000<MMDD>.nc
+    Day-of-year climatology, created by compute_daily_clim.sh.
+
+monthly_1x1/MiCASA_<VER>_flux_x360_y180_monthly_<YYYYMM>.nc
+    Created by ingest_monthly.r.
+
+monthly_1x1/MiCASA_<VER>_flux_x360_y180_monthly.nc
+    Concatenated multi-year monthly file (cat_monthly.sh).
+
+monthly_1x1/{NPP,Rh}clim.nc
+    Climatology, created by compute_clim.sh (Ferret).
+
+ERA5/fluxes_<YYYYMM>.nc
+    Hourly diurnalized monthly file, created by diurnalize-ERA5.r.
+
+ERA5/MiCASA_v1.nee.<YYYYMMDD>.nc
+    Daily NEE-only files, created by daysplitter.sh.
 
 ##########################
 # Extra Notes
 ##########################
 
+  - Climatology fallback applies to (a) years before ERA5 starts (2000
+    and earlier) and (b) the current calendar year (NRT phase, ERA5
+    not yet fully published). See MICASA_CLIM_YEARS above.
 
-  - Climatology is used when "real" years are not available. This includes 2000-2002  and could also be used in 2024 onwards,
-  whenever real data run out.
+  - Diurnalize is described in the CT documentation. It needs monthly
+    Rh and NPP, from which it generates temporally-downscaled GPP and
+    total respiration.
 
-  - Diurnalize is described in the CT documentation. It needs monthly Rh and NPP, from which it generates temporally-downscaled
-    GPP and total respiration.
-
-  - Fire and (bio)fuel emissions are taken from the daily files provided by MiCASA. This is the only source for fairly 
+  - Fire and (bio)fuel emissions are taken from the daily files
+    provided by MiCASA. This is the only source for fairly
     high-resolution-in-time emissions for those processes.
 
-  - MiCASA provides temporally-downscaled (non-fire and -fuel) fluxes, using a method similar to ours, but with different meteorology
-    (NASA's MERRA2 reanalysis). Our method is a little bit better due to the PIQS part of the scheme, which smooths out abrupt changes
-    at monthly boundaries, and our meteo comes from ERA5. That makes the downscaling consistent with the atmospheric transport provided
-    by TM5. So, we do not use the MiCASA temporally-downscaled fluxes; we start with the monthlies and apply the downscaling ourselves. 
+  - MiCASA provides temporally-downscaled (non-fire and -fuel) fluxes,
+    using a method similar to ours, but with different meteorology
+    (NASA's MERRA2 reanalysis). Our method is a little bit better due
+    to the PIQS part of the scheme, which smooths out abrupt changes
+    at monthly boundaries, and our meteo comes from ERA5. That makes
+    the downscaling consistent with the atmospheric transport provided
+    by TM5. So, we do not use the MiCASA temporally-downscaled fluxes;
+    we start with the monthlies and apply the downscaling ourselves.
 
 https://nco.sourceforge.net/nco.pdf
 
 ncea (netCDF Ensemble Average)
-    performs gridpoint averages of variables across an arbitrary number (an ensemble) 
-    of input files, with each file receiving an equal weight in the average
-
+    performs gridpoint averages of variables across an arbitrary number
+    (an ensemble) of input files, with each file receiving an equal
+    weight in the average.
     -O, overwrite output if it exists
-
     Note: ncea is deprecated for nces (netCDF Ensemble Statistics)
 
 ncks (netCDF Kitchen Sink)
-    extracts (a subset of the) data from input-file, regrids it according to map-file if specified,
-    then writes in netCDF format to output-file, and optionally writes it in flat binary format to fl_bnr,
-    and optionally prints it to screen.
-
+    extracts (a subset of the) data from input-file, regrids it
+    according to map-file if specified, then writes in netCDF format
+    to output-file.
 
 VSEM-ET (possibly unrelated, but nice picture)
     https://insightmaker.com/insight/6DkHwGgVTkedbnCviUX8bD/Clone-of-Very-Simple-Ecosystem-Model-with-Evapotranspiration-VSEM-ET
@@ -274,4 +461,3 @@ variables:
 		:comment = "Positive NPP indicates uptake by vegetation. Positive Rh indicates emission to the atmosphere. NEE = Rh - NPP - ATMC, and NBE = NEE + FIRE + FUEL. ATMC adjusts net exchange to account for missing processes and better match long-term atmospheric budgets." ;
 		:ProductionDateTime = "2024-09-23T01:58:21Z" ;
 }
-
