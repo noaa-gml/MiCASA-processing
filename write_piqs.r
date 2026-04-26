@@ -1,8 +1,10 @@
 #!/usr/bin/env Rscript
 
 ct.setup()
+source(file.path(Sys.getenv("WORK_DIR", getwd()), "config.r"))
+cfg <- micasa.config()
 
-din <- load.ncdf("monthly_1x1/MiCASA_v1_flux_x360_y180_monthly.nc")
+din <- load.ncdf(micasa.out.monthly.cat(cfg))
 
 gpp <- -2*din$NPP
 rtot <- din$Rh + din$NPP

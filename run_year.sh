@@ -79,18 +79,21 @@ run() {
 }
 
 # Submit an Rscript via SBATCH and block until it completes. Extra exports
-# go in the second arg (comma-separated).
+# go in the second arg (comma-separated). When empty, we pass --export=ALL
+# alone — sbatch rejects a trailing comma in --export="ALL,".
 sbatch_wait() {
     local script="$1"
     local exports="$2"
     local jobname="$3"
+    local export_arg="ALL"
+    [ -n "$exports" ] && export_arg="ALL,${exports}"
     echo
-    echo "==> sbatch --wait $script  (exports: $exports)"
+    echo "==> sbatch --wait $script  (export: ${export_arg})"
     if [ "$dry_run" -eq 1 ]; then return 0; fi
     sbatch --wait \
            -J "${jobname}" \
            --mail-user="${MAIL_USER}" \
-           --export="ALL,${exports}" \
+           --export="${export_arg}" \
            "${script}"
 }
 
