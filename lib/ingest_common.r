@@ -95,6 +95,22 @@ aggregate.to.1x1 <- function(fld, gca) {
   out
 }
 
+## ---- Skip-existing freshness check -----------------------------------------
+
+# Make-style staleness check: returns TRUE iff `ncout` exists AND was last
+# modified after `srcnm`. Use to gate skip-existing in ingest hot loops:
+#
+#     if (!recompute.existing && out.is.fresh(ncout, srcnm)) next
+#
+# Why mtime, not just file.exists: NASA republishes source files (especially
+# vNRT). A pure file.exists skip would silently keep stale aggregates.
+# wget in download.sh sets local mtime to download time, so a re-download
+# of a republished file makes mtime(srcnm) > mtime(ncout) and triggers
+# correct re-ingest on the next pipeline pass.
+out.is.fresh <- function(ncout, srcnm) {
+  file.exists(ncout) && file.mtime(ncout) > file.mtime(srcnm)
+}
+
 ## ---- Time dimension --------------------------------------------------------
 
 # Build a netCDF unlimited time dimension whose value is `date` (a POSIXct),

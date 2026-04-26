@@ -493,9 +493,18 @@ file-size cost for users who pull the daily 1° aggregates.
 Two changes to `ingest_byyear.r` (and a smaller one to `ingest_monthly.r`):
 
   1. Skip-existing — `RECOMPUTE_EXISTING=1` to override (default off).
+     mtime-aware: a day is re-ingested if the source .nc4 is newer
+     than the existing 1° output. NASA can republish source files
+     (especially vNRT); a pure file.exists check would silently
+     keep stale aggregates. wget in download.sh sets local mtime
+     to download time, so a re-download of a republished file
+     makes mtime(src) > mtime(out) and triggers re-ingest on the
+     next pipeline pass.
      A daily NRT cycle that adds 1 new day previously deleted and
      rebuilt all 365 daily 1° outputs. Now: re-run skips finished
-     days, processes only what's missing.
+     days, processes only what's missing or stale.
+     The same change applies to ingest_monthly.r (which previously
+     had file.exists-only skip).
 
   2. Read only the 4 needed tracers (NPP, Rh, FIRE, FUEL) instead of
      the full 6-var raw file (which also has ATMC and NEE). Done by

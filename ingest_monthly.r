@@ -10,8 +10,9 @@
 
 ## Ingest raw 0.1° MiCASA monthly files → aggregated 1° monthly files.
 ##
-## Loops over [$MICASA_YEAR_START, $MICASA_YEAR_END]. By default skips months
-## whose output already exists; set RECOMPUTE_EXISTING=1 to overwrite.
+## Loops over [$MICASA_YEAR_START, $MICASA_YEAR_END]. Skip-existing is
+## mtime-aware: a month is re-ingested if the source .nc4 is newer than
+## the existing 1° output. Set RECOMPUTE_EXISTING=1 to force re-ingest.
 
 ct.setup()
 script.name <- "ingest_monthly.r"
@@ -48,9 +49,14 @@ for (year in cfg$year.start:cfg$year.end) {
 
     cat(sprintf("Processing %s...", basename(srcnm)))
 
-    if (!recompute.existing && file.exists(ncout)) {
-      cat(sprintf("skipping (exists) \"%s\"\n", ncout))
+    if (!recompute.existing && out.is.fresh(ncout, srcnm)) {
+      cat(sprintf("skipping (fresh) \"%s\"\n", ncout))
       next
+    }
+    if (file.exists(ncout)) {
+      cat(sprintf("re-ingesting (source newer or RECOMPUTE_EXISTING=1) \"%s\"\n",
+                  ncout))
+      file.remove(ncout)
     }
 
     ncin <- load.ncdf(srcnm, vars = micasa.tracers, quiet = TRUE)

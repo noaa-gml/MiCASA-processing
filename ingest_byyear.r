@@ -17,9 +17,12 @@
 ## Tracers ingested: NPP, Rh, FIRE, FUEL (FIRE and FUEL come from the daily
 ## stream; NPP and Rh from the daily stream are also retained for QC).
 ##
-## Skips days whose output already exists; set RECOMPUTE_EXISTING=1 to
-## overwrite (matches ingest_monthly.r behavior). Reads only the 4
-## tracers we need from the raw file (saves ~22% per-day read time).
+## Skip-existing is mtime-aware: a day is re-ingested if the source
+## .nc4 is newer than the existing 1° output (NASA can republish files).
+## Set RECOMPUTE_EXISTING=1 to force re-ingest unconditionally.
+##
+## Reads only the 4 tracers we need from the raw file (saves ~22%
+## per-day read time).
 
 ct.setup()
 script.name <- "ingest_byyear.r"
@@ -78,13 +81,14 @@ for (month in 1:12) {
     srcnm <- micasa.raw.daily(cfg, year, month, day)
     ncout <- micasa.out.daily(cfg, year, month, day)
 
-    if (!recompute.existing && file.exists(ncout)) {
-      cat(sprintf("skipping (exists) \"%s\"\n", ncout))
+    if (!recompute.existing && out.is.fresh(ncout, srcnm)) {
+      cat(sprintf("skipping (fresh) \"%s\"\n", ncout))
       pb <- progress.bar.print(pb, iday)
       next
     }
     if (file.exists(ncout)) {
-      cat(sprintf("Removing existing \"%s\"\n", ncout))
+      cat(sprintf("re-ingesting (source newer or RECOMPUTE_EXISTING=1) \"%s\"\n",
+                  ncout))
       file.remove(ncout)
     }
 
