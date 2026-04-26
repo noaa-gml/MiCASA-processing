@@ -199,9 +199,13 @@ for (mon in cfg$month.start:cfg$month.end) {
                                 format(epoch, format = "%Y-%m-%d %H:%M:%S UTC")),
                         vals = date.vals, unlim = TRUE)
 
+  ## NOTE: deflate level chosen via lib/bench_compression_diurnal.r on a real
+  ## fluxes_YYYYMM.nc. Level 4 vs level 9 saves ~40%% wall-clock on writes
+  ## (108s -> 65s per file, ~9 min/year) at +0.3%% file size. Lower levels
+  ## (1-3) save another ~10s/file but cost ~+2%% file size.
   ncvar <- function(name, units, longname, dims = list(lon.dim, lat.dim, date.dim)) {
     ncvar_def(name = name, units = units, dim = dims,
-              missval = -1e34, compression = 9, longname = longname)
+              missval = -1e34, compression = 4, longname = longname)
   }
 
   vars <- list()

@@ -461,3 +461,27 @@ variables:
 		:comment = "Positive NPP indicates uptake by vegetation. Positive Rh indicates emission to the atmosphere. NEE = Rh - NPP - ATMC, and NBE = NEE + FIRE + FUEL. ATMC adjusts net exchange to account for missing processes and better match long-term atmospheric budgets." ;
 		:ProductionDateTime = "2024-09-23T01:58:21Z" ;
 }
+
+##########################
+# Performance: compression-level tuning — 2026-04-26
+##########################
+
+`diurnalize-ERA5.r` writes 12 ~660 MB files per year (9 hourly vars at
+1°). Default deflate level was 9; bench results on a real
+fluxes_202401.nc (lib/bench_compression_diurnal.r):
+
+  level  time/file   size_MB   per-year writes
+    9      108 s      632       1298 s   (= reference)
+    6       72 s      633        870 s   (-33%)
+    4       65 s      634        786 s   (-39%, +0.3% size)
+    3       60 s      646        715 s   (-45%, +2.2% size)
+    1       55 s      646        654 s   (-50%, +2.2% size)
+
+Chose level 4: nearly identical file size to level 9 (+0.3%) for ~9 min
+saved per year on the diurnalize stage. Levels 1-3 buy another ~2 min
+but cost +14 MB/file = +170 MB/year, not worth it for archived output.
+
+Ingest paths (`lib/ingest_common.r`, `ingest.r`) left at level 9
+because per-file output is only ~164 KB and the prior bench
+(lib/bench_compression.r) showed ~9 s/year savings — not worth the
+file-size cost for users who pull the daily 1° aggregates.
