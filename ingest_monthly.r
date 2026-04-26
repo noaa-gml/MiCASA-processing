@@ -53,7 +53,7 @@ for (year in cfg$year.start:cfg$year.end) {
       next
     }
 
-    ncin <- load.ncdf(srcnm)
+    ncin <- load.ncdf(srcnm, vars = micasa.tracers, quiet = TRUE)
     vars <- make.tracer.vars(ncin, dim.lon, dim.lat, dim.time)
 
     vals <- list()

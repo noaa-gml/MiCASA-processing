@@ -485,3 +485,40 @@ Ingest paths (`lib/ingest_common.r`, `ingest.r`) left at level 9
 because per-file output is only ~164 KB and the prior bench
 (lib/bench_compression.r) showed ~9 s/year savings — not worth the
 file-size cost for users who pull the daily 1° aggregates.
+
+##########################
+# Performance: ingest_byyear skip-existing + read-only-needed — 2026-04-26
+##########################
+
+Two changes to `ingest_byyear.r` (and a smaller one to `ingest_monthly.r`):
+
+  1. Skip-existing — `RECOMPUTE_EXISTING=1` to override (default off).
+     A daily NRT cycle that adds 1 new day previously deleted and
+     rebuilt all 365 daily 1° outputs. Now: re-run skips finished
+     days, processes only what's missing.
+
+  2. Read only the 4 needed tracers (NPP, Rh, FIRE, FUEL) instead of
+     the full 6-var raw file (which also has ATMC and NEE). Done by
+     passing `vars = micasa.tracers` to `load.ncdf()`.
+
+Measured impact on ingest_byyear 2024 (full year, 366 days):
+
+  | run                                  |  wall-time |
+  | ------------------------------------ | ---------- |
+  | baseline (vectorized aggregator)     |     610 s  |
+  | + read-only-needed (RECOMPUTE=1)     |     504 s  | -17%
+  | + skip-existing (cached re-run)      |       4 s  | -99%
+
+Output is bit-identical (`ncdiff` on 4 sample days × 4 tracers: max
+|Δ| = 0). Only the `:history` attribute timestamp differs on rewrite,
+as expected.
+
+The vectorized aggregator (commit ce1bccc) was the big win that
+collapsed ingest_byyear from 3.6 hr to ~10 min/year. These two
+changes shave another ~17% of the throughput case and ~99% of the
+NRT-rerun case.
+
+Verified by:
+  - lib/test_ingest_bitident.r  — read-path bit-identity
+  - lib/profile_ingest_day.r    — per-step cost breakdown
+  - lib/test_aggregate.r        — aggregator regression test (earlier)
