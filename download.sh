@@ -44,10 +44,37 @@ download_one() {
     # --cut-dirs=6 strips the leading /datashare/gmao/geos_carb/MiCASA/<ver>/netcdf/
     # path, so v1 and vNRT both land under the same portal.nccs.nasa.gov/
     # mirror — version is preserved in the filename, not the directory.
+    #
+    # Purge cached directory listings for $MICASA_YEAR before recursing.
+    # wget --no-clobber would otherwise honor a stale index.html and miss
+    # any new files NASA published since the last run -- exactly what
+    # silently stalls NRT updates. The .nc4 data files themselves stay
+    # cached (--no-clobber still skips them); only the index pages refresh.
+    find portal.nccs.nasa.gov/daily/${MICASA_YEAR}   -name index.html -delete 2>/dev/null
+    find portal.nccs.nasa.gov/monthly/${MICASA_YEAR} -name index.html -delete 2>/dev/null
+    #
+    # rc=8 (server 4xx) is the expected response when this version hasn't
+    # published $MICASA_YEAR yet (e.g. v1 has no 2025/ until late 2026).
+    # Treat as a non-fatal "not yet published" so the caller can keep going.
+    local rc
+    set +e
     wget --recursive --no-parent --no-clobber --cut-dirs=6 \
          "${base}/daily/${MICASA_YEAR}/"
+    rc=$?
+    if [ $rc -eq 8 ]; then
+        echo "  (note: ${version} has not yet published ${MICASA_YEAR}; skipping)"
+        set -e
+        return 0
+    elif [ $rc -ne 0 ]; then
+        set -e
+        return $rc
+    fi
     wget --recursive --no-parent --no-clobber --cut-dirs=6 \
          "${base}/monthly/${MICASA_YEAR}/"
+    rc=$?
+    set -e
+    [ $rc -eq 8 ] && return 0   # monthly may also lag; non-fatal
+    return $rc
 }
 
 case "${MICASA_VERSION}" in
