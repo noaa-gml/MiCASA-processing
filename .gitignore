@@ -16,7 +16,7 @@ jobs/
 daily_1x1/
 monthly_1x1/
 ERA5/
-portal.nccs.nasa.gov/
+portal.nccs.nasa.gov
 figures/
 
 # HTTP mirror cruft from upstream NCCS portal listings

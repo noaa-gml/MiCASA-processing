@@ -1,5 +1,6 @@
 README written by Ash Pera 2025-05-13 17:03:37
 Updated 2026-04-26 — Tier-1 refactor + latent-bug sweep documented
+Updated 2026-04-27 — PIQS edge padding, fit-window guard, sign-flip diag (MiCASA_v2 dir)
 
 ##########################
 # Overview
@@ -346,6 +347,133 @@ ERA5/fluxes_<YYYYMM>.nc
 
 ERA5/MiCASA_v1.nee.<YYYYMMDD>.nc
     Daily NEE-only files, created by daysplitter.sh.
+
+##########################
+# Methodology: PIQS + diurnalization
+##########################
+
+PIQS = Piecewise Integral Quadratic Splines (Rasmussen 1991, "Piecewise Integral
+Splines of Low Degree", Computers & Geosciences 17(9) pp 1255-1263). The
+implementation we use is in ash-code/ccg_idl/john/general/piqs.r.txt. The fit
+is computed in write_piqs.r, once per gridcell, across the entire multi-year
+monthly record (x.time has nmon+1 knots spanning every month from the start of
+the record through the most recently ingested month). It is NOT re-fit per
+calendar year. As a consequence, transitions between calendar years inside
+the record are already smooth -- the December piece and the following January
+piece see each other.
+
+For each month i a quadratic piece
+
+    f_i(t) = a_i * (t - t_i)^2 + b_i * (t - t_i) + c_i
+
+is stored. The "Integral" in PIQS means the per-piece integral from t_i to
+t_{i+1} equals the monthly mean flux, so the monthly means are preserved
+exactly. Adjacent pieces share their endpoint value at the month boundary
+(C^0 continuity at the knots); derivative continuity is not separately
+enforced. Three coefficient arrays piqsfit.gpp$a/b/c (and the same for
+piqsfit.resp) are saved to fit.piqs.rda, together with piqsfit.time (the
+left-edge knot times) and piqsfit.meta (padding settings -- see proposal #1
+below).
+
+The fit is consumed by diurnalize-ERA5.r. For each month being diurnalized:
+
+  - If t_i lies within [min(piqsfit.time), max(piqsfit.time)] the gridcell's
+    (a, b, c) for that month are used directly.
+
+  - Otherwise (years in $MICASA_CLIM_YEARS, or any month past the right end
+    of the current fit) a climatology of the coefficients is used: the
+    per-cell mean of (a, b, c) across every same-calendar-month entry in
+    the fit. See diurnalize-ERA5.r:163-175.
+
+Within the month, the smoothed PIQS GPP and total respiration are
+redistributed in time using ERA5 surface solar downward radiation (ssrd) for
+GPP and a Q10 function of 2-m temperature (t2m) for respiration, with the
+monthly mean rescaled to match gpp.mn / rtot.mn so the diurnalization
+preserves the monthly total. Fire and fuelwood emissions bypass PIQS
+entirely and are taken straight from the MiCASA daily product.
+
+
+##########################
+# Methodological notes / proposed improvements
+##########################
+
+Status legend:  [LANDED]   = code is in-tree, behaviour-preserving by default,
+                             opt-in via env var.
+                [STAGED]   = diagnostic script is in-tree but must be run on
+                             Orion to produce output.
+                [PROPOSED] = no code change yet; documented for later work.
+
+(1) [LANDED] Right-edge (and optional left-edge) padding for the NRT fit.
+    The last quadratic piece has no future neighbour, so its curvature is
+    constrained only by the monthly mean and the slope inherited from the
+    previous piece. Every time write_piqs.r is re-run with one more month of
+    NRT data, the previous tail coefficients shift, and the published fluxes
+    for the last month or two of the record are revised. write_piqs.r now
+    accepts MICASA_PIQS_PAD_RIGHT and MICASA_PIQS_PAD_LEFT (both default 0).
+    When set to a positive integer the script extends x.time by that many
+    months at the corresponding end, fills the synthetic months from the
+    per-cell same-calendar-month climatology of the unpadded data, fits, and
+    strips the pad coefficients before saving. Output dimensions and
+    piqsfit.time are unchanged. Padding settings are recorded in
+    piqsfit.meta inside fit.piqs.rda so downstream readers can detect them.
+    Recommended starting point for production:
+        MICASA_PIQS_PAD_RIGHT=2  MICASA_PIQS_PAD_LEFT=0  Rscript write_piqs.r
+
+(2) [LANDED] Active-year refit guard in diurnalize-ERA5.r.
+    The climatology-fallback branch introduces a hard discontinuity at the
+    boundary between "in fit" and "outside fit" months. diurnalize-ERA5.r
+    now prints the fit window, the padding metadata, and the active
+    diurnalization year on startup, and warns if the active year extends
+    past the fit edge. Set MICASA_STRICT_PIQS=1 to escalate that warning to
+    a hard error -- recommended for the NRT cadence so that nobody silently
+    diurnalizes a month outside the fit. Years listed in $MICASA_CLIM_YEARS
+    bypass this guard since they intentionally use NPPclim/Rhclim instead
+    of the PIQS fit.
+
+(3) [STAGED] v1 -> vNRT handoff sanity check.
+    diag_v1_vNRT_handoff.r reads the spliced monthly file, computes
+    area-weighted global monthly totals of NPP, Rh and (if present) ATMC,
+    prints the values straddling the boundary so any step is immediately
+    visible, and saves a CSV plus a multi-panel PDF. Run from this working
+    directory after monthly_1x1/MiCASA_v1_flux_x360_y180_monthly.nc has
+    been (re)built. Optional env vars MICASA_DIAG_FROM, MICASA_DIAG_TO and
+    MICASA_DIAG_BOUNDARY (all YYYYMM) override the default plot window
+    202301--202612 with the boundary at 202501. If a global step is
+    visible, the 1-2 months of PIQS coefficients on either side are biased
+    and downstream fluxes inherit that.
+
+(4) [LANDED] Sub-monthly sign-flip logging in diurnalize-ERA5.r.
+    The script does not have an explicit negative-GPP clip; the real risk
+    is that the PIQS quadratic overshoots above zero (GPP convention is
+    negative-for-uptake, gpp = -2*NPP) or below zero (respiration is
+    positive-typical) at sub-monthly resolution, with no clipping in the
+    diurnalization output. We now print a one-line per-month summary
+    giving the count and percentage of land cells that flipped sign at any
+    hour, and the count and percentage of cell-hours that flipped. Use
+    these counters to decide whether a monotone-cubic (PCHIP) variant is
+    worth a bake-off: if flips are rare and small, PIQS is fine; if they
+    are common in particular biomes (suspect: boreal spring, semi-arid
+    sites) we should revisit.
+
+(5) [PROPOSED] Document the original PIQS-vs-pils.2-vs-pics bake-off.
+    write_piqs.r retains commented-out calls to pils.2 and pics, but the
+    implementations of those alternatives were never imported into this
+    working tree (only piqs() landed, in
+    ash-code/ccg_idl/john/general/piqs.r.txt). If we want to redo the
+    bake-off now that the record is ~25 years instead of ~17, we need to
+    obtain pils.2 and pics from Andy first. Until then the commented-out
+    calls in the per-cell loop are aspirational, not switchable.
+
+(6) [PROPOSED] CCGCRV as a diagnostic baseline.
+    The NOAA-GML CCGCRV fit (Thoning/Tans: long-term polynomial + harmonics
+    + smoothed residual) is available in-tree at ash-code/ccgcrv and
+    ash-code/ccg_dataProcessing. It does not preserve monthly mass like
+    PIQS, so it is not a drop-in replacement, but running it on a handful
+    of representative gridcells gives a useful sanity baseline --
+    particularly for right-edge behaviour, where its harmonic component
+    extrapolates cleanly and the smoothed residual fades to zero. Not
+    implemented yet; depends on whether (1) closes the gap on its own.
+
 
 ##########################
 # Extra Notes
