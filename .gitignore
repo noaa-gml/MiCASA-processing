@@ -40,3 +40,4 @@ verify_piqs_invariants.json
 verify_v2_summary.csv
 *.rda.prev
 verify_piqs_tail_stability.json
+__pycache__/
