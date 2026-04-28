@@ -1272,17 +1272,21 @@ code('''
 ''')
 
 md("""
-    ### Check 9.2 — Raw `.nc4` hash audit (sample-based)
+    ### Check 9.2 — Raw `.nc4` SHA-256 audit (sample-based)
 
-    Every NCCS `.nc4` raw file should have a sibling `.md5` sidecar listing
-    its expected MD5. The downloader (`download.sh`) doesn't verify this
-    -- a one-off `check_hashes.py` exists for that. This cell does a
-    randomized sample audit (default 1% of files, capped at 50) so the
-    runtime stays in the seconds, not minutes. Failures here indicate
-    on-disk corruption or partial downloads.
+    NCCS publishes per-directory aggregate SHA-256 manifests next to the
+    `.nc4` files:
+      `daily/<YYYY>/<MM>/MiCASA_<ver>_flux_x3600_y1800_daily_<YYYYMM>_sha256.txt`
+      `monthly/<YYYY>/MiCASA_<ver>_flux_x3600_y1800_monthly_<YYYYMM>_sha256.txt`
+    Each manifest lists `<sha256>  <filename>` lines for every `.nc4` in
+    its directory. This cell does a sample audit (1% of `.nc4` files,
+    capped at 30) by parsing the relevant manifest and checking the
+    sample's actual SHA-256 against the recorded one. Failures indicate
+    on-disk corruption or partial downloads. `check_hashes.py` does the
+    full audit; this is the fast in-loop variant.
 """)
 code('''
-    cid, cname = "9.2", "raw .nc4 .md5 sidecar audit (1% sample)"
+    cid, cname = "9.2", "raw .nc4 SHA-256 audit (1% sample)"
     import random, hashlib
     portal = WORK_DIR / "portal.nccs.nasa.gov"
     if not portal.exists():
@@ -1293,34 +1297,57 @@ code('''
             record(cid, cname, INFO, "no .nc4 files under portal/")
         else:
             random.seed(42)
-            n_sample = min(max(1, len(all_nc4) // 100), 50)
+            n_sample = min(max(1, len(all_nc4) // 100), 30)
             sample = random.sample(all_nc4, n_sample)
+
+            # Cache the parsed manifests by directory to avoid re-reading them.
+            manifest_cache = {}
+            def manifest_for(nc4_path):
+                d = nc4_path.parent
+                if d in manifest_cache:
+                    return manifest_cache[d]
+                manifests = list(d.glob("MiCASA_*_flux_x3600_y1800_*_*_sha256.txt"))
+                m = {}
+                for mp in manifests:
+                    for line in mp.read_text().splitlines():
+                        parts = line.strip().split()
+                        if len(parts) >= 2:
+                            m[parts[1].strip()] = parts[0].strip().lower()
+                manifest_cache[d] = m
+                return m
+
             mismatches = []
-            no_md5 = 0
+            no_record = 0
+            verified = 0
             for p in sample:
-                md5_p = p.with_suffix(p.suffix + ".md5")
-                if not md5_p.exists():
-                    no_md5 += 1
+                m = manifest_for(p)
+                expected = m.get(p.name)
+                if expected is None:
+                    no_record += 1
                     continue
-                expected = md5_p.read_text().split()[0].strip().lower()
-                h = hashlib.md5()
+                h = hashlib.sha256()
                 with open(p, "rb") as fp:
                     for chunk in iter(lambda: fp.read(1 << 20), b""):
                         h.update(chunk)
                 actual = h.hexdigest().lower()
                 if expected != actual:
                     mismatches.append(f"{p.name}: expected {expected[:8]}.. got {actual[:8]}..")
+                else:
+                    verified += 1
             if mismatches:
                 record(cid, cname, FAIL,
-                       f"{len(mismatches)} of {n_sample} sampled files mismatched: " +
+                       f"{len(mismatches)} of {n_sample} sampled mismatched: " +
                        "; ".join(mismatches[:3]))
-            elif no_md5 == n_sample:
+            elif no_record == n_sample:
                 record(cid, cname, WARN,
-                       f"{n_sample} sampled, none had .md5 sidecars")
+                       f"{n_sample} sampled, none had a sha256.txt record (manifests missing?)")
+            elif no_record:
+                record(cid, cname, WARN,
+                       f"{verified}/{n_sample} verified; {no_record} files lacked a sha256.txt record")
             else:
                 record(cid, cname, PASS,
-                       f"{n_sample - no_md5}/{n_sample} sampled .nc4 hash-verified "
-                       f"({no_md5} lacked .md5 sidecars)")
+                       f"{verified}/{n_sample} sampled .nc4 hash-verified across "
+                       f"{len(manifest_cache)} dirs")
 ''')
 
 # ---- Section 10: NRT-specific -------------------------------------------

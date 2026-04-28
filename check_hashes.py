@@ -1,100 +1,165 @@
-#!/usr/bin/env python
-"""Verify SHA-256 checksums for downloaded MiCASA daily + monthly files.
+#!/usr/bin/env python3
+"""Verify SHA-256 checksums of MiCASA raw .nc4 files against the
+per-directory aggregate manifests NCCS publishes alongside.
 
-Year range comes from $MICASA_YEAR_START / $MICASA_YEAR_END (set by config.sh
-or run_year.sh). Falls back to $MICASA_YEAR (single year) if those aren't set.
-Run standalone (no config sourced) defaults to 2001..current MICASA_YEAR.
+NCCS layout (as of 2026):
+  daily/<YYYY>/<MM>/MiCASA_<v|vNRT>_flux_x3600_y1800_daily_<YYYYMM>_sha256.txt
+  monthly/<YYYY>/MiCASA_<v|vNRT>_flux_x3600_y1800_monthly_<YYYYMM>_sha256.txt
+
+Each manifest is a plain `<sha256>  <filename>` per line, listing the
+.nc4 files NCCS produced for that directory. v1 and vNRT have separate
+manifests (and separate .nc4 files) that co-exist in the same dir.
+
+Year range comes from $MICASA_YEAR_START / $MICASA_YEAR_END, falling
+back to $MICASA_YEAR (single year) if range isn't set, or to
+2001..(current calendar year) if neither is set.
+
+Exits non-zero if any .nc4 hash mismatched its manifest entry. Files
+with no manifest entry are reported as warnings but don't fail the
+run -- a manifest can lag a recently-published file, and it's better
+for download.sh to keep moving.
+
+Replaces an earlier version that paired v1 dailies against v1
+manifests but also paired vNRT dailies against the *same v1 manifest*
+via a single-list zip(), which produced spurious mismatches whenever
+both streams co-existed. Also adds vNRT monthly support (the prior
+version only handled v1 monthlies).
 """
 
+from __future__ import annotations
+
+import datetime
+import hashlib
 import os
+import re
 import sys
 from glob import glob
 from os.path import join
-from os import popen
 
 
-def year_range_from_env():
-    y_start = os.environ.get('MICASA_YEAR_START')
-    y_end   = os.environ.get('MICASA_YEAR_END')
-    y_one   = os.environ.get('MICASA_YEAR')
-
+def year_range_from_env() -> list[int]:
+    y_start = os.environ.get("MICASA_YEAR_START")
+    y_end   = os.environ.get("MICASA_YEAR_END")
+    y_one   = os.environ.get("MICASA_YEAR")
     if y_start and y_end:
         return list(range(int(y_start), int(y_end) + 1))
     if y_one:
         return [int(y_one)]
-    # Standalone fallback — verify everything we might have on disk.
-    return list(range(2001, 2026))
+    return list(range(2001, datetime.date.today().year + 1))
 
 
-years = year_range_from_env()
-year_glob = '{' + ','.join(f'{y:04d}' for y in years) + '}'  # brace expansion via glob
+def parse_manifest(path: str) -> dict[str, str]:
+    """Return {filename: sha256_hex} from one _sha256.txt manifest."""
+    out: dict[str, str] = {}
+    with open(path) as fp:
+        for line in fp:
+            parts = line.strip().split()
+            if len(parts) >= 2:
+                # parts[0] = hash, parts[1] = filename (may have leading ./ etc.)
+                out[os.path.basename(parts[1])] = parts[0].lower()
+    return out
 
-print(f'CHECKING HASHES (years: {years[0]}..{years[-1]})')
 
-netcdf_dir = './portal.nccs.nasa.gov'
+def merge_manifests(directory: str) -> dict[str, str]:
+    """Merge every _sha256.txt manifest found in *directory* into a single
+    {filename: hash} map. v1 and vNRT manifests merge cleanly because
+    the filenames they reference are disjoint."""
+    merged: dict[str, str] = {}
+    for mp in sorted(glob(join(directory, "MiCASA_*_sha256.txt"))):
+        for fn, hx in parse_manifest(mp).items():
+            merged[fn] = hx
+    return merged
 
-dailies_month_dirs = []
-montlies_year_dirs = []
-for y in years:
-    dailies_month_dirs += sorted(glob(join(netcdf_dir, f'daily/{y:04d}/??/')))
-    montlies_year_dirs += sorted(glob(join(netcdf_dir, f'monthly/{y:04d}/')))
 
-dailies_month_dirs.sort()
-montlies_year_dirs.sort()
+def sha256_file(path: str, chunk: int = 1 << 20) -> str:
+    h = hashlib.sha256()
+    with open(path, "rb") as fp:
+        for block in iter(lambda: fp.read(chunk), b""):
+            h.update(block)
+    return h.hexdigest().lower()
 
-incorrect_daily_hashes = 0
-correct_daily_hashes = 0
-for month_dir in dailies_month_dirs:
-    daily_filenames_full = sorted(glob(join(month_dir, 'MiCASA_v1_flux_x3600_y1800_daily_????????.nc4')))
-    daily_filenames_NRT = sorted(glob(join(month_dir, 'MiCASA_vNRT_flux_x3600_y1800_daily_????????.nc4')))
-    daily_filenames = daily_filenames_full + daily_filenames_NRT
 
-    checksum_filename_full = glob(join(month_dir, 'MiCASA_v1_flux_x3600_y1800_daily_??????_sha256.txt')) #should be in same order
-    checksum_filename_NRT = glob(join(month_dir, 'MiCASA_vNRT_flux_x3600_y1800_daily_??????_sha256.txt')) #should be in same order
-    checksum_candidates = checksum_filename_full + checksum_filename_NRT
-    if not checksum_candidates:
-        print(f'WARNING: no checksum file found in {month_dir}, skipping')
-        continue
-    checksum_filename = checksum_candidates[0]
-
-    with open(checksum_filename, 'r') as checksum_file:
-        checksum_lines = checksum_file.readlines()
-
-    month_id = "/".join(month_dir.split("/")[-3:-1])
-    print(f'{len(daily_filenames)} in month {month_id}[', end='')
-    for daily_filename, saved_checksum in zip(daily_filenames, checksum_lines):
-        saved_checksum = saved_checksum.strip().split(' ')[0] # only get actual checksum
-        file_checksum = popen(f'sha256sum {daily_filename}').read().strip().split(' ')[0] # only get actual checksum
-        print('*', end='', flush=True)
-        if not file_checksum == saved_checksum:
-            print(f'{daily_filename} does not match')
-            incorrect_daily_hashes += 1
+def verify_dir(directory: str, glob_pat: str) -> tuple[int, int, int, list[str]]:
+    """Verify every .nc4 in *directory* matching *glob_pat*. Returns
+    (n_verified, n_no_record, n_mismatch, mismatch_lines)."""
+    manifest = merge_manifests(directory)
+    files = sorted(glob(join(directory, glob_pat)))
+    n_verified = n_no_record = n_mismatch = 0
+    mismatches: list[str] = []
+    for f in files:
+        bn = os.path.basename(f)
+        expected = manifest.get(bn)
+        if expected is None:
+            n_no_record += 1
+            continue
+        actual = sha256_file(f)
+        if actual != expected:
+            n_mismatch += 1
+            mismatches.append(f"{f}: expected {expected[:12]}.. got {actual[:12]}..")
         else:
-            correct_daily_hashes += 1
-    print(']')
-if incorrect_daily_hashes == 0:
-    print(f'All {correct_daily_hashes} daily hashes correct')
-else:
-    print(f'{incorrect_daily_hashes} failed daily hashes ({correct_daily_hashes} correct)')
+            n_verified += 1
+    return n_verified, n_no_record, n_mismatch, mismatches
 
 
-incorrect_monthly_hashes = 0
-correct_monthly_hashes = 0
-for year_dir in montlies_year_dirs:
-    monthly_filenames = sorted(glob(join(year_dir, 'MiCASA_v1_flux_x3600_y1800_monthly_??????.nc4')))
-    checksum_filenames= sorted(glob(join(year_dir, 'MiCASA_v1_flux_x3600_y1800_monthly_??????_sha256.txt')))
-    
-    for monthly_filename, checksum_filename in zip(monthly_filenames, checksum_filenames):
-        file_checksum = popen(f'sha256sum {monthly_filename}').read().strip().split(' ')[0] # only get actual checksum
-        with open(checksum_filename, 'r') as checksum_file:
-            saved_checksum = checksum_file.read().strip().split(' ')[0] # only get actual checksum
-        if not file_checksum == saved_checksum:
-            print(f'{monthly_filename} does not match')
-            incorrect_monthly_hashes += 1
-        else:
-            correct_monthly_hashes += 1
+def main() -> int:
+    years = year_range_from_env()
+    print(f"CHECKING SHA-256 (years: {years[0]}..{years[-1]})")
+    portal = "./portal.nccs.nasa.gov"
+    if not os.path.isdir(portal):
+        print(f"ERROR: {portal} not present (run from MiCASA working dir)")
+        return 2
 
-if incorrect_monthly_hashes == 0:
-    print(f'All {correct_monthly_hashes} monthly hashes correct')
-else:
-    print(f'{incorrect_monthly_hashes} failed montly hashes ({correct_monthly_hashes} correct)')
+    total_verified = total_no_record = total_mismatch = 0
+    all_mismatches: list[str] = []
+
+    # Dailies: <portal>/daily/YYYY/MM/
+    for y in years:
+        month_dirs = sorted(glob(join(portal, f"daily/{y:04d}/??/")))
+        for d in month_dirs:
+            short = "/".join(d.rstrip("/").split("/")[-3:])
+            v, nr, m, mm = verify_dir(d, "MiCASA_*_flux_x3600_y1800_daily_*.nc4")
+            total_verified += v
+            total_no_record += nr
+            total_mismatch += m
+            all_mismatches.extend(mm)
+            tag = " ".join(filter(None, [
+                f"verified={v}",
+                f"no_record={nr}" if nr else "",
+                f"MISMATCH={m}" if m else "",
+            ]))
+            print(f"  daily {short}: {tag}")
+
+    # Monthlies: <portal>/monthly/YYYY/
+    for y in years:
+        d = join(portal, f"monthly/{y:04d}/")
+        if not os.path.isdir(d):
+            continue
+        v, nr, m, mm = verify_dir(d, "MiCASA_*_flux_x3600_y1800_monthly_*.nc4")
+        total_verified += v
+        total_no_record += nr
+        total_mismatch += m
+        all_mismatches.extend(mm)
+        tag = " ".join(filter(None, [
+            f"verified={v}",
+            f"no_record={nr}" if nr else "",
+            f"MISMATCH={m}" if m else "",
+        ]))
+        if v + nr + m > 0:
+            print(f"  monthly {y}: {tag}")
+
+    print()
+    print(f"SUMMARY: {total_verified} verified, "
+          f"{total_no_record} files lacking a manifest entry, "
+          f"{total_mismatch} MISMATCH")
+    if all_mismatches:
+        print("\nMismatch detail:")
+        for line in all_mismatches[:20]:
+            print(f"  {line}")
+        if len(all_mismatches) > 20:
+            print(f"  ... and {len(all_mismatches) - 20} more")
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

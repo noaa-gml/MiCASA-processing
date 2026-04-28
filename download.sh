@@ -92,3 +92,26 @@ case "${MICASA_VERSION}" in
         exit 2
         ;;
 esac
+
+# Verify SHA-256 hashes of downloaded .nc4 files against the per-directory
+# aggregate _sha256.txt manifests NCCS publishes alongside. Catches
+# partial / corrupt / re-published files immediately rather than at
+# ingest time (where a bad raw file would silently produce bad 1°
+# aggregates).
+#
+# For tight NRT loops where you've already verified once in the same hour
+# and just want a fast existence check, set MICASA_SKIP_HASH_CHECK=1.
+if [ -z "${MICASA_SKIP_HASH_CHECK:-}" ]; then
+    echo
+    echo "Verifying SHA-256 hashes for ${MICASA_YEAR}..."
+    if [ -x "$(dirname "$0")/check_hashes.py" ]; then
+        # check_hashes.py reads MICASA_YEAR (set by config.sh) and
+        # restricts itself to that year via the y_one branch.
+        "$(dirname "$0")/check_hashes.py" || {
+            echo "ERROR: SHA-256 verification failed for ${MICASA_YEAR}; see above."
+            exit 1
+        }
+    else
+        echo "WARN: check_hashes.py not executable; skipping hash verification."
+    fi
+fi
