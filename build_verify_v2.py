@@ -1968,6 +1968,228 @@ code('''
                 record(cid, cname, PASS, detail)
 ''')
 
+# ============================================================================
+#                              PHASE 5  — Investigative
+# ============================================================================
+md("# Phase 5 — Investigative Cells (Answer Open Science Questions)")
+
+md("""
+    Phase 5 doesn't gate on PASS/FAIL the way 1-4 do. These cells *answer*
+    questions surfaced by the earlier phases:
+
+    - **16.1**: where are the 13k consistently-NaN coastline cells from
+      Check 1.3? Map them and bin by latitude.
+    - **16.2**: is the +0.04 PgC/yr/yr trend (Check 15.1) consistent across
+      sub-periods, or driven by a step at the v1↔vNRT splice?
+    - **16.3**: which cells produce the 0.23% diurnalize p99 residual
+      (Check 2.2)? Latitude-band breakdown.
+    - **16.4**: how far back into the record does PIQS tail-coefficient
+      instability propagate? Extends 11.2 from "last 3 months" to a
+      sweep over last N=1..12.
+
+    Most of these cells take the existing summary CSV / fluxes files and
+    add a slicing step. They print a structured report and append to
+    `_RESULTS` with status INFO (or FAIL if the answer reveals an actual
+    pipeline bug).
+""")
+
+md("## Section 16 — Investigative")
+
+md("""
+    ### Check 16.1 — Locate the 13k coastline-NaN cells
+
+    Open the same sample fluxes file Check 1.3 used (mid-record), apply
+    the same land mask, and bin the NaN cells by latitude (10° bands)
+    and longitude (30° bands). Report the highest-density bins. If the
+    NaN cells cluster on a specific coastline, that's a hint at the root
+    cause (e.g. always the same hemisphere, always small-island cells).
+""")
+code('''
+    cid, cname = "16.1", "NaN-cells geographic breakdown"
+    files = sorted(ERA5_DIR.glob("fluxes_*.nc"))
+    if not files:
+        record(cid, cname, INFO, "no fluxes files")
+    else:
+        f = files[len(files)//2]
+        try:
+            ds_m = xr.open_dataset(MONTHLY_FILE)
+            land_2d = (np.abs(ds_m["NPP"]).max(dim="time").values > 1e-15)
+            ds_m.close()
+            ds = xr.open_dataset(f)
+            lat = ds.latitude.values
+            lon = ds.longitude.values
+            arr = ds["GPP"].values  # (time, lat, lon)
+            ds.close()
+            # Find cells where NaN happens in EVERY hour and the cell is land
+            n_time = arr.shape[0]
+            nan_per_cell = np.isnan(arr).sum(axis=0)  # (lat, lon)
+            nan_always = (nan_per_cell == n_time) & land_2d
+            n_total = int(nan_always.sum())
+            if n_total == 0:
+                record(cid, cname, INFO, f"no land cells with always-NaN GPP in {f.name}")
+            else:
+                # 10-degree latitude bands
+                lat_bins = np.arange(-90, 91, 10)
+                lat_idx_per_cell = np.digitize(lat, lat_bins) - 1
+                bands = []
+                for i in range(len(lat_bins) - 1):
+                    n = int(nan_always[lat_idx_per_cell == i, :].sum())
+                    if n > 0:
+                        bands.append((lat_bins[i], lat_bins[i+1], n))
+                bands.sort(key=lambda r: -r[2])
+                top = "; ".join(f"[{a},{b}]N: {n}" for a, b, n in bands[:5])
+                record(cid, cname, INFO,
+                       f"{n_total} land cells with always-NaN GPP in {f.name}; "
+                       f"top latitude bands by count: {top}")
+        except Exception as e:
+            record(cid, cname, FAIL, f"exception: {e}")
+''')
+
+md("""
+    ### Check 16.2 — Trend stability across sub-periods
+
+    Fit a linear regression to global annual NEE separately for:
+    - first half (2001..2012)
+    - second half (2013..last full year)
+    - v1-only (2001..2024)
+    - full record
+
+    A trend that's stable across all four sub-periods is robust. A trend
+    that's positive overall but negative in 2001..2012 alone (for example)
+    means the v1↔vNRT splice is doing the work, not real biospheric
+    dynamics.
+""")
+code('''
+    cid, cname = "16.2", "trend stability across sub-periods"
+    if "_summary" not in globals() or _summary.empty:
+        record(cid, cname, INFO, "summary cube unavailable")
+    else:
+        annual = _summary.groupby("year")["NEE_global"].sum() / 1e6
+        max_year = int(_summary["year"].max())
+        if (_summary["year"] == max_year).sum() < 12:
+            annual = annual.drop(max_year, errors="ignore")
+        last_yr = int(annual.index.max())
+        slabs = [
+            ("first_half (2001..2012)", annual.loc[2001:2012]),
+            ("second_half (2013..%d)"   % last_yr, annual.loc[2013:last_yr]),
+            ("v1_only   (2001..2024)", annual.loc[2001:2024]),
+            ("full      (2001..%d)"    % last_yr, annual.loc[2001:last_yr]),
+        ]
+        lines = []
+        slopes = []
+        for label, s in slabs:
+            if len(s) < 4:
+                lines.append(f"{label}: too few years")
+                continue
+            yrs = s.index.values.astype(float)
+            slope, intercept = np.polyfit(yrs, s.values, 1)
+            slopes.append(slope)
+            lines.append(f"{label}: slope={slope:+.4f}, mean={s.values.mean():+.2f}")
+        # If all slopes have the same sign, trend is robust; if not, splice may dominate
+        sign_consistency = "consistent" if all(s > 0 for s in slopes) or all(s < 0 for s in slopes) else "INCONSISTENT"
+        record(cid, cname, INFO, f"sign across sub-periods: {sign_consistency} | " + " | ".join(lines))
+''')
+
+md("""
+    ### Check 16.3 — P99 residual cells by latitude band
+
+    For the same sample month Check 2.2 used, bin the per-cell residual
+    `|hourly_mean - monthly_mean_expected|` by latitude band and report
+    where the worst residuals sit. If they cluster at high latitudes
+    (>60°), the residual is dominated by the polar-night PIQS-extrapolation
+    cells (which we already know about from 12.2). If they're at all
+    latitudes, there's a different bug.
+""")
+code('''
+    cid, cname = "16.3", "p99 residual cells by latitude band"
+    files = sorted(ERA5_DIR.glob("fluxes_*.nc"))
+    if not files:
+        record(cid, cname, INFO, "no fluxes files")
+    else:
+        f = files[len(files)//2]
+        m = re.search(r"fluxes_(\\d{4})(\\d{2})\\.nc$", f.name)
+        if not m:
+            record(cid, cname, INFO, "couldn't parse year/month from filename")
+        else:
+            yr, mo = m.group(1), m.group(2)
+            monthly_pm = WORK_DIR / "monthly_1x1" / f"MiCASA_v1_flux_x360_y180_monthly_{yr}{mo}.nc"
+            if not monthly_pm.exists():
+                record(cid, cname, INFO, f"per-month input {monthly_pm.name} missing")
+            else:
+                try:
+                    ds_h = xr.open_dataset(f)
+                    ds_m = xr.open_dataset(monthly_pm)
+                    gpp_mn_expected = (-2.0 * ds_m["NPP"].squeeze() / 12.0).values
+                    gpp_mn_actual   = ds_h["GPP"].mean(dim="time").values
+                    lat = ds_h.latitude.values
+                    ds_h.close(); ds_m.close()
+                    LAND_FLUX_THRESH = 1e-9
+                    mask = np.abs(gpp_mn_expected) > LAND_FLUX_THRESH
+                    rel = np.full_like(gpp_mn_actual, np.nan, dtype=float)
+                    rel[mask] = np.abs((gpp_mn_actual - gpp_mn_expected)[mask]
+                                       / gpp_mn_expected[mask])
+                    p99 = float(np.nanpercentile(rel, 99))
+                    # Bin by latitude band; for each band compute fraction of
+                    # cells with rel > p99 cutoff
+                    lat_bins = [-90, -60, -30, 0, 30, 60, 90]
+                    bands = []
+                    for i in range(len(lat_bins) - 1):
+                        lo, hi = lat_bins[i], lat_bins[i+1]
+                        rows = (lat >= lo) & (lat < hi)
+                        rel_band = rel[rows, :]
+                        finite = np.isfinite(rel_band)
+                        if not finite.any(): continue
+                        n_above = int(((rel_band > p99) & finite).sum())
+                        n_total = int(finite.sum())
+                        max_in_band = float(np.nanmax(rel_band))
+                        bands.append((f"[{lo},{hi})", n_above, n_total, max_in_band))
+                    detail = (f"sample {f.name} (p99 cutoff={p99:.2e}): " +
+                              "; ".join(f"{lab}: {a}/{t} cells>p99 (max={m:.1e})"
+                                        for lab, a, t, m in bands))
+                    record(cid, cname, INFO, detail)
+                except Exception as e:
+                    record(cid, cname, FAIL, f"exception: {e}")
+''')
+
+md("""
+    ### Check 16.4 — Tail-instability propagation horizon
+
+    Check 11.2 compared the LAST 3 segments of fit.piqs.rda vs its
+    snapshot. Extend that: compare every common segment, then find the
+    largest k for which `median |Δ/coef|` over the last k segments
+    exceeds 1%. That k is the **propagation horizon** -- the number of
+    trailing months that should be re-diurnalized after each new
+    ingest. With PAD_RIGHT=2 the answer should be small (1-3); a large
+    number suggests the smoothness coupling is too strong or PAD_RIGHT
+    isn't doing its job.
+""")
+code('''
+    cid, cname = "16.4", "tail-instability propagation horizon"
+    helper = WORK_DIR / "verify_piqs_tail_horizon.r"
+    out_json = WORK_DIR / "verify_piqs_tail_horizon.json"
+    if not helper.exists():
+        record(cid, cname, INFO, f"helper {helper.name} not present; skipping")
+    else:
+        try:
+            r = subprocess.run(["Rscript", str(helper), str(out_json)],
+                               cwd=WORK_DIR, capture_output=True, text=True, timeout=300)
+            if r.returncode != 0:
+                record(cid, cname, FAIL, f"helper failed: {r.stderr[-300:]}")
+            else:
+                data = json.loads(out_json.read_text())
+                if data.get("status") != "compared":
+                    record(cid, cname, INFO, f"status={data.get('status')}")
+                else:
+                    horizon = int(data.get("horizon_1pct_median", 0))
+                    record(cid, cname, INFO,
+                           f"propagation horizon (median |delta/coef| > 1%) = "
+                           f"last {horizon} months; per-k median: " +
+                           "; ".join(f"k={p['k']}: {p['median_rel']:.2e}"
+                                     for p in data["per_k"][:6]))
+        except Exception as e:
+            record(cid, cname, FAIL, f"exception: {e}")
+''')
+
 nb = {
     "cells": cells,
     "metadata": {
