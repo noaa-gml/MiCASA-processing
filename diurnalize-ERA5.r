@@ -143,11 +143,42 @@ for (mon in cfg$month.start:cfg$month.end) {
   cat(sprintf("Finished reading %s...\n", fname))
 
   ## ---- Read ERA5 meteo for this month ----
+  ##
+  ## ERA5 sometimes has gaps near year boundaries while ECMWF processes the
+  ## final day of the year (e.g. 2025-12-31 was missing on Orion as of
+  ## 2026-04-28). Detect available days first, drop missing days from the
+  ## hourly time axis, and mark the output as provisional. Older behaviour
+  ## (crash on first nc_open) is preserved when every day is present.
   varnms <- c("t2m", "ssrd", "stl1", "swvl1")
+  dpm.full <- days.in.month(yr)[mon]
+  available.days <- integer(0)
+  missing.days   <- integer(0)
+  for (day in 1:dpm.full) {
+    ok <- TRUE
+    for (varnm in varnms) {
+      e5nm <- gsub("YYYY", sprintf("%d",   yr),    era5template)
+      e5nm <- gsub("MM",   sprintf("%02d", mon),   e5nm)
+      e5nm <- gsub("DD",   sprintf("%02d", day),   e5nm)
+      e5nm <- gsub("VVV",  varnm,                  e5nm)
+      if (!file.exists(sprintf("%s/%s", era5dir, e5nm))) { ok <- FALSE; break }
+    }
+    if (ok) available.days <- c(available.days, day) else missing.days <- c(missing.days, day)
+  }
+  if (length(available.days) == 0) {
+    cat(sprintf("WARN: %d/%02d has no complete ERA5 days; skipping month.\n", yr, mon))
+    next
+  }
+  partial.month <- length(missing.days) > 0
+  if (partial.month) {
+    cat(sprintf("WARN: %d/%02d: only %d/%d days have complete ERA5 meteo (missing day(s): %s); writing partial month.\n",
+                yr, mon, length(available.days), dpm.full,
+                paste(missing.days, collapse=",")))
+  }
+  dpm <- length(available.days)
   mets <- list()
-  dpm <- days.in.month(yr)[mon]
   times <- rep(NA, dpm * 24)
-  for (day in 1:dpm) {
+  for (k in seq_along(available.days)) {
+    day <- available.days[k]
     for (varnm in varnms) {
       e5nm <- gsub("YYYY", sprintf("%d",   yr),    era5template)
       e5nm <- gsub("MM",   sprintf("%02d", mon),   e5nm)
@@ -158,7 +189,7 @@ for (mon in cfg$month.start:cfg$month.end) {
       if (is.null(mets[[varnm]])) {
         mets[[varnm]] <- array(NA, dim = c(360, 180, 24 * dpm))
       }
-      k0 <- 1 + (day - 1) * 24
+      k0 <- 1 + (k - 1) * 24
       k1 <- 23 + k0
       mets[[varnm]][, , k0:k1] <- foo[[varnm]]
       if (varnm == varnms[1]) {
@@ -298,6 +329,13 @@ for (mon in cfg$month.start:cfg$month.end) {
                              script.name),
             prec = "text")
   ncatt_put(ncf, 0, "meteo_source_directory", attval = era5dir, prec = "text")
+  if (partial.month) {
+    ncatt_put(ncf, 0, "status", attval = "provisional", prec = "text")
+    ncatt_put(ncf, 0, "meteo_partial",
+              attval = sprintf("only %d/%d days have ERA5 meteo; missing day(s) %s excluded from output",
+                               dpm, dpm.full, paste(missing.days, collapse=",")),
+              prec = "text")
+  }
 
   ncvar_put(ncf, vars$dd,    vals = decimal.date)
   ncvar_put(ncf, vars$gpp,   vals = gpp)
