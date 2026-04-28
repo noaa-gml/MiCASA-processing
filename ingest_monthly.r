@@ -49,6 +49,10 @@ for (year in cfg$year.start:cfg$year.end) {
 
     cat(sprintf("Processing %s...", basename(srcnm)))
 
+    if (!file.exists(srcnm)) {
+      cat(sprintf("source missing, skipping: %s\n", srcnm))
+      next
+    }
     if (!recompute.existing && out.is.fresh(ncout, srcnm)) {
       cat(sprintf("skipping (fresh) \"%s\"\n", ncout))
       next

@@ -81,6 +81,11 @@ for (month in 1:12) {
     srcnm <- micasa.raw.daily(cfg, year, month, day)
     ncout <- micasa.out.daily(cfg, year, month, day)
 
+    if (!file.exists(srcnm)) {
+      cat(sprintf("source missing, skipping: %s\n", srcnm))
+      pb <- progress.bar.print(pb, iday)
+      next
+    }
     if (!recompute.existing && out.is.fresh(ncout, srcnm)) {
       cat(sprintf("skipping (fresh) \"%s\"\n", ncout))
       pb <- progress.bar.print(pb, iday)
