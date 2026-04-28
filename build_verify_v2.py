@@ -1199,22 +1199,294 @@ code('''
 ''')
 
 md("""
-    ## Phase 3 — Not yet implemented
+    ## Phase 3 — Source-data provenance, NRT, pipeline health
 
-    Sections deferred to Phase 3:
+    Phase 3 is about *trusting the artifact*: was the input data what it
+    claimed to be, are NRT files marked provisional consistently, and did
+    any pipeline step emit warnings nobody read?
 
-    - **Source-data provenance**: raw NCCS hash/count audit, ATMC range,
-      ERA5 boundary cleanliness, vNRT-published-month tracker. Most of
-      this overlaps with `check_daily_downloads.r` and `check_hashes.py`
-      already in tree -- Phase 3 imports those checks into the notebook.
-    - **PIQS tail-coefficient stability under one-more-month re-fit**:
-      compare `fit.piqs.rda` from this run to one from the previous run;
-      assert tail coefficients (last 3 months pre-pad) shift by less than
-      a tolerance. Requires snapshotting the .rda before each refit.
-    - **NRT clim-fill audit**: parse the global `:status=provisional` and
-      `:provenance` attributes on monthly files; flag any month where the
-      clim-fill fraction is >50% but `:status` is not `provisional`.
+    - **Section 9: Source-data provenance** -- vNRT→v1 symlink integrity
+      (every `MiCASA_v1_*_2025*.nc` / `*_2026*.nc` should be a symlink
+      resolving to a real `MiCASA_vNRT_*` file in the same dir), raw-file
+      `.md5` sidecar verification (sample-based to keep runtime tractable).
+
+    - **Section 10: NRT-specific** -- clim-fill / provisional-status
+      consistency: any `fluxes_*.nc` or per-month `monthly_1x1` file with
+      `:status=provisional` should have a coherent `:meteo_partial` or
+      `:provenance` attribute; conversely, any month where the underlying
+      monthly file claims clim-fill fraction > 50% should have its
+      diurnalize output marked provisional.
+
+    - **Section 11: Pipeline health** -- scan every `jobs/*.o*` log for
+      `ERROR` / `Execution halted` / `FAIL` / `nco_err_exit` lines (with a
+      known-OK exclusions list for the cat_monthly NCO check_bounds noise);
+      PIQS tail-coefficient stability: snapshot `fit.piqs.rda` to
+      `fit.piqs.rda.prev` opportunistically and compare last-3-month coefs
+      across runs to quantify how much the right-edge actually moves under
+      `PAD_RIGHT=2`.
 """)
+
+# ============================================================================
+#                              PHASE 3
+# ============================================================================
+md("# Phase 3 — Source-Data Provenance, NRT, Pipeline Health")
+
+# ---- Section 9: Source-Data Provenance ----------------------------------
+md("## Section 9 — Source-Data Provenance")
+
+md("""
+    ### Check 9.1 — vNRT→v1 symlink integrity
+
+    During the NRT phase, `link_vNRT_to_v1.sh` symlinks every per-day
+    `MiCASA_vNRT_*_YYYYMMDD.nc` as a `MiCASA_v1_*_YYYYMMDD.nc` so
+    downstream consumers (cat_monthly, write_piqs, diurnalize) read it
+    under the v1 prefix. Same for monthlies via the inline loop in
+    `produce_2025_2026.sh`. This check asserts every such symlink in
+    daily_1x1/ and monthly_1x1/ resolves to a real file (not a dangling
+    or circular symlink).
+""")
+code('''
+    cid, cname = "9.1", "vNRT->v1 symlink integrity"
+    dangling = []
+    n_links = 0
+    for d in (DAILY_DIR, WORK_DIR / "monthly_1x1"):
+        if not d.exists() or not d.is_dir(): continue
+        for p in d.iterdir():
+            if not p.is_symlink(): continue
+            n_links += 1
+            try:
+                resolved = p.resolve(strict=True)
+                if not resolved.is_file():
+                    dangling.append(f"{p.name} -> {p.readlink()} (not a file)")
+            except FileNotFoundError:
+                dangling.append(f"{p.name} -> {p.readlink()} (target missing)")
+            except RuntimeError as e:
+                dangling.append(f"{p.name}: {e}")
+    if n_links == 0:
+        record(cid, cname, INFO, "no symlinks found in daily_1x1/ or monthly_1x1/")
+    elif dangling:
+        record(cid, cname, FAIL, f"{len(dangling)} dangling of {n_links} symlinks: " +
+               "; ".join(dangling[:5]))
+    else:
+        record(cid, cname, PASS, f"all {n_links} symlinks resolve cleanly")
+''')
+
+md("""
+    ### Check 9.2 — Raw `.nc4` hash audit (sample-based)
+
+    Every NCCS `.nc4` raw file should have a sibling `.md5` sidecar listing
+    its expected MD5. The downloader (`download.sh`) doesn't verify this
+    -- a one-off `check_hashes.py` exists for that. This cell does a
+    randomized sample audit (default 1% of files, capped at 50) so the
+    runtime stays in the seconds, not minutes. Failures here indicate
+    on-disk corruption or partial downloads.
+""")
+code('''
+    cid, cname = "9.2", "raw .nc4 .md5 sidecar audit (1% sample)"
+    import random, hashlib
+    portal = WORK_DIR / "portal.nccs.nasa.gov"
+    if not portal.exists():
+        record(cid, cname, INFO, "portal.nccs.nasa.gov dir not present")
+    else:
+        all_nc4 = list(portal.rglob("*.nc4"))
+        if not all_nc4:
+            record(cid, cname, INFO, "no .nc4 files under portal/")
+        else:
+            random.seed(42)
+            n_sample = min(max(1, len(all_nc4) // 100), 50)
+            sample = random.sample(all_nc4, n_sample)
+            mismatches = []
+            no_md5 = 0
+            for p in sample:
+                md5_p = p.with_suffix(p.suffix + ".md5")
+                if not md5_p.exists():
+                    no_md5 += 1
+                    continue
+                expected = md5_p.read_text().split()[0].strip().lower()
+                h = hashlib.md5()
+                with open(p, "rb") as fp:
+                    for chunk in iter(lambda: fp.read(1 << 20), b""):
+                        h.update(chunk)
+                actual = h.hexdigest().lower()
+                if expected != actual:
+                    mismatches.append(f"{p.name}: expected {expected[:8]}.. got {actual[:8]}..")
+            if mismatches:
+                record(cid, cname, FAIL,
+                       f"{len(mismatches)} of {n_sample} sampled files mismatched: " +
+                       "; ".join(mismatches[:3]))
+            elif no_md5 == n_sample:
+                record(cid, cname, WARN,
+                       f"{n_sample} sampled, none had .md5 sidecars")
+            else:
+                record(cid, cname, PASS,
+                       f"{n_sample - no_md5}/{n_sample} sampled .nc4 hash-verified "
+                       f"({no_md5} lacked .md5 sidecars)")
+''')
+
+# ---- Section 10: NRT-specific -------------------------------------------
+md("## Section 10 — NRT clim-fill / provisional-status consistency")
+
+md("""
+    ### Check 10.1 — Provisional-status attribute coherence
+
+    Any output file with `:status = "provisional"` should carry one or
+    both of `:meteo_partial` or `:provenance` attributes explaining why.
+    Conversely, any monthly file with non-trivial `:provenance` (e.g.
+    "21 days real ... 10 days climatology fill") should be marked
+    `provisional`. Catches halfway-honest provenance metadata.
+""")
+code('''
+    cid, cname = "10.1", "provisional/provenance coherence"
+    candidates = (
+        sorted(ERA5_DIR.glob("fluxes_*.nc")) +
+        sorted((WORK_DIR / "monthly_1x1").glob("MiCASA_v1_flux_x360_y180_monthly_*.nc"))
+    )
+    incoherent = []
+    n_provisional = 0
+    n_clim_filled = 0
+    for f in candidates:
+        try:
+            ds = xr.open_dataset(f)
+            attrs = {k.lower(): str(v) for k, v in ds.attrs.items()}
+            ds.close()
+            status = attrs.get("status", "")
+            has_partial   = "meteo_partial" in attrs
+            has_provenance = "provenance" in attrs and len(attrs["provenance"]) > 10
+            is_provisional = (status.lower() == "provisional")
+            if is_provisional:
+                n_provisional += 1
+                if not (has_partial or has_provenance):
+                    incoherent.append(f"{f.name}: status=provisional but no meteo_partial/provenance attr")
+            if has_provenance and "climatology" in attrs.get("provenance", "").lower():
+                n_clim_filled += 1
+                if not is_provisional:
+                    incoherent.append(f"{f.name}: clim-filled but status not provisional")
+        except Exception as e:
+            incoherent.append(f"{f.name}: open failed: {e}")
+    if not candidates:
+        record(cid, cname, INFO, "no monthly/fluxes files to audit yet")
+    elif incoherent:
+        record(cid, cname, FAIL,
+               f"{len(incoherent)} of {len(candidates)} files: " +
+               "; ".join(incoherent[:4]))
+    else:
+        record(cid, cname, PASS,
+               f"{len(candidates)} files audited; "
+               f"{n_provisional} provisional, {n_clim_filled} clim-filled, all coherent")
+''')
+
+# ---- Section 11: Pipeline Health ----------------------------------------
+md("## Section 11 — Pipeline Health")
+
+md("""
+    ### Check 11.1 — Job log error scan
+
+    Grep every `jobs/*.o*` log for `ERROR` / `Execution halted` / `FAIL` /
+    `nco_err_exit`. Excludes the known-OK NCO `check_bounds` `EINVAL` that
+    fires after every successful `cat_monthly.sh` (separately tracked in
+    the cat_monthly script). Catches errors that produced output anyway
+    (NCO's quirk of writing the file before exiting non-zero).
+""")
+code('''
+    cid, cname = "11.1", "job log error scan"
+    if not JOBS_DIR.exists():
+        record(cid, cname, INFO, "no jobs/ directory")
+    else:
+        logs = sorted(JOBS_DIR.glob("*.o*"))
+        # Patterns to flag, and known-OK lines to skip
+        flag_pat = re.compile(
+            r"^.*(Execution halted|^ERROR |^FAIL\\b|nco_err_exit|"
+            r"Traceback \\(most recent call last\\)|"
+            r"slurmstepd: error:).*$",
+            re.MULTILINE,
+        )
+        skip_pat = re.compile(
+            r"check_bounds|nco_def_var_deflate|"
+            r"WARN: cat_monthly returned non-zero|"
+            r"Error code is -36",
+            re.IGNORECASE,
+        )
+        n_logs = 0
+        n_clean = 0
+        problems = []
+        for L in logs:
+            n_logs += 1
+            try:
+                txt = L.read_text(errors="ignore")
+                hits = [m.group(0) for m in flag_pat.finditer(txt)
+                        if not skip_pat.search(m.group(0))]
+                if not hits:
+                    n_clean += 1
+                else:
+                    problems.append(f"{L.name}: {len(hits)} unexpected line(s); first: {hits[0][:120]}")
+            except Exception as e:
+                problems.append(f"{L.name}: {e}")
+        if n_logs == 0:
+            record(cid, cname, INFO, "no job logs to scan")
+        elif problems:
+            # WARN if a small fraction; FAIL if many
+            frac_bad = (n_logs - n_clean) / max(n_logs, 1)
+            status = FAIL if frac_bad > 0.2 else WARN
+            record(cid, cname, status,
+                   f"{n_logs - n_clean} of {n_logs} logs flagged. First few: " +
+                   "; ".join(problems[:3]))
+        else:
+            record(cid, cname, PASS,
+                   f"all {n_logs} logs clean of unexpected ERROR / Halted / Traceback")
+''')
+
+md("""
+    ### Check 11.2 — PIQS tail-coefficient stability
+
+    The defining win of `PAD_RIGHT=2` is that the PIQS coefficients near
+    the right edge stop shifting under each NRT re-fit. Quantify:
+    snapshot `fit.piqs.rda` to `fit.piqs.rda.prev` on first run; on
+    subsequent runs, compare last-3-month coefs (a, b, c for both gpp and
+    resp) cell-by-cell. Calls a small R helper to compute the delta
+    statistics, since Python can't easily read .rda.
+
+    Status:
+    - **first run** → INFO (snapshot established)
+    - **|delta| / |coef| max < 1e-3** → PASS (tail is stable)
+    - **|delta| / |coef| max < 1e-2** → WARN
+    - **>= 1e-2** → FAIL (tail still moving substantially; may need PAD_RIGHT=3)
+""")
+code('''
+    cid, cname = "11.2", "PIQS tail-coefficient stability"
+    helper = WORK_DIR / "verify_piqs_tail_stability.r"
+    out_json = WORK_DIR / "verify_piqs_tail_stability.json"
+    if not FIT_RDA.exists():
+        record(cid, cname, INFO, "no fit.piqs.rda yet")
+    elif not helper.exists():
+        record(cid, cname, INFO, f"helper {helper.name} not in tree -- skipping")
+    else:
+        try:
+            r = subprocess.run(["Rscript", str(helper), str(out_json)],
+                               cwd=WORK_DIR, capture_output=True, text=True, timeout=300)
+            if r.returncode != 0:
+                record(cid, cname, FAIL, f"helper failed: {r.stderr[-300:]}")
+            else:
+                _tail = json.loads(out_json.read_text())
+                if _tail.get("status") == "snapshot_established":
+                    record(cid, cname, INFO,
+                           f"baseline snapshot taken (no prior fit.piqs.rda.prev to compare); "
+                           f"saved to {_tail.get('snapshot_path')}")
+                else:
+                    max_rel_g = float(_tail.get("max_rel_diff_gpp", 0))
+                    max_rel_r = float(_tail.get("max_rel_diff_rtot", 0))
+                    n_segments = int(_tail.get("n_segments_compared", 0))
+                    detail = (f"compared last 3 months across {n_segments} cells; "
+                              f"max|delta/coef| GPP={max_rel_g:.2e}, Rtot={max_rel_r:.2e}; "
+                              f"snapshot {_tail.get('snapshot_age_hours', 0):.1f}h old")
+                    if max(max_rel_g, max_rel_r) < 1e-3:
+                        record(cid, cname, PASS, detail)
+                    elif max(max_rel_g, max_rel_r) < 1e-2:
+                        record(cid, cname, WARN, detail)
+                    else:
+                        record(cid, cname, FAIL, detail)
+        except Exception as e:
+            record(cid, cname, FAIL, f"exception: {e}")
+''')
 
 nb = {
     "cells": cells,
