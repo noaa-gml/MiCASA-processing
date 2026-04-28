@@ -36,7 +36,7 @@ clim.yrs <- as.integer(strsplit(
   "\\s+")[[1]])
 
 ## Hourly 1° ERA5 from the TM5 meteo tree.
-era5dir <- sprintf("%s/METEO/tm5-nc/ec/ea_0005/h06h18tr1/sfc/glb100x100",
+era5dir <- sprintf("%s/METEO/tm5-nc/ec/ea/h06h18tr1/sfc/glb100x100",
                    Sys.getenv("CARBONTRACKER", ""))
 era5template <- "YYYY/MM/VVV_YYYYMMDD_00p01.nc"
 
