@@ -65,6 +65,22 @@ ncatted -O \
   -a "status,global,c,c,provisional" \
   monthly_1x1/MiCASA_v1_flux_x360_y180_monthly_202512.nc
 
+# ncra averages times along with everything else, but the climatology daily
+# files (MiCASA_v1_flux_x360_y180_daily_0000MMDD.nc) have time set to year
+# 2001 by convention, not year 0000. Averaging real-2025 dailies with
+# nominal-2001 climatology dailies pulls the mean time toward ~2018.
+# Overwrite with the correct mid-Dec 2025 timestamp matching the convention
+# used by ingest_monthly.r for other months (mid-month minus 0.5s).
+/work2/noaa/co2/miniconda3/envs/tm5/bin/python -c "
+import netCDF4 as nc, datetime
+ds = nc.Dataset('monthly_1x1/MiCASA_v1_flux_x360_y180_monthly_202512.nc', 'r+')
+t = datetime.datetime(2025, 12, 16, 11, 59, 59, 500000,
+                      tzinfo=datetime.timezone.utc).timestamp()
+ds.variables['time'][:] = [t]
+ds.close()
+print('  patched time to 2025-12-16 11:59:59.5 UTC')
+"
+
 step 7/9 "cat_monthly (multi-year concat, 2001-01..2026-03)"
 ./cat_monthly.sh || echo "WARN: cat_monthly returned non-zero (likely check_bounds), continuing"
 
