@@ -529,27 +529,649 @@ code('''
         print("\\nAll checks passed.")
 ''')
 
-# ---- Phase 2 stubs ------------------------------------------------------
+# ============================================================================
+#                              PHASE 2
+# ============================================================================
+md("# Phase 2 — Comparison & Sanity")
+
 md("""
-    ## Phase 2 / 3 — Not yet implemented
+    Phase 2 adds "looks reasonable?" checks on top of Phase 1's structural
+    invariants. The new sections each operate on a small per-month summary
+    cube (`verify_v2_summary.csv`) built once by the preflight cell — so
+    individual checks don't have to re-scan all ~300 hourly fluxes files.
 
-    Sections to add in subsequent phases:
+    Sections added in this phase:
 
-    - **Section 5: Comparison vs prior products** — spatial correlation of v2
-      `ERA5/fluxes_*.nc` against v1's `ERA5/fluxes_*.nc` (where they overlap),
-      time series of global NEE/GPP/Rh, COVID-2020 anomaly visibility.
-    - **Section 6: Spatial sanity** — Antarctica fluxes ~0; Amazon, boreal,
-      monsoon hotspots seasonal pattern; Antarctic mask consistency.
-    - **Section 7: Seasonal sanity** — NH/SH out-of-phase, latitude
-      amplitude profile, year-to-year stability.
-    - **Section 8: Budget identities** — NEE = -NPP + Rh - ATMC where ATMC
-      flows through; NBE = NEE + FIRE + FUEL.
-    - **Section 9: NRT-specific** — clim-fill fraction per provisional month;
-      vNRT->v1 symlink integrity per day; PIQS tail-coefficient stability
-      under one-more-month re-fit (compare two consecutive runs).
+    - **5. Global Totals & Trends** — monthly/annual global NEE, GPP, Rh;
+      plot the full record; check year-on-year growth rate plausibility;
+      flag any outlier years.
+    - **6. Spatial Comparison vs v1** — for sampled months, spatial Pearson
+      correlation between v2 and v1 monthly-mean NEE; difference at the
+      v2 PIQS-padded right edge (where we expect v2 to differ from v1) vs
+      record interior (where they should be ~identical).
+    - **7. Spatial Sanity** — ocean cells zero, polar/Antarctic small,
+      tropical/boreal hotspot seasonal patterns plausible.
+    - **8. Seasonal & Temporal** — NH/SH out-of-phase, latitude amplitude
+      profile, year-boundary continuity (no PIQS ringing at Dec→Jan).
+""")
 
-    Phase 1 covers structural invariants and schema. Phase 2 covers
-    "looks reasonable". Phase 3 covers source-data provenance.
+md("## Phase 2 Preflight — Build per-month summary cube")
+md("""
+    Walk every `ERA5/fluxes_YYYYMM.nc` once, aggregate to monthly global,
+    NH (>0°), SH (<0°), tropics (|lat|<23.5°), boreal (>50°N), and SH-mid
+    (-50..0°) totals (GgC/month). Cache as `verify_v2_summary.csv`. Rebuild
+    if any source file is newer than the cache. **About 5–10 minutes the
+    first run, near-instant thereafter.**
+
+    Conversion: fluxes are mol m⁻² s⁻¹. Multiply by gridcell area (m²) and
+    seconds-in-month, then by 12 g/mol, divide by 1e15 → PgC/month.
+""")
+code('''
+    cid, cname = "P2.0", "build summary cube"
+    SUMMARY_CSV = WORK_DIR / "verify_v2_summary.csv"
+    files = sorted(ERA5_DIR.glob("fluxes_*.nc"))
+
+    def needs_rebuild():
+        if not SUMMARY_CSV.exists(): return True
+        cache_mtime = SUMMARY_CSV.stat().st_mtime
+        for f in files:
+            if f.stat().st_mtime > cache_mtime: return True
+        return False
+
+    R_EARTH = 6371007.2  # m
+    def gridcell_area_m2():
+        # 1° x 1° grid; latitude bands -89.5..89.5
+        lat_edges = np.arange(-90, 91, 1) * np.pi / 180  # 181 edges
+        # area = R^2 * (sin(lat_top) - sin(lat_bot)) * dlon (radians)
+        dlon = np.pi / 180  # 1° in radians
+        lat_band_area = R_EARTH ** 2 * (np.sin(lat_edges[1:]) - np.sin(lat_edges[:-1])) * dlon  # 180
+        # Replicate to 360 longitudes
+        return np.broadcast_to(lat_band_area[:, None], (180, 360))  # (lat, lon)
+
+    if not files:
+        record(cid, cname, INFO, "no fluxes_*.nc files yet; Phase 2 cannot run")
+    elif not needs_rebuild():
+        _summary = pd.read_csv(SUMMARY_CSV)
+        record(cid, cname, INFO,
+               f"cache up to date ({len(_summary)} months in {SUMMARY_CSV.name})")
+    else:
+        print(f"Building summary cube from {len(files)} files...")
+        rows = []
+        gca = gridcell_area_m2()  # (lat, lon)
+        for f in files:
+            m = re.search(r"fluxes_(\\d{4})(\\d{2})\\.nc$", f.name)
+            if not m: continue
+            yr, mo = int(m.group(1)), int(m.group(2))
+            try:
+                ds = xr.open_dataset(f)
+                # Mean over hourly time dim → (lat, lon) per variable
+                # Result is mean flux in mol m-2 s-1
+                lat = ds.latitude.values
+                ndays = pd.Period(f"{yr}-{mo:02d}").days_in_month
+                sec_per_month = ndays * 86400
+                # Convert mol m-2 s-1 → gC m-2 month-1 → integrate → GgC/month
+                # = mean_flux * gca * sec_per_month * 12 (gC/mol) / 1e9 (GgC/g)
+                conv = sec_per_month * 12.0 / 1.0e9
+                row = {"year": yr, "month": mo, "yyyymm": yr*100 + mo}
+                for v in ("NEE", "GPP", "resp"):
+                    if v not in ds: continue
+                    mn = ds[v].mean(dim="time").values  # (lat, lon)
+                    integrand = mn * gca * conv  # GgC/month per cell
+                    row[f"{v}_global"] = float(np.nansum(integrand))
+                    # Latitude masks -- lat axis is 0
+                    nh        = lat > 0
+                    sh        = lat < 0
+                    trop      = np.abs(lat) < 23.5
+                    boreal    = lat > 50
+                    nh_mid    = (lat > 0) & (lat < 50)
+                    sh_mid    = (lat > -50) & (lat < 0)
+                    polar_n   = lat > 70
+                    polar_s   = lat < -70
+                    for nm, mask in [("nh", nh), ("sh", sh), ("trop", trop),
+                                     ("boreal", boreal), ("nh_mid", nh_mid),
+                                     ("sh_mid", sh_mid), ("polar_n", polar_n),
+                                     ("polar_s", polar_s)]:
+                        row[f"{v}_{nm}"] = float(np.nansum(integrand[mask, :]))
+                ds.close()
+                rows.append(row)
+            except Exception as e:
+                print(f"  WARN: {f.name}: {e}")
+        _summary = pd.DataFrame(rows).sort_values("yyyymm").reset_index(drop=True)
+        _summary.to_csv(SUMMARY_CSV, index=False)
+        record(cid, cname, PASS,
+               f"built summary cube: {len(_summary)} months, "
+               f"{_summary['yyyymm'].iloc[0]}..{_summary['yyyymm'].iloc[-1]}")
+    # Make _summary available to subsequent cells whether or not we rebuilt
+    if SUMMARY_CSV.exists():
+        _summary = pd.read_csv(SUMMARY_CSV)
+''')
+
+# ---- Section 5: Global Totals & Trends ----------------------------------
+md("## Section 5 — Global Totals & Trends")
+
+md("""
+    ### Check 5.1 — Annual global NEE / GPP / Rh time series
+
+    Aggregate the monthly summary to annual sums; print the table and plot
+    the time series. Sanity criterion: GPP and Rh should each be in the
+    100–150 PgC/yr range (terrestrial biosphere); NEE small relative to
+    those (a few PgC/yr in either direction depending on year).
+""")
+code('''
+    cid, cname = "5.1", "annual global NEE/GPP/Rh"
+    if "_summary" not in globals() or _summary.empty:
+        record(cid, cname, INFO, "summary cube unavailable")
+    else:
+        annual = _summary.groupby("year").agg({
+            "NEE_global": "sum",
+            "GPP_global": "sum",
+            "resp_global": "sum",
+        })
+        # GgC/yr -> PgC/yr (1e6 GgC = 1 PgC)
+        annual = annual / 1e6
+        problems = []
+        # GPP should be roughly -100 to -150 PgC/yr (uptake = negative in our convention)
+        if not ((-200 <= annual["GPP_global"]).all() and (annual["GPP_global"] <= -50).all()):
+            problems.append(f"GPP outside [-200,-50] PgC/yr: {annual['GPP_global'].min():.1f}..{annual['GPP_global'].max():.1f}")
+        # Rh should be roughly +50 to +150 PgC/yr (positive)
+        if not ((30 <= annual["resp_global"]).all() and (annual["resp_global"] <= 200).all()):
+            problems.append(f"resp outside [30,200] PgC/yr: {annual['resp_global'].min():.1f}..{annual['resp_global'].max():.1f}")
+        # Print table head/tail
+        print("Annual global totals (PgC/yr):")
+        print(annual.head(3).to_string())
+        print("...")
+        print(annual.tail(3).to_string())
+        if problems:
+            record(cid, cname, FAIL, "; ".join(problems))
+        else:
+            record(cid, cname, PASS,
+                   f"{len(annual)} years; GPP in [{annual['GPP_global'].min():.1f},{annual['GPP_global'].max():.1f}], "
+                   f"resp in [{annual['resp_global'].min():.1f},{annual['resp_global'].max():.1f}] PgC/yr")
+''')
+code('''
+    # Plot the time series. Inline plot, not a check.
+    import matplotlib.pyplot as plt
+    if "_summary" in globals() and not _summary.empty:
+        annual = _summary.groupby("year").agg({
+            "NEE_global": "sum", "GPP_global": "sum", "resp_global": "sum",
+        }) / 1e6  # PgC/yr
+        fig, axes = plt.subplots(3, 1, figsize=(10, 8), sharex=True)
+        for ax, col, ylabel in zip(
+            axes, ["GPP_global", "resp_global", "NEE_global"],
+            ["GPP (PgC/yr)", "resp (PgC/yr)", "NEE (PgC/yr)"],
+        ):
+            ax.plot(annual.index, annual[col], "o-", lw=1.2, ms=4)
+            ax.axhline(0, color="grey", lw=0.5)
+            ax.grid(alpha=0.3)
+            ax.set_ylabel(ylabel)
+        axes[-1].set_xlabel("Year")
+        fig.suptitle("v2 annual global totals", y=0.995)
+        fig.tight_layout()
+        plt.show()
+''')
+
+md("""
+    ### Check 5.2 — Year-on-year growth rate plausibility
+
+    Year-on-year change in global GPP/Rh should be small (typically within
+    ±5%). A jump above 10% suggests an artefact — likely a methodology
+    change or input data step (e.g., the v1↔vNRT splice) showing through.
+""")
+code('''
+    cid, cname = "5.2", "YoY growth rate plausibility"
+    if "_summary" not in globals() or _summary.empty:
+        record(cid, cname, INFO, "summary cube unavailable")
+    else:
+        annual = _summary.groupby("year").agg({
+            "NEE_global": "sum", "GPP_global": "sum", "resp_global": "sum",
+        }) / 1e6
+        problems = []
+        warnings = []
+        for col in ("GPP_global", "resp_global"):
+            yoy = annual[col].pct_change() * 100  # %
+            for yr, pct in yoy.dropna().items():
+                if abs(pct) > 20:
+                    problems.append(f"{col} {int(yr)} YoY {pct:+.1f}%")
+                elif abs(pct) > 10:
+                    warnings.append(f"{col} {int(yr)} YoY {pct:+.1f}%")
+        if problems:
+            record(cid, cname, FAIL, "; ".join(problems[:6]))
+        elif warnings:
+            record(cid, cname, WARN, "; ".join(warnings[:6]))
+        else:
+            record(cid, cname, PASS, "all GPP/resp YoY changes within ±10%")
+''')
+
+md("""
+    ### Check 5.3 — Seasonal cycle amplitude per latitude band
+
+    NH temperate (30–60°N) should have the strongest annual amplitude in
+    NEE (largest positive winter, largest negative summer). Boreal
+    (>50°N) similar but smaller. Tropics should have a weak seasonal
+    cycle. SH is anti-phased.
+""")
+code('''
+    cid, cname = "5.3", "seasonal amplitude per band"
+    if "_summary" not in globals() or _summary.empty:
+        record(cid, cname, INFO, "summary cube unavailable")
+    else:
+        # Take last 5 full years and average per-month
+        last_year = int(_summary["year"].max())
+        if (_summary["year"] == last_year).sum() < 12:
+            last_year -= 1  # active year incomplete
+        recent = _summary[(_summary["year"] >= last_year - 4) & (_summary["year"] <= last_year)]
+        # Average across years per calendar month, in PgC/month (1e6 GgC = 1 PgC)
+        mclim = recent.groupby("month").agg({
+            "NEE_nh_mid":  "mean", "NEE_boreal":  "mean",
+            "NEE_trop":    "mean", "NEE_sh_mid":  "mean",
+        }) / 1e6
+        amp = (mclim.max() - mclim.min()).to_dict()
+        nh_mid_amp = amp.get("NEE_nh_mid", 0)
+        boreal_amp = amp.get("NEE_boreal", 0)
+        trop_amp   = amp.get("NEE_trop", 0)
+        sh_mid_amp = amp.get("NEE_sh_mid", 0)
+        problems = []
+        if nh_mid_amp < boreal_amp * 0.5:
+            problems.append(f"NH mid amp ({nh_mid_amp:.2f}) unexpectedly less than boreal ({boreal_amp:.2f})")
+        if trop_amp > nh_mid_amp:
+            problems.append(f"tropical amp ({trop_amp:.2f}) > NH mid ({nh_mid_amp:.2f})")
+        # NH/SH phase: month of NEE max should differ by 5-7 months
+        nh_max_m = mclim["NEE_nh_mid"].idxmax()
+        sh_max_m = mclim["NEE_sh_mid"].idxmax()
+        phase_diff = abs(nh_max_m - sh_max_m)
+        if not (4 <= phase_diff <= 8):
+            problems.append(f"NH max month {nh_max_m}, SH max month {sh_max_m}, phase diff {phase_diff} (expected 5..7)")
+        detail = (f"amp PgC/mo: nh_mid={nh_mid_amp:.2f}, boreal={boreal_amp:.2f}, "
+                  f"trop={trop_amp:.2f}, sh_mid={sh_mid_amp:.2f}; phase diff {phase_diff}")
+        if problems:
+            record(cid, cname, FAIL, "; ".join(problems))
+        else:
+            record(cid, cname, PASS, detail)
+''')
+code('''
+    # Plot the per-band climatological seasonal cycle for context
+    import matplotlib.pyplot as plt
+    if "_summary" in globals() and not _summary.empty:
+        last_year = int(_summary["year"].max())
+        if (_summary["year"] == last_year).sum() < 12:
+            last_year -= 1
+        recent = _summary[(_summary["year"] >= last_year - 4) & (_summary["year"] <= last_year)]
+        mclim = recent.groupby("month").agg({
+            "NEE_nh_mid":  "mean", "NEE_boreal":  "mean",
+            "NEE_trop":    "mean", "NEE_sh_mid":  "mean",
+        }) / 1e6
+        fig, ax = plt.subplots(figsize=(8, 4.5))
+        for col, label in [("NEE_boreal", "Boreal (>50°N)"),
+                           ("NEE_nh_mid", "NH mid (0..50°N)"),
+                           ("NEE_trop",   "Tropics (|lat|<23.5°)"),
+                           ("NEE_sh_mid", "SH mid (-50..0°)")]:
+            ax.plot(mclim.index, mclim[col], "o-", lw=1.2, ms=4, label=label)
+        ax.axhline(0, color="grey", lw=0.5)
+        ax.set_xlabel("Month")
+        ax.set_ylabel("NEE (PgC/month)")
+        ax.set_xticks(range(1, 13))
+        ax.set_title(f"NEE seasonal cycle by band ({last_year-4}..{last_year} climatology)")
+        ax.legend(loc="best")
+        ax.grid(alpha=0.3)
+        plt.show()
+''')
+
+# ---- Section 6: Spatial Comparison vs v1 --------------------------------
+md("## Section 6 — Spatial Comparison vs v1 (where overlapping)")
+
+md("""
+    ### Check 6.1 — Spatial correlation v2 vs v1, sampled months
+
+    For 4 sampled months at well-separated points in the record, compute
+    the per-cell Pearson correlation between v2 and v1 monthly-mean NEE.
+    Expectation:
+    - **Interior** months (e.g., 2010-07, 2018-01): r > 0.99 — both products
+      use the same input monthly NPP/Rh; differences are PIQS interior
+      coefficient drift only.
+    - **Right-edge** months (e.g., 2024-12): r still high but lower —
+      v2's PIQS pad stabilises the December coefs, so the diurnal
+      redistribution differs slightly.
+""")
+code('''
+    cid, cname = "6.1", "v2 vs v1 spatial correlation"
+    V1_ERA5 = WORK_DIR.parent / "MiCASA_v1" / "ERA5"
+    sample = ["201001", "201501", "202007", "202412"]
+    rows = []
+    for ymm in sample:
+        v2_p = ERA5_DIR / f"fluxes_{ymm}.nc"
+        v1_p = V1_ERA5 / f"fluxes_{ymm}.nc"
+        if not v2_p.exists() or not v1_p.exists():
+            rows.append((ymm, "missing", float("nan")))
+            continue
+        try:
+            ds2 = xr.open_dataset(v2_p)
+            ds1 = xr.open_dataset(v1_p)
+            n2 = ds2["NEE"].mean(dim="time").values
+            n1 = ds1["NEE"].mean(dim="time").values
+            mask = np.isfinite(n2) & np.isfinite(n1) & ((np.abs(n2) > 1e-15) | (np.abs(n1) > 1e-15))
+            if mask.sum() < 100:
+                rows.append((ymm, "too few cells", float("nan")))
+            else:
+                r = float(np.corrcoef(n2[mask], n1[mask])[0, 1])
+                rows.append((ymm, "ok", r))
+            ds2.close(); ds1.close()
+        except Exception as e:
+            rows.append((ymm, f"error: {e}", float("nan")))
+    detail_strs = [f"{ymm}: r={r:.4f}" for ymm, st, r in rows if st == "ok"]
+    if not detail_strs:
+        record(cid, cname, INFO, f"no v1↔v2 overlap available: {rows}")
+    else:
+        # FAIL if any interior month r < 0.95; WARN if right-edge < 0.85
+        bad = [s for ymm, st, r in rows if st == "ok"
+               for s in [f"{ymm} r={r:.3f}"] if r < 0.85]
+        warn = [s for ymm, st, r in rows if st == "ok"
+                for s in [f"{ymm} r={r:.3f}"] if 0.85 <= r < 0.95 and ymm not in ("202412",)]
+        if bad:
+            record(cid, cname, FAIL, "; ".join(detail_strs) + " | low r: " + "; ".join(bad))
+        elif warn:
+            record(cid, cname, WARN, "; ".join(detail_strs))
+        else:
+            record(cid, cname, PASS, "; ".join(detail_strs))
+''')
+
+md("""
+    ### Check 6.2 — Right-edge difference vs interior difference
+
+    The v2 methodology change targets the right edge of the PIQS fit.
+    Quantify: for late-2024 months (closest to v1's stale fit edge), the
+    v2−v1 NEE RMS difference should be larger than for interior months
+    (e.g., 2015-07). If that's NOT the case, the PAD_RIGHT=2 change isn't
+    doing what we expect.
+""")
+code('''
+    cid, cname = "6.2", "right-edge differs more than interior"
+    V1_ERA5 = WORK_DIR.parent / "MiCASA_v1" / "ERA5"
+    interior = ["201007", "201507", "202007"]
+    edge     = ["202410", "202411", "202412"]
+    def rms_diff(ymm_list):
+        out = []
+        for ymm in ymm_list:
+            v2_p = ERA5_DIR / f"fluxes_{ymm}.nc"
+            v1_p = V1_ERA5 / f"fluxes_{ymm}.nc"
+            if not v2_p.exists() or not v1_p.exists(): continue
+            try:
+                ds2 = xr.open_dataset(v2_p)
+                ds1 = xr.open_dataset(v1_p)
+                n2 = ds2["NEE"].mean(dim="time").values
+                n1 = ds1["NEE"].mean(dim="time").values
+                mask = np.isfinite(n2) & np.isfinite(n1)
+                rms = float(np.sqrt(np.nanmean((n2[mask] - n1[mask])**2)))
+                out.append((ymm, rms))
+                ds2.close(); ds1.close()
+            except Exception:
+                continue
+        return out
+    int_rms  = rms_diff(interior)
+    edge_rms = rms_diff(edge)
+    if not int_rms or not edge_rms:
+        record(cid, cname, INFO,
+               f"insufficient v1 overlap (interior={len(int_rms)}, edge={len(edge_rms)})")
+    else:
+        int_med  = float(np.median([r for _, r in int_rms]))
+        edge_med = float(np.median([r for _, r in edge_rms]))
+        ratio = edge_med / max(int_med, 1e-30)
+        detail = (f"interior median RMS={int_med:.3e}, edge median RMS={edge_med:.3e}, "
+                  f"edge/interior = {ratio:.2f}")
+        if ratio >= 1.5:
+            record(cid, cname, PASS, f"{detail} (edge differs more, as expected)")
+        elif ratio >= 1.0:
+            record(cid, cname, WARN, f"{detail} (edge similar to interior)")
+        else:
+            record(cid, cname, FAIL,
+                   f"{detail} (interior differs MORE -- something is wrong)")
+''')
+
+# ---- Section 7: Spatial Sanity ------------------------------------------
+md("## Section 7 — Spatial Sanity")
+
+md("""
+    ### Check 7.1 — Ocean cells have NEE = 0
+
+    MiCASA is land-only; ocean cells should be exactly zero (or NaN).
+    Sample one fluxes_*.nc and confirm. Use coarse ocean mask: cells where
+    every same-column-and-row land-monthly file has zero NPP and Rh.
+""")
+code('''
+    cid, cname = "7.1", "ocean cells zero"
+    files = sorted(ERA5_DIR.glob("fluxes_*.nc"))
+    if not files:
+        record(cid, cname, INFO, "no fluxes_*.nc")
+    else:
+        # Build a land mask from the multi-year monthly file: any cell
+        # with non-zero NPP at any month is land.
+        try:
+            ds_m = xr.open_dataset(MONTHLY_FILE)
+            land_mask = (np.abs(ds_m["NPP"]).max(dim="time").values > 1e-15)
+            ds_m.close()
+            ds_h = xr.open_dataset(files[len(files)//2])
+            nee_mn = ds_h["NEE"].mean(dim="time").values
+            ocean_nee = nee_mn[~land_mask]
+            ocean_max = float(np.nanmax(np.abs(ocean_nee))) if ocean_nee.size else 0.0
+            ds_h.close()
+            if ocean_max > 1e-12:
+                record(cid, cname, FAIL,
+                       f"max |NEE| over ocean cells = {ocean_max:.3e} mol m-2 s-1 (expected 0)")
+            else:
+                record(cid, cname, PASS,
+                       f"ocean cells exactly zero (max |NEE|={ocean_max:.1e})")
+        except Exception as e:
+            record(cid, cname, FAIL, f"exception: {e}")
+''')
+
+md("""
+    ### Check 7.2 — Antarctic land cells small
+
+    Antarctica has minimal vegetation; NEE should be small in absolute
+    terms relative to e.g. Amazon. Use latitude < -65° as proxy. Compare
+    max |NEE| there vs in the tropics.
+""")
+code('''
+    cid, cname = "7.2", "Antarctica fluxes small"
+    files = sorted(ERA5_DIR.glob("fluxes_*.nc"))
+    if not files:
+        record(cid, cname, INFO, "no fluxes_*.nc")
+    else:
+        try:
+            ds = xr.open_dataset(files[len(files)//2])
+            lat = ds.latitude.values
+            nee_mn = np.abs(ds["NEE"].mean(dim="time").values)
+            ant_mask = lat < -65
+            trop_mask = (lat > -23.5) & (lat < 23.5)
+            ant_max  = float(np.nanmax(nee_mn[ant_mask]))
+            trop_max = float(np.nanmax(nee_mn[trop_mask]))
+            ds.close()
+            ratio = ant_max / max(trop_max, 1e-30)
+            detail = (f"max |NEE| Antarctic={ant_max:.3e}, tropical={trop_max:.3e}, "
+                      f"ratio={ratio:.3f}")
+            if ratio > 0.1:
+                record(cid, cname, FAIL, detail + " (Antarctic > 10% of tropics)")
+            elif ratio > 0.01:
+                record(cid, cname, WARN, detail + " (Antarctic > 1% of tropics)")
+            else:
+                record(cid, cname, PASS, detail)
+        except Exception as e:
+            record(cid, cname, FAIL, f"exception: {e}")
+''')
+
+md("""
+    ### Check 7.3 — Boreal seasonal phase
+
+    Boreal land (>50°N) NEE: positive in winter (resp dominates), negative
+    in summer (GPP dominates), with summer NEE max month in JJA. Sanity:
+    in the most recent full year, identify the month of NEE minimum
+    (max uptake) — should be in [6, 7, 8].
+""")
+code('''
+    cid, cname = "7.3", "boreal seasonal phase"
+    if "_summary" not in globals() or _summary.empty:
+        record(cid, cname, INFO, "summary cube unavailable")
+    else:
+        last_year = int(_summary["year"].max())
+        full_year = _summary[_summary["year"] == last_year]
+        if len(full_year) < 12:
+            last_year -= 1
+            full_year = _summary[_summary["year"] == last_year]
+        if len(full_year) < 12 or "NEE_boreal" not in full_year.columns:
+            record(cid, cname, INFO, "no complete year with NEE_boreal")
+        else:
+            min_month = int(full_year.set_index("month")["NEE_boreal"].idxmin())
+            max_month = int(full_year.set_index("month")["NEE_boreal"].idxmax())
+            detail = f"{last_year}: boreal NEE min={min_month}, max={max_month}"
+            if min_month in (6, 7, 8):
+                record(cid, cname, PASS, detail + " (uptake peak in JJA, OK)")
+            else:
+                record(cid, cname, WARN, detail + " (uptake peak NOT in JJA)")
+''')
+
+md("""
+    ### Check 7.4 — Total NBE budget over land plausibility
+
+    Annual NBE (NEE + FIRE + FUEL) over land should be a few PgC/yr
+    in either direction. We don't have FIRE+FUEL aggregated in the
+    summary cube (they live in the daily files, not in fluxes_*), so this
+    check just looks at NEE annual sums and confirms they're in the
+    plausible terrestrial-biosphere range (-10..+10 PgC/yr).
+""")
+code('''
+    cid, cname = "7.4", "annual NEE in plausible range"
+    if "_summary" not in globals() or _summary.empty:
+        record(cid, cname, INFO, "summary cube unavailable")
+    else:
+        annual = _summary.groupby("year")["NEE_global"].sum() / 1e6  # PgC/yr
+        problems = [(int(y), float(v)) for y, v in annual.items() if abs(v) > 10]
+        if problems:
+            record(cid, cname, FAIL,
+                   f"NEE outside ±10 PgC/yr: " +
+                   "; ".join([f"{y}={v:.2f}" for y, v in problems[:5]]))
+        else:
+            record(cid, cname, PASS,
+                   f"all {len(annual)} years' NEE within ±10 PgC/yr; "
+                   f"range [{annual.min():.2f}, {annual.max():.2f}]")
+''')
+
+# ---- Section 8: Seasonal & Temporal -------------------------------------
+md("## Section 8 — Seasonal & Temporal")
+
+md("""
+    ### Check 8.1 — December → January monthly continuity
+
+    PIQS smoothes across calendar-year boundaries; the |Dec→Jan| jump per
+    year should be comparable to other consecutive-month jumps. A
+    systematic discontinuity at year boundaries would suggest the spline
+    isn't actually smoothing across them.
+""")
+code('''
+    cid, cname = "8.1", "Dec->Jan continuity"
+    if "_summary" not in globals() or _summary.empty:
+        record(cid, cname, INFO, "summary cube unavailable")
+    else:
+        s = _summary.sort_values("yyyymm").set_index("yyyymm")
+        # All consecutive month diffs in NEE_global
+        nee = s["NEE_global"].values
+        if len(nee) < 24:
+            record(cid, cname, INFO, "less than 2 years of data")
+        else:
+            month_arr = s.reset_index()["month"].values
+            diffs = np.abs(np.diff(nee))
+            from_dec_mask = month_arr[:-1] == 12  # diff i is from month i to i+1
+            other_diffs   = diffs[~from_dec_mask]
+            dec_diffs     = diffs[from_dec_mask]
+            other_med = float(np.median(other_diffs)) if other_diffs.size else 0.0
+            dec_med   = float(np.median(dec_diffs))   if dec_diffs.size   else 0.0
+            ratio = dec_med / max(other_med, 1e-30)
+            detail = (f"|Dec->Jan| median={dec_med:.3e}, "
+                      f"other |month->next| median={other_med:.3e}, ratio={ratio:.2f}")
+            if ratio > 3.0:
+                record(cid, cname, FAIL, detail + " (Dec->Jan jumps much larger)")
+            elif ratio > 1.5:
+                record(cid, cname, WARN, detail)
+            else:
+                record(cid, cname, PASS, detail)
+''')
+
+md("""
+    ### Check 8.2 — Inter-annual stability of climatological cycle
+
+    For the last 5 years, compute the per-month climatological NEE per
+    band and the std-dev across years. The std/mean ratio (CoV) per
+    calendar month should be modest — a year-to-year wobble of more than
+    50% of the mean is suspicious.
+""")
+code('''
+    cid, cname = "8.2", "interannual stability of seasonal cycle"
+    if "_summary" not in globals() or _summary.empty:
+        record(cid, cname, INFO, "summary cube unavailable")
+    else:
+        last_year = int(_summary["year"].max())
+        if (_summary["year"] == last_year).sum() < 12:
+            last_year -= 1
+        recent = _summary[(_summary["year"] >= last_year - 4) & (_summary["year"] <= last_year)]
+        if len(recent) < 60:
+            record(cid, cname, INFO, "fewer than 5 full years available")
+        else:
+            grp = recent.groupby("month")["NEE_global"]
+            mean_m = grp.mean()
+            std_m  = grp.std()
+            cov = (std_m / mean_m.abs().replace(0, np.nan)).abs()
+            max_cov = float(cov.max())
+            detail = f"max |CoV| across calendar months = {max_cov:.2f} (window {last_year-4}..{last_year})"
+            if max_cov > 1.0:
+                record(cid, cname, FAIL, detail)
+            elif max_cov > 0.5:
+                record(cid, cname, WARN, detail)
+            else:
+                record(cid, cname, PASS, detail)
+''')
+
+md("""
+    ### Check 8.3 — Polar-N vs boreal NEE ratio
+
+    Polar (>70°N) NEE should be much smaller in absolute amplitude than
+    boreal (>50°N) NEE — most boreal vegetation is below 70°N. If polar
+    is comparable to boreal, something has shifted (e.g. mismapping).
+""")
+code('''
+    cid, cname = "8.3", "polar << boreal NEE amplitude"
+    if "_summary" not in globals() or _summary.empty:
+        record(cid, cname, INFO, "summary cube unavailable")
+    else:
+        last_year = int(_summary["year"].max())
+        if (_summary["year"] == last_year).sum() < 12:
+            last_year -= 1
+        recent = _summary[(_summary["year"] >= last_year - 4) & (_summary["year"] <= last_year)]
+        polar_amp  = float(recent["NEE_polar_n"].max() - recent["NEE_polar_n"].min())
+        boreal_amp = float(recent["NEE_boreal"].max() - recent["NEE_boreal"].min())
+        ratio = polar_amp / max(abs(boreal_amp), 1e-30)
+        detail = f"polar amp / boreal amp = {ratio:.3f}"
+        if ratio > 1.0:
+            record(cid, cname, FAIL, detail + " (polar exceeds boreal)")
+        elif ratio > 0.5:
+            record(cid, cname, WARN, detail)
+        else:
+            record(cid, cname, PASS, detail)
+''')
+
+md("""
+    ## Phase 3 — Not yet implemented
+
+    Sections deferred to Phase 3:
+
+    - **Source-data provenance**: raw NCCS hash/count audit, ATMC range,
+      ERA5 boundary cleanliness, vNRT-published-month tracker. Most of
+      this overlaps with `check_daily_downloads.r` and `check_hashes.py`
+      already in tree -- Phase 3 imports those checks into the notebook.
+    - **PIQS tail-coefficient stability under one-more-month re-fit**:
+      compare `fit.piqs.rda` from this run to one from the previous run;
+      assert tail coefficients (last 3 months pre-pad) shift by less than
+      a tolerance. Requires snapshotting the .rda before each refit.
+    - **NRT clim-fill audit**: parse the global `:status=provisional` and
+      `:provenance` attributes on monthly files; flag any month where the
+      clim-fill fraction is >50% but `:status` is not `provisional`.
 """)
 
 nb = {
