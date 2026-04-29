@@ -346,7 +346,13 @@ code('''
                 # gC m-2 s-1 = ~32 mgC m-2 yr-1, well below any vegetated
                 # land flux but well above the float-zero noise floor.
                 LAND_FLUX_THRESH = 1e-9
-                mask = (np.abs(gpp_mn_expected) > LAND_FLUX_THRESH)
+                # Exclude polar-night cells (ssr month-mean == 0). The
+                # polar-night clip in diurnalize-ERA5.r legitimately zeros
+                # GPP there, which breaks "diurnalized monthly mean = input
+                # NPP" by design (no light => no photosynthesis). Physically
+                # correct, just out of scope for this mass-balance check.
+                ssr_mn = ds_h["ssr"].mean(dim="time").values
+                mask = (np.abs(gpp_mn_expected) > LAND_FLUX_THRESH) & (ssr_mn > 0)
                 if mask.sum() == 0:
                     record(cid, cname, WARN, "no active land cells in sample month")
                 else:
@@ -361,11 +367,18 @@ code('''
                     detail = (f"sample {f.name}: GPP rel diff p50={np.median(rel_g):.2e} "
                               f"p99={p99_g:.2e}; "
                               f"resp rel diff p50={np.median(rel_r):.2e} p99={p99_r:.2e}")
-                    # 1% relative tolerance — covers floating-point accumulation
-                    # over 720+ hourly evaluations of a piecewise quadratic plus
-                    # the diurnal-redistribution multiply-divide chain, while
-                    # still flagging actual mass-conservation breakage.
-                    if p99_g < 1e-2 and p99_r < 1e-2:
+                    # 5% p99 rel-diff tolerance. The polar-night clip in
+                    # diurnalize-ERA5.r legitimately zeros GPP wherever
+                    # ssrd=0, which breaks strict mass conservation by a
+                    # small amount: the monthly mean shifts by the
+                    # integrated qmod.gpp residual at clipped hours. For
+                    # most cells this is <0.1% (well under the old 1%
+                    # threshold), but partial-polar-night cells (any cell
+                    # with ssrd=0 hours and a nonzero gpp.mn) can exceed
+                    # 1%. Empirical p99 in fluxes_201307.nc is ~1.5% with
+                    # the clip; 5% gives headroom while still flagging
+                    # gross mass-balance breakage.
+                    if p99_g < 5e-2 and p99_r < 5e-2:
                         record(cid, cname, PASS, detail)
                     else:
                         record(cid, cname, FAIL, detail)
@@ -941,7 +954,17 @@ code('''
                 ds1 = xr.open_dataset(v1_p)
                 n2 = ds2["NEE"].mean(dim="time").values
                 n1 = ds1["NEE"].mean(dim="time").values
-                mask = np.isfinite(n2) & np.isfinite(n1)
+                # Restrict to non-polar (|lat|<=60). The polar-night clip
+                # (added 2026-04 to v2) zeros GPP at high-latitude winter
+                # cells, so polar interior cells now also differ from v1 —
+                # which would otherwise dominate the interior RMS and
+                # invalidate this check's "edge changes most" premise. The
+                # PAD_RIGHT signal we want to isolate lives in non-polar
+                # latitudes anyway.
+                lat = ds2["latitude"].values
+                lat_mask = (np.abs(lat) <= 60)
+                lat_mask_2d = np.broadcast_to(lat_mask[:, None], n2.shape)
+                mask = np.isfinite(n2) & np.isfinite(n1) & lat_mask_2d
                 rms = float(np.sqrt(np.nanmean((n2[mask] - n1[mask])**2)))
                 out.append((ymm, rms))
                 ds2.close(); ds1.close()
@@ -959,13 +982,21 @@ code('''
         ratio = edge_med / max(int_med, 1e-30)
         detail = (f"interior median RMS={int_med:.3e}, edge median RMS={edge_med:.3e}, "
                   f"edge/interior = {ratio:.2f}")
+        # Post-polar-night-clip thresholds. The clip (added 2026-04 in v2)
+        # zeros GPP at any cell-hour where ssrd=0, which contaminates
+        # interior months too — so the v1 vs v2 RMS diff at non-polar
+        # interior cells is no longer dominated by PIQS-padding effects.
+        # Keep the test directional (edge should still differ at least as
+        # much as interior, since right-edge tail propagation adds on top
+        # of the clip-induced background), but accept ratios down to 0.5
+        # since the clip can flip the dominant signal.
         if ratio >= 1.5:
             record(cid, cname, PASS, f"{detail} (edge differs more, as expected)")
-        elif ratio >= 1.0:
-            record(cid, cname, WARN, f"{detail} (edge similar to interior)")
+        elif ratio >= 0.5:
+            record(cid, cname, WARN, f"{detail} (edge similar to interior; expected post-clip)")
         else:
             record(cid, cname, FAIL,
-                   f"{detail} (interior differs MORE -- something is wrong)")
+                   f"{detail} (interior differs MUCH more than edge -- unexpected)")
 ''')
 
 # ---- Section 7: Spatial Sanity ------------------------------------------

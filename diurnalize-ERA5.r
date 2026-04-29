@@ -266,6 +266,20 @@ for (mon in cfg$month.start:cfg$month.end) {
 
     gpp[ , , islot] <- gpp[ , , islot] - gpp.mn  + qmod.gpp
     resp[, , islot] <- resp[, , islot] - rtot.mn + qmod.resp
+
+    ## Polar-night clip (Check 12.2). No incoming shortwave => no
+    ## photosynthesis. Without this, the PIQS quadratic component
+    ## (qmod.gpp - gpp.mn) leaks a small residual into hours where ssrd
+    ## is identically 0 (~2.6% of cells in fluxes_202512.nc, max
+    ## |GPP|=9.4e-9 mol m-2 s-1). The clip zeros gpp at those cell-hours
+    ## before nee is summed; resp/qgpp/qresp are unaffected (Rh has no
+    ## physical reason to vanish in darkness).
+    dark <- which(mets$ssrd[, , islot] == 0)
+    if (length(dark) > 0) {
+      gpp.slot       <- gpp[, , islot]
+      gpp.slot[dark] <- 0
+      gpp[, , islot] <- gpp.slot
+    }
     nee[ , , islot] <- gpp[, , islot] + resp[, , islot]
     qgpp[ , , islot] <- qmod.gpp
     qresp[, , islot] <- qmod.resp
