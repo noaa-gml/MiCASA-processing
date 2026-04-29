@@ -124,22 +124,37 @@ pb <- progress.bar.start(360*180,360*180)
 piqsfit.gpp <- list()
 piqsfit.resp <- list()
 
-piqsfit.gpp$a <- array(NA,dim=c(360,180,nmon))
-piqsfit.gpp$b <- array(NA,dim=c(360,180,nmon))
-piqsfit.gpp$c <- array(NA,dim=c(360,180,nmon))
-#piqsfit.gpp$d <- array(NA,dim=c(360,180,nmon))
+# Initialize to 0 (not NA): cells skipped by the small-flux predicate
+# below keep their (0,0,0) coefs, producing exactly-zero output through
+# diurnalize, instead of NA which propagates as NaN. Fixes the 13k-NaN
+# coastline cells the verify suite flagged in Check 16.1.
+piqsfit.gpp$a <- array(0,dim=c(360,180,nmon))
+piqsfit.gpp$b <- array(0,dim=c(360,180,nmon))
+piqsfit.gpp$c <- array(0,dim=c(360,180,nmon))
+#piqsfit.gpp$d <- array(0,dim=c(360,180,nmon))
 
-piqsfit.resp$a <- array(NA,dim=c(360,180,nmon))
-piqsfit.resp$b <- array(NA,dim=c(360,180,nmon))
-piqsfit.resp$c <- array(NA,dim=c(360,180,nmon))
-#piqsfit.resp$d <- array(NA,dim=c(360,180,nmon))
+piqsfit.resp$a <- array(0,dim=c(360,180,nmon))
+piqsfit.resp$b <- array(0,dim=c(360,180,nmon))
+piqsfit.resp$c <- array(0,dim=c(360,180,nmon))
+#piqsfit.resp$d <- array(0,dim=c(360,180,nmon))
+
+# Threshold below which we treat NPP and Rh as effectively zero. Real
+# vegetated land has NPP and Rh of ~1e-9 to ~1e-7 gC m-2 s-1 (Saharan
+# fringe at the lower end); 1e-15 is well below any biological flux
+# while still excluding pure float-zero. Cells with both max(|NPP|) and
+# max(|Rh|) below this threshold across the whole record skip the PIQS
+# fit and keep their (0,0,0) coefs. Addresses the tropical-subtropical
+# residuals Check 16.3 surfaced (114/2598 cells in [0,30N] with rel
+# diffs up to 13%, all in low-NPP regions).
+COEF_ZERO_THRESHOLD <- 1e-15
 
 ipb <- 0
 for (i in 1:360) {
   for (j in 1:180) {
     ipb <- ipb+1
-    
-    if(all(nee1[i,j,] == 0)) {
+
+    if (max(abs(din$NPP[i,j,])) < COEF_ZERO_THRESHOLD &&
+        max(abs(din$Rh [i,j,])) < COEF_ZERO_THRESHOLD) {
       next
     }
 
