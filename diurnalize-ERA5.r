@@ -36,7 +36,7 @@ clim.yrs <- as.integer(strsplit(
   "\\s+")[[1]])
 
 ## Hourly 1° ERA5 from the TM5 meteo tree.
-era5dir <- sprintf("%s/METEO/tm5-nc/ec/ea_0005/h06h18tr1/sfc/glb100x100",
+era5dir <- sprintf("%s/METEO/tm5-nc/ec/ea/h06h18tr1/sfc/glb100x100",
                    Sys.getenv("CARBONTRACKER", ""))
 era5template <- "YYYY/MM/VVV_YYYYMMDD_00p01.nc"
 
@@ -67,6 +67,39 @@ ct.setup()
 load(file.path(work.dir, "fit.piqs.rda"))
 piqsfit.time <- epoch.seconds.to.POSIX(piqsfit.time)
 piqsfit.lts  <- as.POSIXlt(piqsfit.time)
+
+## ---- Fit-window banner (proposal #2 in README.ash) ------------------------
+## Always report the loaded fit's coverage and any padding metadata, and warn
+## if the active diurnalization year extends past the right edge -- the
+## climatology-fallback branch below would silently substitute a smoother
+## coefficient field for those months. Set MICASA_STRICT_PIQS=1 to escalate
+## this from a warning to a hard error (recommended for NRT operations).
+cat(sprintf("PIQS fit window: %s -- %s (%d months)\n",
+            format(min(piqsfit.time), "%Y-%m"),
+            format(max(piqsfit.time), "%Y-%m"),
+            length(piqsfit.time)))
+if (exists("piqsfit.meta")) {
+  cat(sprintf("PIQS fit padding: left=%d, right=%d (written %s)\n",
+              piqsfit.meta$pad.left, piqsfit.meta$pad.right,
+              piqsfit.meta$written.at))
+} else {
+  cat("PIQS fit padding: unknown (no piqsfit.meta in .rda; assume 0/0)\n")
+}
+cat(sprintf("Active diurnalization year: %d\n", yr))
+
+strict.piqs  <- as.integer(Sys.getenv("MICASA_STRICT_PIQS", unset = "0")) == 1
+yr.last.fit  <- as.POSIXlt(max(piqsfit.time))$year + 1900
+yr.first.fit <- as.POSIXlt(min(piqsfit.time))$year + 1900
+if (!(yr %in% clim.yrs) && (yr > yr.last.fit || yr < yr.first.fit)) {
+  msg <- sprintf("Year %d is outside the PIQS fit window [%d..%d]; the climatology fallback in diurnalize-ERA5.r will be used for every month.",
+                 yr, yr.first.fit, yr.last.fit)
+  if (strict.piqs) {
+    stop(msg, " Re-run write_piqs.r with the latest monthly data, or unset MICASA_STRICT_PIQS to allow.")
+  } else {
+    warning(msg, " Set MICASA_STRICT_PIQS=1 to make this an error.", immediate. = TRUE)
+  }
+}
+## --------------------------------------------------------------------------
 
 lon.dim <- ncdim_def("longitude", "degrees_east", vals = seq(-179.5, 179.5, 1))
 lat.dim <- ncdim_def("latitude",  "degrees_north", vals = seq(-89.5, 89.5, 1))
@@ -110,11 +143,42 @@ for (mon in cfg$month.start:cfg$month.end) {
   cat(sprintf("Finished reading %s...\n", fname))
 
   ## ---- Read ERA5 meteo for this month ----
+  ##
+  ## ERA5 sometimes has gaps near year boundaries while ECMWF processes the
+  ## final day of the year (e.g. 2025-12-31 was missing on Orion as of
+  ## 2026-04-28). Detect available days first, drop missing days from the
+  ## hourly time axis, and mark the output as provisional. Older behaviour
+  ## (crash on first nc_open) is preserved when every day is present.
   varnms <- c("t2m", "ssrd", "stl1", "swvl1")
+  dpm.full <- days.in.month(yr)[mon]
+  available.days <- integer(0)
+  missing.days   <- integer(0)
+  for (day in 1:dpm.full) {
+    ok <- TRUE
+    for (varnm in varnms) {
+      e5nm <- gsub("YYYY", sprintf("%d",   yr),    era5template)
+      e5nm <- gsub("MM",   sprintf("%02d", mon),   e5nm)
+      e5nm <- gsub("DD",   sprintf("%02d", day),   e5nm)
+      e5nm <- gsub("VVV",  varnm,                  e5nm)
+      if (!file.exists(sprintf("%s/%s", era5dir, e5nm))) { ok <- FALSE; break }
+    }
+    if (ok) available.days <- c(available.days, day) else missing.days <- c(missing.days, day)
+  }
+  if (length(available.days) == 0) {
+    cat(sprintf("WARN: %d/%02d has no complete ERA5 days; skipping month.\n", yr, mon))
+    next
+  }
+  partial.month <- length(missing.days) > 0
+  if (partial.month) {
+    cat(sprintf("WARN: %d/%02d: only %d/%d days have complete ERA5 meteo (missing day(s): %s); writing partial month.\n",
+                yr, mon, length(available.days), dpm.full,
+                paste(missing.days, collapse=",")))
+  }
+  dpm <- length(available.days)
   mets <- list()
-  dpm <- days.in.month(yr)[mon]
   times <- rep(NA, dpm * 24)
-  for (day in 1:dpm) {
+  for (k in seq_along(available.days)) {
+    day <- available.days[k]
     for (varnm in varnms) {
       e5nm <- gsub("YYYY", sprintf("%d",   yr),    era5template)
       e5nm <- gsub("MM",   sprintf("%02d", mon),   e5nm)
@@ -125,7 +189,7 @@ for (mon in cfg$month.start:cfg$month.end) {
       if (is.null(mets[[varnm]])) {
         mets[[varnm]] <- array(NA, dim = c(360, 180, 24 * dpm))
       }
-      k0 <- 1 + (day - 1) * 24
+      k0 <- 1 + (k - 1) * 24
       k1 <- 23 + k0
       mets[[varnm]][, , k0:k1] <- foo[[varnm]]
       if (varnm == varnms[1]) {
@@ -173,10 +237,29 @@ for (mon in cfg$month.start:cfg$month.end) {
     resp.b <- apply(piqsfit.resp$b[, , monseq], c(1, 2), mean)
     resp.c <- apply(piqsfit.resp$c[, , monseq], c(1, 2), mean)
   }
+  ## Sign-flip diagnostics (proposal #4 in README.ash). GPP is negative-for-
+  ## uptake here (gpp = -2*NPP), so a positive qmod.gpp at sub-monthly
+  ## resolution is unphysical and indicates the PIQS quadratic overshot above
+  ## zero. Respiration is positive-typical, so the symmetric concern is
+  ## qmod.resp going negative.
+  land.gpp  <- is.finite(gpp.mn)  & gpp.mn  < 0
+  land.resp <- is.finite(rtot.mn) & rtot.mn > 0
+  any.flip.gpp  <- array(FALSE, dim = c(360, 180))
+  any.flip.resp <- array(FALSE, dim = c(360, 180))
+  flip.hours.gpp  <- 0L
+  flip.hours.resp <- 0L
+
   for (islot in 1:nslots) {
     dt <- as.numeric(times[islot]) - as.numeric(times[1])
     qmod.gpp  <- (gpp.a  * dt^2 + gpp.b  * dt + gpp.c)  / 12
     qmod.resp <- (resp.a * dt^2 + resp.b * dt + resp.c) / 12
+
+    flip.gpp.now  <- land.gpp  & is.finite(qmod.gpp)  & qmod.gpp  > 0
+    flip.resp.now <- land.resp & is.finite(qmod.resp) & qmod.resp < 0
+    any.flip.gpp    <- any.flip.gpp  | flip.gpp.now
+    any.flip.resp   <- any.flip.resp | flip.resp.now
+    flip.hours.gpp  <- flip.hours.gpp  + sum(flip.gpp.now)
+    flip.hours.resp <- flip.hours.resp + sum(flip.resp.now)
 
     gpp[ , , islot] <- mets$ssrd[, , islot] * gpp.mn  / ssr.mn
     resp[, , islot] <- q10[      , , islot] * rtot.mn / q10.mn
@@ -187,6 +270,21 @@ for (mon in cfg$month.start:cfg$month.end) {
     qgpp[ , , islot] <- qmod.gpp
     qresp[, , islot] <- qmod.resp
   }
+
+  ## One-line per-month diagnostic. Denominators are land cells with the
+  ## expected sign on the monthly mean.
+  n.land.gpp  <- sum(land.gpp)
+  n.land.resp <- sum(land.resp)
+  cat(sprintf("PIQS sign-flip [GPP > 0]:  %d / %d cells (%.2f%%), %d / %d cell-hours (%.3f%%)\n",
+              sum(any.flip.gpp), n.land.gpp,
+              100 * sum(any.flip.gpp) / max(n.land.gpp, 1L),
+              flip.hours.gpp, n.land.gpp * nslots,
+              100 * flip.hours.gpp / max(n.land.gpp * nslots, 1L)))
+  cat(sprintf("PIQS sign-flip [resp < 0]: %d / %d cells (%.2f%%), %d / %d cell-hours (%.3f%%)\n",
+              sum(any.flip.resp), n.land.resp,
+              100 * sum(any.flip.resp) / max(n.land.resp, 1L),
+              flip.hours.resp, n.land.resp * nslots,
+              100 * flip.hours.resp / max(n.land.resp * nslots, 1L)))
 
   lx <- which(is.na(nee))
   if (length(lx) > 0) nee[lx] <- 0
@@ -231,6 +329,13 @@ for (mon in cfg$month.start:cfg$month.end) {
                              script.name),
             prec = "text")
   ncatt_put(ncf, 0, "meteo_source_directory", attval = era5dir, prec = "text")
+  if (partial.month) {
+    ncatt_put(ncf, 0, "status", attval = "provisional", prec = "text")
+    ncatt_put(ncf, 0, "meteo_partial",
+              attval = sprintf("only %d/%d days have ERA5 meteo; missing day(s) %s excluded from output",
+                               dpm, dpm.full, paste(missing.days, collapse=",")),
+              prec = "text")
+  }
 
   ncvar_put(ncf, vars$dd,    vals = decimal.date)
   ncvar_put(ncf, vars$gpp,   vals = gpp)
