@@ -348,31 +348,31 @@ ERA5/MiCASA_v1.nee.<YYYYMMDD>.nc
     Daily NEE-only files, created by daysplitter.sh.
 
 ##########################
-# Known limitation: NEE = Rh - NPP (ATMC not applied)
+# NEE convention: Rh - NPP, NOT Rh - NPP - ATMC (deliberate)
 ##########################
 
-v1 of this pipeline computes NEE as Rh - NPP, ignoring the ATMC
-"atmospheric correction" residual MiCASA carries to close the global
-biospheric budget against observed atmospheric CO2 growth. Per the
-file-level :comment in every NCCS .nc4 ("NEE = Rh - NPP - ATMC, and
-NBE = NEE + FIRE + FUEL"), our v1 NEE is biased by ~ATMC -- about
-+3.5 PgC/yr globally on the mean, with a +0.04 PgC/yr/yr trend in NEE
-across 2001..2025 that disappears once ATMC is subtracted.
+v1 computes NEE = Rh - NPP, ignoring the ATMC ("atmospheric correction")
+field MiCASA publishes alongside NPP/Rh/FIRE/FUEL. The NCCS file-level
+:comment defines NEE = Rh - NPP - ATMC, but we deliberately do NOT
+apply ATMC. Reasoning:
 
-The methodology behind ATMC is the Low-order Flux Inversion (LoFI)
-empirical sink of Weir et al. 2021a (ACP, doi:10.5194/acp-21-9609-2021):
-an additive temperature- and HR-weighted correction tuned annually so
-the global biospheric NBE matches the observed CO2 growth rate.
-ATMC accounts for processes the underlying CASA model does not
-represent -- riverine and coastal carbon export, CO2/N fertilization,
-regrowth, and Q10 effects on warming-season respiration.
+ATMC is the Low-order Flux Inversion (LoFI) empirical sink of Weir et
+al. 2021a (ACP, doi:10.5194/acp-21-9609-2021): a temperature- and
+HR-weighted correction tuned ANNUALLY so the global biospheric NBE
+matches the observed atmospheric CO2 growth rate. These fluxes are
+consumed as priors in a global atmospheric inversion that itself
+assimilates atmospheric CO2 measurements -- the same data class ATMC
+was tuned against. Subtracting ATMC at the prior stage would smuggle
+observational information into the prior (data leakage / double
+dipping); the inversion can learn the same correction from the data
+side. Without ATMC the +0.04 PgC/yr/yr long-term trend the CASA model
+itself shows in NEE remains, and that's the inversion's job to
+correct, not ours.
 
-The fix is implemented in the sister v2 tree at MiCASA_v2/ (see
-README.ash methodological note (7) there). To port the fix into v1,
-diff three files: lib/ingest_common.r (add ATMC to micasa.tracers),
-diurnalize-ERA5.r (read atmc.mn, subtract from nee), and compute_clim.sh
-(produce ATMCclim.nc). v1 is held at NEE = Rh - NPP for now to keep
-the existing operational stream stable while v2 is validated.
+A short-lived experimental ATMC integration was tried in the v2 tree
+on 2026-04-29 and reverted the same day on this rationale; see
+MiCASA_v2/README.ash methodological note (7) for the full history,
+the parameterization, and the verify_v2 trend-impact numbers.
 
 ##########################
 # Extra Notes
