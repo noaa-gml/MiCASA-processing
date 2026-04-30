@@ -60,6 +60,18 @@ yr <- as.integer(yr.env)
 setwd(work.dir)
 in.dir  <- cfg$monthly.1x1
 out.dir <- cfg$era5.dir
+## A/B test mode: shadow output dir + single-month restriction. Default
+## (env vars unset): no-op, full production loop. Set
+## MICASA_DIURN_OUT_DIR=ERA5_atmc_test/ and MICASA_DIURN_ONLY_MONTH=7 to
+## diurnalize one month into a shadow dir for diff-against-canonical
+## comparisons (used 2026-04 to validate the ATMC integration before
+## fanning out the full re-diurnalize).
+.diurn.out.override <- Sys.getenv("MICASA_DIURN_OUT_DIR", unset = "")
+if (nchar(.diurn.out.override) > 0) {
+  out.dir <- .diurn.out.override
+  cat(sprintf("** Test mode: out.dir overridden to %s **\n", out.dir))
+}
+.diurn.only.mon <- as.integer(Sys.getenv("MICASA_DIURN_ONLY_MONTH", unset = "0"))
 
 ct.setup()
 
@@ -109,7 +121,12 @@ timeunits <- "days"
 
 dir.create(out.dir, showWarnings = FALSE, recursive = TRUE)
 
-for (mon in cfg$month.start:cfg$month.end) {
+mon.range <- cfg$month.start:cfg$month.end
+if (.diurn.only.mon > 0) {
+  mon.range <- .diurn.only.mon
+  cat(sprintf("** Test mode: restricted to month %d **\n", .diurn.only.mon))
+}
+for (mon in mon.range) {
 
   cat(sprintf("%d/%02d\n", yr, mon))
   monstr <- sprintf("%d%02d", yr, mon)
@@ -131,6 +148,21 @@ for (mon in cfg$month.start:cfg$month.end) {
 
     rtot.mn <- rtot.clim[, , mon]
     gpp.mn  <- gpp.clim[, , mon]
+
+    ## ATMC climatology (proposal #2). Per NCCS: NEE = Rh - NPP - ATMC.
+    ## ATMCclim.nc is built by compute_clim.sh from the ATMC field, same
+    ## modulo-month convention as NPPclim/Rhclim. Falls back to 0 with a
+    ## warning if absent (e.g., older v2 trees without the re-cat).
+    fname <- sprintf("%s/ATMCclim.nc", in.dir)
+    if (file.exists(fname)) {
+      foo <- load.ncdf(fname)
+      atmc.clim <- foo$ATMCCLIM / 12
+      atmc.mn   <- atmc.clim[, , mon]
+    } else {
+      warning(sprintf("%d-%02d: %s missing; defaulting ATMC=0 for clim year",
+                      yr, mon, fname), immediate. = TRUE)
+      atmc.mn <- array(0, dim = dim(gpp.mn))
+    }
     rm(foo)
   } else {
     fname <- sprintf("%s/%s_%s.nc", in.dir, product.name, monstr)
@@ -138,6 +170,16 @@ for (mon in cfg$month.start:cfg$month.end) {
     gpp.mn  <- -2 * foo$NPP / 12
     rh.mn   <- foo$Rh / 12
     rtot.mn <- rh.mn - 0.5 * gpp.mn
+    ## ATMC: per NCCS, NEE = Rh - NPP - ATMC. Subtract ATMC at hourly
+    ## resolution (broadcast — ATMC is monthly-resolution, no diurnal
+    ## structure to redistribute, no PIQS fit needed).
+    if (!is.null(foo$ATMC)) {
+      atmc.mn <- foo$ATMC / 12
+    } else {
+      warning(sprintf("%d-%02d: ATMC missing in %s; defaulting to 0 (re-ingest with the updated micasa.tracers list)",
+                      yr, mon, fname), immediate. = TRUE)
+      atmc.mn <- array(0, dim = dim(gpp.mn))
+    }
     rm(foo)
   }
   cat(sprintf("Finished reading %s...\n", fname))
@@ -280,7 +322,7 @@ for (mon in cfg$month.start:cfg$month.end) {
       gpp.slot[dark] <- 0
       gpp[, , islot] <- gpp.slot
     }
-    nee[ , , islot] <- gpp[, , islot] + resp[, , islot]
+    nee[ , , islot] <- gpp[, , islot] + resp[, , islot] - atmc.mn
     qgpp[ , , islot] <- qmod.gpp
     qresp[, , islot] <- qmod.resp
   }

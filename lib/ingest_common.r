@@ -8,7 +8,15 @@
 ## ---- Constants -------------------------------------------------------------
 
 # MiCASA tracers we ingest from the raw 0.1° files.
-micasa.tracers <- c("NPP", "Rh", "FIRE", "FUEL")
+#
+# ATMC ("Atmospheric correction") was added 2026-04-29 (proposal #2 in
+# README.ash). Per the NCCS source-file comment: "NEE = Rh - NPP - ATMC".
+# Without it, our derived NEE drifts from the published MiCASA budget by
+# ~ATMC, contributing to the +0.04 PgC/yr/yr trend disagreement Check 15.1
+# was flagging. ATMC is in kg C m-2 s-1 in the source, gets the same *1e3
+# kg->g conversion as the other tracers, and is added at the diurnalize
+# step (no PIQS fit — it has no diurnal/seasonal structure to redistribute).
+micasa.tracers <- c("NPP", "Rh", "FIRE", "FUEL", "ATMC")
 
 # Earth mean radius (m), per the MiCASA dataset documentation.
 EARTH_RADIUS_M <- 6371007.2
