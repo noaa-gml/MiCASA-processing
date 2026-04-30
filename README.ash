@@ -348,6 +348,33 @@ ERA5/MiCASA_v1.nee.<YYYYMMDD>.nc
     Daily NEE-only files, created by daysplitter.sh.
 
 ##########################
+# Known limitation: NEE = Rh - NPP (ATMC not applied)
+##########################
+
+v1 of this pipeline computes NEE as Rh - NPP, ignoring the ATMC
+"atmospheric correction" residual MiCASA carries to close the global
+biospheric budget against observed atmospheric CO2 growth. Per the
+file-level :comment in every NCCS .nc4 ("NEE = Rh - NPP - ATMC, and
+NBE = NEE + FIRE + FUEL"), our v1 NEE is biased by ~ATMC -- about
++3.5 PgC/yr globally on the mean, with a +0.04 PgC/yr/yr trend in NEE
+across 2001..2025 that disappears once ATMC is subtracted.
+
+The methodology behind ATMC is the Low-order Flux Inversion (LoFI)
+empirical sink of Weir et al. 2021a (ACP, doi:10.5194/acp-21-9609-2021):
+an additive temperature- and HR-weighted correction tuned annually so
+the global biospheric NBE matches the observed CO2 growth rate.
+ATMC accounts for processes the underlying CASA model does not
+represent -- riverine and coastal carbon export, CO2/N fertilization,
+regrowth, and Q10 effects on warming-season respiration.
+
+The fix is implemented in the sister v2 tree at MiCASA_v2/ (see
+README.ash methodological note (7) there). To port the fix into v1,
+diff three files: lib/ingest_common.r (add ATMC to micasa.tracers),
+diurnalize-ERA5.r (read atmc.mn, subtract from nee), and compute_clim.sh
+(produce ATMCclim.nc). v1 is held at NEE = Rh - NPP for now to keep
+the existing operational stream stable while v2 is validated.
+
+##########################
 # Extra Notes
 ##########################
 
