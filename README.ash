@@ -392,23 +392,22 @@ monthly mean rescaled to match gpp.mn / rtot.mn so the diurnalization
 preserves the monthly total. Fire and fuelwood emissions bypass PIQS
 entirely and are taken straight from the MiCASA daily product.
 
-NEE is then closed against MiCASA's published budget identity
-NEE = Rh - NPP - ATMC (per the file-level :comment in every NCCS .nc4) by
-subtracting the monthly ATMC field uniformly across the month's hours:
+NEE is then computed as
 
-    nee = gpp + resp - atmc.mn      # gpp = -2*NPP/12, rtot = (Rh+NPP)/12
+    nee = gpp + resp                # gpp = -2*NPP/12, rtot = (Rh+NPP)/12
 
-ATMC ("atmospheric correction") is the residual term MiCASA carries to
-reconcile the modelled biospheric budget with observed atmospheric CO2
-growth -- see Weir et al. 2021a (ACP, doi:10.5194/acp-21-9609-2021) for the
-underlying Low-order Flux Inversion (LoFI) framework. It accounts for
-processes CASA does not represent: riverine and coastal carbon export,
-CO2/N fertilization, regrowth, and warm-season Q10 effects on respiration.
-ATMC has no resolved diurnal or sub-monthly structure (it is a budget-
-closing residual scaled to the annual atmospheric CO2 growth target), so
-no PIQS fit is performed on it; we simply broadcast the monthly value at
-every hour. See Methodological note (7) below for implementation details
-and the verify_v2 Check 15.1 trend impact (+0.0413 -> -0.0067 PgC/yr/yr).
+i.e. Rh - NPP. We do NOT subtract MiCASA's ATMC ("atmospheric correction")
+term, even though the NCCS file-level comment defines NEE = Rh - NPP - ATMC.
+ATMC is a budget-closing residual designed to make MiCASA's global
+biospheric NEE match the observed atmospheric CO2 growth rate (Weir et al.
+2021a, ACP doi:10.5194/acp-21-9609-2021); these fluxes are consumed as
+priors in a global atmospheric inversion that ALSO assimilates atmospheric
+CO2 measurements. Pre-correcting the prior with ATMC would smuggle
+observational information from the same data class into the prior -- a
+classic double-dipping / data-leakage mistake. The inversion can learn the
+same correction from the data side; we don't want to short-circuit that.
+See Methodological note (7) below for the longer history (the integration
+was tried and reverted on 2026-04-29).
 
 
 ##########################
@@ -493,69 +492,64 @@ Status legend:  [LANDED]   = code is in-tree, behaviour-preserving by default,
     implemented yet; depends on whether (1) closes the gap on its own.
 
 
-(7) [LANDED] ATMC budget closure in NEE (proposal #2 -- 2026-04-29).
-    The pre-2026 pipeline computed NEE = Rh - NPP, missing the ATMC term
-    NCCS publishes alongside NPP/Rh/FIRE/FUEL in every raw .nc4. Per
-    Weir et al. 2021a (ACP, doi:10.5194/acp-21-9609-2021), ATMC is the
-    Low-order Flux Inversion (LoFI) empirical sink: an additive
-    correction designed to make the global biospheric budget match the
-    observed atmospheric CO2 growth rate, accounting for processes CASA
-    does not represent (land-ocean carbon export through rivers /
-    estuaries / marginal seas, carbon and nitrogen fertilization,
-    regrowth, and Q10 effects of temperature on growing-season
-    respiration). The Weir 2021a parameterization is
+(7) [REJECTED 2026-04-29] ATMC budget closure in NEE (proposal #2).
+    NCCS publishes an "atmospheric correction" (ATMC) field alongside
+    NPP/Rh/FIRE/FUEL with the file-level :comment "NEE = Rh - NPP -
+    ATMC". Per Weir et al. 2021a (ACP, doi:10.5194/acp-21-9609-2021),
+    ATMC is the Low-order Flux Inversion (LoFI) empirical sink: an
+    additive correction tuned ANNUALLY so the global biospheric NBE
+    matches the observed atmospheric CO2 growth rate. The Weir 2021a
+    parameterization is
 
         S_m = alpha_yr * max(T_m - T_{m-1}, 0)/10 * HR_m
 
-    with alpha scaled annually so the global NBE sink matches the
-    NOAA-MBL CO2 growth rate (or, for NRT, a forecast based on Nino3.4
-    SST anomalies and anthropogenic emissions, Eq. 2 of the paper).
-    The MiCASA README modifies this slightly: annual targets come from
-    a logistic regression through TRENDY v12 NBE (Friedlingstein et al.
-    2023), and the daily field is interpolated from monthly temperature
-    change. Spatially the correction is concentrated in the NH
-    extratropics during JJA via the ΔT+ weighting; magnitude
-    typically ~3 PgC/yr global, vs. inversion-ensemble NH extratropical
-    sinks of ~2.5 PgC/yr.
+    with alpha scaled each year so the area-weighted global total of
+    S_m (added to the baseline NEE) closes against the NOAA-MBL CO2
+    growth rate. Spatially the correction is concentrated in the NH
+    extratropics during JJA via the dT+ weighting; magnitude typically
+    ~3 PgC/yr global. ATMC accounts for processes CASA does not
+    represent (riverine/coastal carbon export, CO2/N fertilization,
+    forest regrowth, Q10 effects on warming-season respiration).
 
-    Implementation in this tree:
-      - lib/ingest_common.r adds "ATMC" to micasa.tracers; both daily
-        (ingest_byyear.r) and monthly (ingest_monthly.r) ingest pick it
-        up automatically. Source units kg C m-2 s-1 -> output gC m-2 s-1
-        same as NPP/Rh.
-      - cat_monthly.sh propagates ATMC through ncrcat without changes.
-      - compute_clim.sh now produces ATMCclim.nc via a small Python
-        helper (mod-month mean; the ferret path is broken on Orion in
-        2026 due to a pyferret/numpy ABI mismatch -- the NPP and Rh
-        clim files in this tree are symlinks to the older v1 build).
-      - diurnalize-ERA5.r reads atmc.mn from the monthly file (or
-        ATMCclim in clim-fallback years per MICASA_CLIM_YEARS),
-        converts gC -> mol m-2 s-1 by /12, and subtracts uniformly
-        across hours when computing NEE. No PIQS fit is performed on
-        ATMC since it has no diurnal/seasonal structure to
-        redistribute. Polar-night clip on GPP (note 8 below) operates
-        before the NEE sum, so polar-night NEE = resp - atmc.mn.
+    On 2026-04-29 we tried integrating ATMC -- diurnalize-ERA5.r
+    subtracted atmc.mn from NEE, lib/ingest_common.r picked up ATMC,
+    compute_clim.sh built ATMCclim.nc. The verify_v2 Check 15.1 trend
+    impact was substantial:
 
-    Impact on verify_v2 (Check 15.1, global annual NEE linear trend
-    over 2001..2025):
         Without ATMC:  slope = +0.0413 PgC/yr/yr, mean = -2.45 PgC/yr
-        With    ATMC:  slope = -0.0067 PgC/yr/yr, mean = -5.99 PgC/yr
-    The trend collapses to ~1/6 of its pre-ATMC magnitude and flips
-    sign. Mean global NEE shifts by -3.54 PgC/yr (the global mean of
-    the ATMC residual). This is what was driving the +0.04 PgC/yr/yr
-    drift the pre-2026 verify suite was flagging.
+        With ATMC:    slope = -0.0067 PgC/yr/yr, mean = -5.99 PgC/yr
 
-    Caveats inherited from Weir 2021a:
-      - ATMC is a parameterized correction, not a mechanistic process;
-        it is "tuned" each year to the global growth rate and assumes
-        an airborne fraction of ~0.44.
-      - Spatial pattern is forced by Q10 of warming-season temperature
-        change weighted by HR; not by where the missing processes
-        actually live. Some Midwestern overestimation is expected
-        because corn/soy harvest is already in CASA.
-      - Tropical disagreements with the inversion ensemble persist;
-        unrelated to ATMC, attributed to transport-model and
-        observational coverage limits.
+    But the change was REVERTED the same day. These fluxes are
+    consumed as priors in a global atmospheric inversion that itself
+    assimilates atmospheric CO2 measurements. ATMC was tuned to the
+    same observation class -- the global atmospheric CO2 growth rate.
+    Pre-correcting the prior with ATMC therefore smuggles
+    observational information from the data side into the prior, a
+    classic data-leakage / double-dipping problem: the inversion
+    cannot then independently constrain the long-term sink because
+    ATMC has already used that constraint upstream.
+
+    The "right" picture in our usage: the inversion's atmospheric
+    assimilation IS the place where the global growth-rate constraint
+    enters; the prior should reflect what the offline biospheric
+    model says ON ITS OWN, and the inversion learns the bias
+    correction from data. This means we accept the +0.04 PgC/yr/yr
+    long-term trend in CASA-only NEE as a real feature of the prior
+    (it represents what the model, sans LoFI, says about decadal
+    biospheric trends) -- it's the inversion's job to correct it.
+
+    Code state after revert: lib/ingest_common.r tracers list is
+    NPP/Rh/FIRE/FUEL (no ATMC); diurnalize-ERA5.r computes
+    NEE = gpp + resp; compute_clim.sh produces only NPPclim/Rhclim.
+    Existing monthly_1x1/*.nc files still carry the ATMC field
+    (harmless leftover from the brief integration), and ATMCclim.nc
+    sits unused on disk -- both can stay, they just aren't read.
+
+    If MiCASA fluxes are ever used in a context other than an
+    atmospheric inversion (e.g., forward-model comparison vs. obs at
+    site level, or as an ensemble member without further
+    optimization), the ATMC subtraction may again be appropriate.
+    For our current pipeline it isn't.
 
 (8) [LANDED] Polar-night GPP=0 clip in diurnalize-ERA5.r (2026-04-29).
     Without this clip, the PIQS quadratic component (qmod.gpp - gpp.mn)

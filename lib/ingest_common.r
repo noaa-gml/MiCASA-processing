@@ -9,14 +9,18 @@
 
 # MiCASA tracers we ingest from the raw 0.1° files.
 #
-# ATMC ("Atmospheric correction") was added 2026-04-29 (proposal #2 in
-# README.ash). Per the NCCS source-file comment: "NEE = Rh - NPP - ATMC".
-# Without it, our derived NEE drifts from the published MiCASA budget by
-# ~ATMC, contributing to the +0.04 PgC/yr/yr trend disagreement Check 15.1
-# was flagging. ATMC is in kg C m-2 s-1 in the source, gets the same *1e3
-# kg->g conversion as the other tracers, and is added at the diurnalize
-# step (no PIQS fit — it has no diurnal/seasonal structure to redistribute).
-micasa.tracers <- c("NPP", "Rh", "FIRE", "FUEL", "ATMC")
+# ATMC ("Atmospheric correction") is intentionally NOT included. It was
+# tried in the v2 stream 2026-04-29 (proposal #2) and reverted the same
+# day -- ATMC is the LoFI empirical sink of Weir et al. 2021a (ACP,
+# doi:10.5194/acp-21-9609-2021) tuned annually to the observed
+# atmospheric CO2 growth rate, and these fluxes are consumed as priors
+# in a global atmospheric inversion that ALSO assimilates atmospheric
+# CO2 measurements. Pre-correcting with ATMC would smuggle observational
+# information from the same data class into the prior -- a textbook
+# data-leakage / double-dipping mistake. The inversion can learn the
+# same correction from the data side. See README.ash entry (7) for the
+# full reasoning.
+micasa.tracers <- c("NPP", "Rh", "FIRE", "FUEL")
 
 # Earth mean radius (m), per the MiCASA dataset documentation.
 EARTH_RADIUS_M <- 6371007.2

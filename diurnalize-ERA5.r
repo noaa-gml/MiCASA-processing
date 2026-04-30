@@ -148,21 +148,6 @@ for (mon in mon.range) {
 
     rtot.mn <- rtot.clim[, , mon]
     gpp.mn  <- gpp.clim[, , mon]
-
-    ## ATMC climatology (proposal #2). Per NCCS: NEE = Rh - NPP - ATMC.
-    ## ATMCclim.nc is built by compute_clim.sh from the ATMC field, same
-    ## modulo-month convention as NPPclim/Rhclim. Falls back to 0 with a
-    ## warning if absent (e.g., older v2 trees without the re-cat).
-    fname <- sprintf("%s/ATMCclim.nc", in.dir)
-    if (file.exists(fname)) {
-      foo <- load.ncdf(fname)
-      atmc.clim <- foo$ATMCCLIM / 12
-      atmc.mn   <- atmc.clim[, , mon]
-    } else {
-      warning(sprintf("%d-%02d: %s missing; defaulting ATMC=0 for clim year",
-                      yr, mon, fname), immediate. = TRUE)
-      atmc.mn <- array(0, dim = dim(gpp.mn))
-    }
     rm(foo)
   } else {
     fname <- sprintf("%s/%s_%s.nc", in.dir, product.name, monstr)
@@ -170,16 +155,6 @@ for (mon in mon.range) {
     gpp.mn  <- -2 * foo$NPP / 12
     rh.mn   <- foo$Rh / 12
     rtot.mn <- rh.mn - 0.5 * gpp.mn
-    ## ATMC: per NCCS, NEE = Rh - NPP - ATMC. Subtract ATMC at hourly
-    ## resolution (broadcast — ATMC is monthly-resolution, no diurnal
-    ## structure to redistribute, no PIQS fit needed).
-    if (!is.null(foo$ATMC)) {
-      atmc.mn <- foo$ATMC / 12
-    } else {
-      warning(sprintf("%d-%02d: ATMC missing in %s; defaulting to 0 (re-ingest with the updated micasa.tracers list)",
-                      yr, mon, fname), immediate. = TRUE)
-      atmc.mn <- array(0, dim = dim(gpp.mn))
-    }
     rm(foo)
   }
   cat(sprintf("Finished reading %s...\n", fname))
@@ -322,7 +297,7 @@ for (mon in mon.range) {
       gpp.slot[dark] <- 0
       gpp[, , islot] <- gpp.slot
     }
-    nee[ , , islot] <- gpp[, , islot] + resp[, , islot] - atmc.mn
+    nee[ , , islot] <- gpp[, , islot] + resp[, , islot]
     qgpp[ , , islot] <- qmod.gpp
     qresp[, , islot] <- qmod.resp
   }
