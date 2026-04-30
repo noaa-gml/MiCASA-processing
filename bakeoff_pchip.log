@@ -1,0 +1,51 @@
+Loading monthly_1x1/MiCASA_v1_flux_x360_y180_monthly.nc...
+Knots: n=303 segments; hourly samples: 221304
+
+=== Manaus_evergreen (-3.0, -60.0) [grid 86,119] ===
+   NPP range [1.593e-05, 4.037e-05] gC m-2 s-1
+   Rh  range [8.230e-06, 4.640e-05] gC m-2 s-1
+   NPP PIQS : flip%= 0.000  int_rel=4.83e-16  max_overshoot=0.00e+00  smooth(max|df|)=9.97e-12  fmin=1.50e-05  fmax=4.06e-05
+   NPP PCHIP: flip%= 0.000  int_rel=2.10e-16  max_overshoot=0.00e+00  smooth(max|df|)=1.24e-11  fmin=1.53e-05  fmax=4.08e-05
+   Rh  PIQS : flip%= 0.000  int_rel=6.39e-16  max_overshoot=0.00e+00  smooth(max|df|)=1.52e-11  fmin=7.44e-06  fmax=4.76e-05
+   Rh  PCHIP: flip%= 0.000  int_rel=1.90e-16  max_overshoot=0.00e+00  smooth(max|df|)=2.24e-11  fmin=7.23e-06  fmax=4.73e-05
+
+=== Hyytiala_boreal (+61.5, +24.0) [grid 151,203] ===
+   NPP range [0.000e+00, 4.378e-05] gC m-2 s-1
+   Rh  range [5.306e-06, 2.397e-05] gC m-2 s-1
+   NPP PIQS : flip%= 8.805  int_rel=1.09e-12  max_overshoot=9.45e-07  smooth(max|df|)=1.33e-11  fmin=-9.45e-07  fmax=4.66e-05
+   NPP PCHIP: flip%= 0.000  int_rel=2.34e-09  max_overshoot=0.00e+00  smooth(max|df|)=2.75e-11  fmin=0.00e+00  fmax=4.78e-05
+   Rh  PIQS : flip%= 0.000  int_rel=6.50e-16  max_overshoot=0.00e+00  smooth(max|df|)=6.68e-12  fmin=4.95e-06  fmax=2.49e-05
+   Rh  PCHIP: flip%= 0.000  int_rel=1.95e-16  max_overshoot=0.00e+00  smooth(max|df|)=1.09e-11  fmin=4.96e-06  fmax=2.54e-05
+
+=== Sahel_savanna (+15.0, +0.0) [grid 104,179] ===
+   NPP range [2.964e-09, 2.125e-05] gC m-2 s-1
+   Rh  range [7.428e-07, 6.984e-06] gC m-2 s-1
+   NPP PIQS : flip%= 4.155  int_rel=7.39e-15  max_overshoot=5.25e-07  smooth(max|df|)=7.98e-12  fmin=-5.25e-07  fmax=2.46e-05
+   NPP PCHIP: flip%= 0.000  int_rel=7.40e-12  max_overshoot=0.00e+00  smooth(max|df|)=1.70e-11  fmin=2.26e-09  fmax=2.48e-05
+   Rh  PIQS : flip%= 0.000  int_rel=9.15e-16  max_overshoot=0.00e+00  smooth(max|df|)=3.13e-12  fmin=3.55e-07  fmax=7.64e-06
+   Rh  PCHIP: flip%= 0.000  int_rel=2.87e-16  max_overshoot=0.00e+00  smooth(max|df|)=5.60e-12  fmin=7.05e-07  fmax=8.18e-06
+
+-- Polar_night_Arctic (+80.5, +100.0): skip (cell at machine zero, ocean/ice)
+=== Semi-arid_Texas (+33.0, -100.0) [grid 122,79] ===
+   NPP range [1.021e-06, 2.438e-05] gC m-2 s-1
+   Rh  range [2.220e-06, 1.267e-05] gC m-2 s-1
+   NPP PIQS : flip%= 0.039  int_rel=7.53e-16  max_overshoot=0.00e+00  smooth(max|df|)=1.04e-11  fmin=-5.49e-07  fmax=2.51e-05
+   NPP PCHIP: flip%= 0.000  int_rel=2.68e-16  max_overshoot=0.00e+00  smooth(max|df|)=1.56e-11  fmin=9.62e-08  fmax=2.58e-05
+   Rh  PIQS : flip%= 0.000  int_rel=6.35e-16  max_overshoot=0.00e+00  smooth(max|df|)=6.21e-12  fmin=1.14e-06  fmax=1.35e-05
+   Rh  PCHIP: flip%= 0.000  int_rel=2.15e-16  max_overshoot=0.00e+00  smooth(max|df|)=1.05e-11  fmin=1.74e-06  fmax=1.40e-05
+
+=== Boreal_Tundra_AK (+68.0, -150.0) [grid 157,29] ===
+   NPP range [0.000e+00, 3.974e-05] gC m-2 s-1
+   Rh  range [2.760e-06, 1.758e-05] gC m-2 s-1
+   NPP PIQS : flip%=30.913  int_rel=1.84e-09  max_overshoot=3.43e-06  smooth(max|df|)=2.05e-11  fmin=-3.43e-06  fmax=4.37e-05
+   NPP PCHIP: flip%= 0.000  int_rel=2.01e-04  max_overshoot=0.00e+00  smooth(max|df|)=4.64e-11  fmin=0.00e+00  fmax=4.67e-05
+   Rh  PIQS : flip%= 0.000  int_rel=5.84e-16  max_overshoot=0.00e+00  smooth(max|df|)=5.08e-12  fmin=2.33e-06  fmax=1.86e-05
+   Rh  PCHIP: flip%= 0.000  int_rel=2.40e-16  max_overshoot=0.00e+00  smooth(max|df|)=8.94e-12  fmin=2.40e-06  fmax=1.91e-05
+
+========================================================================================
+Aggregate (median across cells × NPP/Rh):
+========================================================================================
+  flip%         : PIQS median=0.000e+00  PCHIP median=0.000e+00
+  int_max_rel   : PIQS median=7.016e-16  PCHIP median=2.540e-16
+  max_overshoot : PIQS median=0.000e+00  PCHIP median=0.000e+00
+  smooth        : PIQS median=8.973e-12  PCHIP median=1.398e-11
