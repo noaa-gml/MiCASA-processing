@@ -562,6 +562,105 @@ Status legend:  [LANDED]   = code is in-tree, behaviour-preserving by default,
     verify Check 2.2 threshold relaxed 1% -> 5% to acknowledge this.
 
 
+(9) [CONSIDERED, NOT PURSUED] Linear PIQS as a sign-flip remedy.
+    Suggested in conversation 2026-04-30: drop the per-piece quadratic
+    to linear (each segment is a straight line, two coefficients,
+    integral-preserving by the trapezoidal relation
+        y_{i+1} = 2*m_i - y_i ).
+    Within-piece overshoot is impossible (a straight line cannot bulge
+    above either endpoint), so the U-shaped sub-monthly sign flips
+    Check 3.1 reports (6.55% of GPP cell-hours) couldn't happen inside
+    a piece. Tempting, but does not fix the actual problem cleanly:
+
+      a. The polar-night residual the (8) clip addresses is NOT a
+         within-piece overshoot. It comes from the diurnalize formula
+             gpp = ssrd*gpp.mn/ssr.mn - gpp.mn + qmod
+         At ssrd=0 hours this collapses to qmod - gpp.mn. Even with a
+         linear qmod, qmod(t) within the segment is not exactly gpp.mn
+         at every hour, so the residual remains. The clip is the right
+         surgical fix for that.
+      b. The integral-preservation recursion y_{i+1} = 2*m_i - y_i
+         AMPLIFIES knot-level oscillation when monthly means alternate
+         small and large values (e.g., near-zero polar DJF flanked by
+         months that aren't). PIQS-quadratic absorbs some of that
+         alternation into the curvature degree of freedom; linear has
+         to push it all onto the knots. So in exactly the cells we
+         care about most (low-NPP, transition-heavy), linear may
+         produce knot values of the wrong sign, undoing the
+         within-piece guarantee.
+      c. C^1 continuity is lost: a kink at every month boundary, which
+         downstream consumers (CT, etc.) take as hourly NEE — visible
+         midnight-on-the-1st discontinuities in derived diel cycles.
+      d. Most non-polar sign flips are SSRD-redistribution-driven
+         (the ssrd*gpp.mn/ssr.mn term, not qmod), so a smoother qmod
+         doesn't help with the bulk of Check 3.1's count.
+
+    Conclusion: not a free win. The right alternative for "preserve
+    integral but no overshoot anywhere" is monotone-cubic Hermite on
+    the cumulative integral (PCHIP-on-cumulative) — see (10) below.
+
+
+(10) [PROPOSED] PCHIP-on-cumulative as a no-overshoot replacement.
+    Build the cumulative monthly integral F at the knot times, apply
+    Fritsch-Carlson monotone-cubic Hermite interpolation to F (scipy's
+    PchipInterpolator, R's splinefun(method="monoH.FC"), or hand-rolled),
+    then differentiate analytically. Properties:
+
+      - F is monotone non-decreasing (Rh) or non-increasing (negated GPP)
+        by Fritsch-Carlson construction.
+      - The flux f = F' is therefore non-negative (or non-positive)
+        EVERYWHERE — knots and within pieces alike. No sign flips by
+        construction, not by clipping.
+      - f is a piecewise quadratic (derivative of a piecewise cubic
+        Hermite), so the storage layout is identical to PIQS — three
+        coefficients per piece. diurnalize-ERA5.r needs no change.
+      - The Fritsch-Carlson slope rule is local (uses neighboring
+        monthly means only), no global solve, ~constant time per cell.
+      - C^1 smooth at knots (Hermite by construction).
+      - Mass-preserving by construction.
+
+    Slight cost vs PIQS-quadratic: in cells with smoothly-varying
+    monthly means (no near-zero pieces), PIQS's global smoothness solve
+    can produce a subtly smoother sub-monthly shape than the locally-
+    determined PCHIP slopes. This is a third-order aesthetic concern
+    in non-pathological cells; in the cells we actually care about
+    (polar, semi-arid, transition months), PCHIP is more sensible
+    because it produces flat segments at zero rather than oscillating
+    through it.
+
+    A bake-off PIQS-vs-PCHIP is the next planned step (see
+    bakeoff_pchip.* in this directory once landed). If the verify_v2
+    sign-flip rate (Check 3.1) drops materially without perturbing the
+    other checks, PCHIP becomes the production fitter and the
+    polar-night clip (8) can also be retired (PCHIP doesn't need it
+    in cells where flux is provably zero; the residual is gone by
+    construction).
+
+
+(11) [CONSIDERED, DOMINATED BY PCHIP] Constrained-quadratic PIQS.
+    Add a per-piece non-negativity constraint to PIQS-quadratic:
+    enforce that the quadratic's vertex value lies on the right side
+    of zero (or that the vertex is outside the piece interval). Solved
+    as a small QP per cell.
+
+    Rejected in favour of PCHIP-on-cumulative because:
+
+      - PCHIP guarantees no sign flip GLOBALLY (within-piece + at
+        knots). Constrained quadratic only enforces within-piece;
+        knot values are still set by PIQS's global solve and can
+        still flip sign in cells with alternating monthly means.
+      - PCHIP is closed-form (Fritsch-Carlson is a local algebraic
+        rule); constrained quadratic needs a per-cell QP solve, much
+        more expensive at 64,800 cells * 25 years.
+      - Constrained quadratic has feasibility risk (non-negativity +
+        integral + smoothness may be jointly infeasible in pathological
+        cells), requiring a fallback path. PCHIP has no analogous
+        risk.
+      - Storage layout is identical for both alternatives (piecewise
+        quadratic for the flux), so PCHIP wins on equal terms with
+        less work.
+
+
 ##########################
 # Extra Notes
 ##########################
