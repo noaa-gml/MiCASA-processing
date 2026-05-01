@@ -244,6 +244,31 @@ write_piqs.r:
     fit.piqs.rda.
     https://gml.noaa.gov/ccgg/carbontracker/documentation.php#tth_sEc2.2
 
+write_pchip.r:
+    Drop-in alternative fitter using PCHIP-on-cumulative
+    (Fritsch-Carlson monotone-cubic Hermite, R's stats::splinefun
+    with method="monoH.FC"). Same input, same output filename
+    (fit.piqs.rda), same coefficient layout. Differs from PIQS by
+    being PROVABLY non-negative everywhere (knots and within pieces),
+    eliminating the sub-monthly sign flips PIQS produces in cells
+    with sharp seasonality (Check 3.1: up to 30% in boreal/tundra).
+    Smoothness penalty vs PIQS is ~50% on max|df| but absolute
+    differences are <2e-11 (invisible at hourly sampling).
+    See README methodological note (10) and bakeoff_pchip.py.
+
+write_mss.r:
+    Drop-in alternative fitter using a monotone smoothing spline:
+    cubic spline on cumulative F minimizing int(F'')^2 subject to
+    F(t_k) = F_k and f = F' >= 0 at 8 test points per segment.
+    Solved per-cell as a QP via the quadprog package. Recovers
+    PIQS-level smoothness in cells where positivity isn't binding,
+    drops sign-flip rate ~5-25x in cells where PIQS overshoots, but
+    NOT provably zero (residual ~1% from constraint discretization).
+    Slower than PIQS or PCHIP (~30-450 ms/cell vs <1 ms), still
+    produces fit.piqs.rda in <30 min single-threaded for the full
+    grid. Requires the R quadprog package.
+    See README methodological note (10) and bakeoff_mss.py.
+
 diurnalize-ERA5.r:
     Apply ERA5 hourly meteo (ssrd, t2m, stl1, swvl1) to the PIQS-smoothed
     monthly fluxes to get hourly GPP/RESP/NEE per (year, month).
