@@ -27,12 +27,13 @@
 
 # ---- Site config ------------------------------------------------------------
 
-# SLURM mail contact.
-: "${MAIL_USER:=ashley.pera@noaa.gov}"
+# SLURM mail contact -- required (no default; set in your shell profile).
+: "${MAIL_USER:?must set MAIL_USER (e.g. you@example.org)}"
 
-# Top of the GFED-CASA tree on /work2. Each year may live at $BASE_DIR/$YEAR/MiCASA_v1
-# (used by link_old_micasa_*.sh and check_unchanged.sh).
-: "${BASE_DIR:=/work2/noaa/co2/GFED-CASA}"
+# Top of the GFED-CASA tree. Each year may live at $BASE_DIR/$YEAR/MiCASA_v1
+# (used by link_old_micasa_*.sh and check_unchanged.sh). Required -- no
+# default, since the right path is site-specific.
+: "${BASE_DIR:?must set BASE_DIR (top of the GFED-CASA tree)}"
 
 # Working directory — defaults to the directory of the invoking script.
 # A single checkout can process any year by exporting MICASA_YEAR; WORK_DIR

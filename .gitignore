@@ -31,3 +31,6 @@ index.html*
 # Local convenience — uncomment if needed
 # *.local
 # scratch/
+
+# Bake-off / smoke logs (regenerated)
+*.log
