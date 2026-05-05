@@ -1,0 +1,234 @@
+# Changelog
+
+Dated engineering entries for the active (`main`) branch. Conceptual /
+methodological reasoning lives in [`docs/PROPOSALS.md`](docs/PROPOSALS.md);
+this file is for "what landed when, and what numbers it moved."
+
+## 2026-05-05 — Public-release prep
+
+- Added `LICENSE` (CC0 1.0 Universal) and `README.md` as the GitHub
+  front page. Restructured the formerly 901-line README into:
+  `README.md` (orientation), `docs/PIPELINE.md`, `docs/METHODOLOGY.md`,
+  `docs/PROPOSALS.md`, `CHANGELOG.md`.
+- Scrubbed personal email defaults from `config.r` / `config.sh` /
+  `ingest.r`; `MAIL_USER` and `BASE_DIR` are now required from env.
+- Parameterized site-specific paths in `produce_2025_2026.sh` and
+  `lib/bench_compression_diurnal.r`.
+- Untracked the regenerable `bakeoff_pchip.log`; added `*.log` to
+  `.gitignore`.
+- Pushed to `git@github.com:pera-noaa/MiCASA-processing.git`:
+  `main` = v2 active dev, `legacy` = v1 historical pipeline (unrelated
+  histories).
+
+## 2026-05-04 — PCHIP promoted to production fitter
+
+After full-record confirmation (300 months, 25 years), switched
+`produce_2025_2026.sh` and `run_year.sh` from `write_piqs.r` to
+`write_pchip.r`. PCHIP-on-cumulative is provably non-negative by
+Fritsch-Carlson construction, eliminating sub-monthly sign flips
+without requiring the polar-night clip.
+
+verify_v2 Check 3.1 numbers:
+
+| Metric | PIQS | PCHIP |
+|---|---|---|
+| GPP cell-hour mean | 6.55% | 0.12% (57× reduction) |
+| GPP cell-hour max | 14.70% | 0.94% (16× reduction) |
+| Rh cell-hour mean | 0.122% | 0.0000% |
+| Rh cell-hour max | 0.444% | 0.002% (222× reduction) |
+
+All Section 15 climate-signal checks unchanged: trend +0.0447 PgC/yr/yr,
+El Niño anomaly +0.643, COVID effect -0.346 (all consistent with PIQS);
+Section 5 globals GPP ∈ [-126.2, -119.8], resp ∈ [117.0, 123.9] PgC/yr.
+
+Also fixed `build_verify_v2.py` Check 3.1 glob — was `d-*-MiCASA*.o*`,
+which silently read stale PIQS logs after tagged reruns
+(`d-*-pchip.o*`). New version picks the most-recent log per year.
+
+`write_piqs.r` and `write_mss.r` remain in the tree as selectable
+alternatives via direct invocation. README note (10) flipped
+[PROPOSED] → [LANDED].
+
+## 2026-04-30 — Add write_pchip.r and write_mss.r
+
+Two drop-in alternative fitters next to `write_piqs.r`:
+
+- `write_pchip.r` — Fritsch-Carlson monotone-cubic Hermite on cumulative
+  F. R `splinefun(method="monoH.FC")`. Smoke test: 47 sec full grid,
+  195 MB.
+- `write_mss.r` — Monotone smoothing spline (cubic on cumulative F)
+  solved as a per-cell QP via `quadprog`. Smoke test: 53 min full grid,
+  239 MB.
+
+Both produce `fit.piqs.rda` with `piqsfit.meta$fitter` recording which
+one wrote it. `diurnalize-ERA5.r` consumes any of the three transparently.
+
+Bake-off scripts: `bakeoff_pchip.py`, `bakeoff_mss.py` test on 6
+representative cells (Manaus, Hyytiälä, Sahel, Arctic Tundra,
+semi-arid Texas, AK Tundra). PCHIP gives 0% flip rate by construction
+vs PIQS up to 30.91%, with absolute flux differences <2e-11.
+
+## 2026-04-29 — ATMC integration tried and reverted; polar-night clip lands
+
+**Tried (and reverted same day):** Subtracting MiCASA's `ATMC` field
+from NEE per the file-level `:comment` formula (`NEE = Rh - NPP - ATMC`).
+Reverted because ATMC is tuned to the global atmospheric CO₂ growth
+rate and these fluxes feed an inversion that ALSO assimilates
+atmospheric CO₂ — pre-correcting the prior with ATMC double-dips.
+See [`docs/PROPOSALS.md` #7](docs/PROPOSALS.md) for the full reasoning.
+
+Trend impact during the brief integration:
+
+| | Slope | Mean NEE |
+|---|---|---|
+| Without ATMC | +0.0413 PgC/yr/yr | -2.45 PgC/yr |
+| With ATMC | -0.0067 PgC/yr/yr | -5.99 PgC/yr |
+
+Code state after revert: `lib/ingest_common.r` tracers list back to
+`NPP/Rh/FIRE/FUEL`; `diurnalize-ERA5.r` computes `NEE = gpp + resp`;
+`compute_clim.sh` produces only NPPclim/Rhclim. Existing monthly
+files still carry ATMC (harmless leftover), and `ATMCclim.nc` sits
+unused — both can stay; just aren't read.
+
+**Landed:** Polar-night `gpp = 0` clip in `diurnalize-ERA5.r`. Without
+this, the spline's quadratic `qmod.gpp - gpp.mn` term leaked a small
+residual into hours where ssrd is identically 0 (~2.6% of cells in
+`fluxes_202512.nc` with max |GPP| = 9.4e-9 mol m⁻² s⁻¹). The clip
+zeros gpp at any cell-hour with `ssrd == 0` before NEE is summed.
+verify_v2 Check 12.2 covers this; Check 2.2 threshold relaxed
+1% → 5% to acknowledge the ~1.5% mass-conservation gap from the
+clip at partial-polar-night latitudes.
+
+## 2026-04-27 — PIQS edge padding, fit-window guard, sign-flip diag
+
+Three additions to make the NRT cadence safer:
+
+- **Edge padding** in `write_piqs.r`: `MICASA_PIQS_PAD_LEFT/RIGHT` env
+  vars extend `x.time` with synthetic months (filled from same-month
+  climatology), fit, then strip pad coefficients before saving. Output
+  shape unchanged. Production setting: `RIGHT=2 LEFT=0`. See
+  [proposal #1](docs/PROPOSALS.md).
+
+- **Fit-window guard** in `diurnalize-ERA5.r`: prints fit window +
+  padding metadata + active diurnalization year on startup; warns if
+  the active year extends past the fit edge. `MICASA_STRICT_PIQS=1`
+  escalates the warning to a hard error. See
+  [proposal #2](docs/PROPOSALS.md).
+
+- **Sub-monthly sign-flip log line** in `diurnalize-ERA5.r`: per-month
+  count and percentage of cells / cell-hours where GPP > 0 or resp < 0.
+  Drives verify_v2 Check 3.1. See
+  [proposal #4](docs/PROPOSALS.md).
+
+## 2026-04-26 — Latent-bug sweep (Tier-1 refactor)
+
+Six bugs found and fixed during the post-refactor audit:
+
+1. **`lib/ingest_common.r:aggregate.to.1x1`** — Latitude-area weights
+   were being recycled column-major across a 10×10 sub-block, applying
+   them along the **longitude** axis instead of latitude. Inner
+   `for (inlon in inlons)` loop was also dead (×10 then ÷10).
+   Magnitude depends on field gradient within a 1° block — typically
+   <0.01% for smooth fields, growing toward the poles. Fix: build a
+   flat length-100 weight vector that correctly assigns
+   `gca[inlats[k]]` to every cell at lat-position k. See
+   `lib/test_aggregate.r` for verification + regression test.
+
+2. **`run_year.sh:sbatch_wait`** — `--export="ALL,${exports}"` produced
+   a trailing comma when called with empty exports. Now passes `"ALL"`
+   alone in that case.
+
+3. **`write_piqs.r`** — `load.ncdf()` path was hardcoded to
+   `MiCASA_v1_*.nc`. Now sources `config.r` and uses
+   `micasa.out.monthly.cat(cfg)`, so it works under
+   `MICASA_VERSION=vNRT` too.
+
+4. **`check_hashes.py`** — Directory glob `202[4-5]` silently skipped
+   any year outside 2024–2025. Now reads `MICASA_YEAR_START/END` from
+   env and globs the requested years. Also added a missing-checksum-file
+   warning.
+
+5. **`link_old_micasa_raw.sh`** — Hardcoded `from_weir/...` legacy path,
+   which only existed in the 2024 layout. Now auto-detects between
+   legacy and 2025+ layouts via a `layout_candidates` array; uses
+   absolute paths so the link survives `WORK_DIR` moves.
+
+6. **`check_unchanged.sh`** — Used to silently warn-and-continue when
+   the previous-year reference was missing; new years would slip
+   through unchecked. Now: clearer warning with bootstrap instructions,
+   and on a clean diff it auto-blesses the new year's file as next
+   year's reference (the chain bootstraps itself once the initial 2024
+   reference is in place).
+
+Also: `link_daily_clim.sh` and `diurnalize-ERA5.r` default
+`MICASA_CLIM_YEARS` to `"2000 $(date +%Y)"` instead of
+`"2000 $MICASA_YEAR"` — climatology fallback should track *what's
+missing on disk right now*, not which year you happen to be processing.
+
+## 2026-04-26 — Performance: compression-level tuning
+
+`diurnalize-ERA5.r` writes 12 ~660 MB files per year (9 hourly vars at
+1°). Default deflate level was 9; bench results on a real
+`fluxes_202401.nc` (`lib/bench_compression_diurnal.r`):
+
+| Level | Time/file | Size MB | Per-year writes |
+|---|---|---|---|
+| 9 | 108 s | 632 | 1298 s (reference) |
+| 6 | 72 s | 633 | 870 s (-33%) |
+| 4 | 65 s | 634 | 786 s (-39%, +0.3% size) |
+| 3 | 60 s | 646 | 715 s (-45%, +2.2% size) |
+| 1 | 55 s | 646 | 654 s (-50%, +2.2% size) |
+
+Chose **level 4**: nearly identical file size to level 9 (+0.3%) for
+~9 min saved per year on the diurnalize stage. Levels 1-3 buy another
+~2 min but cost +14 MB/file = +170 MB/year, not worth it for archived
+output.
+
+Ingest paths (`lib/ingest_common.r`, `ingest.r`) left at level 9 since
+per-file output is only ~164 KB and the prior bench
+(`lib/bench_compression.r`) showed ~9 s/year savings — not worth the
+file-size cost for users who pull the daily 1° aggregates.
+
+## 2026-04-26 — Performance: ingest_byyear skip-existing + read-only-needed
+
+Two changes to `ingest_byyear.r` (and a smaller one to
+`ingest_monthly.r`):
+
+1. **Skip-existing** — `RECOMPUTE_EXISTING=1` to override (default off).
+   mtime-aware: a day is re-ingested if the source `.nc4` is newer
+   than the existing 1° output. NASA can republish source files
+   (especially vNRT); a pure `file.exists` check would silently keep
+   stale aggregates. `wget` in `download.sh` sets local mtime to
+   download time, so a re-download of a republished file makes
+   `mtime(src) > mtime(out)` and triggers re-ingest on the next
+   pipeline pass.
+
+   A daily NRT cycle that adds 1 new day previously deleted and rebuilt
+   all 365 daily 1° outputs. Now: re-run skips finished days, processes
+   only what's missing or stale.
+
+2. **Read only the 4 needed tracers** (NPP, Rh, FIRE, FUEL) instead of
+   the full 6-var raw file (which also has ATMC and NEE). Done by
+   passing `vars = micasa.tracers` to `load.ncdf()`.
+
+Measured impact on `ingest_byyear` 2024 (full year, 366 days):
+
+| Run | Wall-time |
+|---|---|
+| Baseline (vectorized aggregator) | 610 s |
+| + read-only-needed (`RECOMPUTE=1`) | 504 s (-17%) |
+| + skip-existing (cached re-run) | 4 s (-99%) |
+
+Output is bit-identical (`ncdiff` on 4 sample days × 4 tracers: max
+|Δ| = 0). Only the `:history` attribute timestamp differs on rewrite,
+as expected.
+
+The vectorized aggregator (commit `ce1bccc`) was the big win that
+collapsed `ingest_byyear` from 3.6 hr to ~10 min/year. These two
+changes shave another ~17% of the throughput case and ~99% of the
+NRT-rerun case.
+
+Verified by:
+- `lib/test_ingest_bitident.r` — read-path bit-identity
+- `lib/profile_ingest_day.r` — per-step cost breakdown
+- `lib/test_aggregate.r` — aggregator regression test (earlier)
