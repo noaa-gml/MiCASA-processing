@@ -1,6 +1,7 @@
 README written by Ash Pera 2025-05-13 17:03:37
 Updated 2026-04-26 — Tier-1 refactor + latent-bug sweep documented
 Updated 2026-04-27 — PIQS edge padding, fit-window guard, sign-flip diag (MiCASA_v2 dir)
+Updated 2026-05-04 — PCHIP promoted to production fitter (PIQS/MSS retained as selectable alternatives)
 
 ##########################
 # Overview
@@ -237,24 +238,28 @@ link_vNRT_to_v1.sh:
     consumers (CarbonTracker, etc.) read MiCASA_v1_*.nc transparently.
     Skips days where MiCASA_v1_*.nc already exists, so v1 always wins.
 
-write_piqs.r:
+write_pchip.r:  [PRODUCTION DEFAULT, since 2026-05-04]
+    Per grid cell, fit GPP and rtot with PCHIP-on-cumulative
+    (Fritsch-Carlson monotone-cubic Hermite, R's stats::splinefun
+    with method="monoH.FC"), save to fit.piqs.rda. Provably
+    non-negative everywhere (knots and within pieces) by Fritsch-
+    Carlson construction, so no sub-monthly sign flips. Confirmed
+    on the full 2001..2026-03 record: GPP cell-hour flip rate
+    drops 6.55% -> 0.12% (mean) and 14.70% -> 0.94% (max) vs PIQS;
+    Rh effectively eliminated (0.122% -> 0.0000% mean). Smoothness
+    penalty vs PIQS is ~50% on max|df| but absolute differences are
+    <2e-11 (invisible at hourly sampling). produce_2025_2026.sh
+    and run_year.sh both invoke this fitter as of 2026-05-04.
+    See README methodological note (10) and bakeoff_pchip.py.
+
+write_piqs.r:  [legacy alternative; retained]
     Source config.r and load monthly_1x1/MiCASA_<VER>_flux_x360_y180_monthly.nc
     via micasa.out.monthly.cat(cfg). Per grid cell, fit GPP and rtot
     with piecewise integral quadratic splines (PIQS), save to
-    fit.piqs.rda.
+    fit.piqs.rda. PIQS overshoots zero in cells with sharp seasonality
+    (Check 3.1: up to 30% in boreal/tundra) which motivated the PCHIP
+    switch. Kept as a fallback / for historical reproducibility.
     https://gml.noaa.gov/ccgg/carbontracker/documentation.php#tth_sEc2.2
-
-write_pchip.r:
-    Drop-in alternative fitter using PCHIP-on-cumulative
-    (Fritsch-Carlson monotone-cubic Hermite, R's stats::splinefun
-    with method="monoH.FC"). Same input, same output filename
-    (fit.piqs.rda), same coefficient layout. Differs from PIQS by
-    being PROVABLY non-negative everywhere (knots and within pieces),
-    eliminating the sub-monthly sign flips PIQS produces in cells
-    with sharp seasonality (Check 3.1: up to 30% in boreal/tundra).
-    Smoothness penalty vs PIQS is ~50% on max|df| but absolute
-    differences are <2e-11 (invisible at hourly sampling).
-    See README methodological note (10) and bakeoff_pchip.py.
 
 write_mss.r:
     Drop-in alternative fitter using a monotone smoothing spline:
@@ -270,8 +275,8 @@ write_mss.r:
     See README methodological note (10) and bakeoff_mss.py.
 
 diurnalize-ERA5.r:
-    Apply ERA5 hourly meteo (ssrd, t2m, stl1, swvl1) to the PIQS-smoothed
-    monthly fluxes to get hourly GPP/RESP/NEE per (year, month).
+    Apply ERA5 hourly meteo (ssrd, t2m, stl1, swvl1) to the smoothed
+    (PCHIP/PIQS/MSS) monthly fluxes to get hourly GPP/RESP/NEE per (year, month).
     Writes ERA5/fluxes_<YYYYMM>.nc.
     Driver mode (no diurn_year): fans out per year in
     [MICASA_YEAR_START, MICASA_YEAR_END].
@@ -625,11 +630,11 @@ Status legend:  [LANDED]   = code is in-tree, behaviour-preserving by default,
     the cumulative integral (PCHIP-on-cumulative) — see (10) below.
 
 
-(10) [PROPOSED] PCHIP-on-cumulative as a no-overshoot replacement.
+(10) [LANDED 2026-05-04] PCHIP-on-cumulative as the production fitter.
     Build the cumulative monthly integral F at the knot times, apply
-    Fritsch-Carlson monotone-cubic Hermite interpolation to F (scipy's
-    PchipInterpolator, R's splinefun(method="monoH.FC"), or hand-rolled),
-    then differentiate analytically. Properties:
+    Fritsch-Carlson monotone-cubic Hermite interpolation to F (R's
+    splinefun(method="monoH.FC"); scipy's PchipInterpolator in the
+    Python bake-off), then differentiate analytically. Properties:
 
       - F is monotone non-decreasing (Rh) or non-increasing (negated GPP)
         by Fritsch-Carlson construction.
@@ -653,13 +658,17 @@ Status legend:  [LANDED]   = code is in-tree, behaviour-preserving by default,
     because it produces flat segments at zero rather than oscillating
     through it.
 
-    A bake-off PIQS-vs-PCHIP is the next planned step (see
-    bakeoff_pchip.* in this directory once landed). If the verify_v2
-    sign-flip rate (Check 3.1) drops materially without perturbing the
-    other checks, PCHIP becomes the production fitter and the
-    polar-night clip (8) can also be retired (PCHIP doesn't need it
-    in cells where flux is provably zero; the residual is gone by
-    construction).
+    Bake-off (bakeoff_pchip.py) on 6 representative cells confirmed
+    PCHIP gives 0% flip rate by construction vs PIQS up to 30.91%
+    (AK Tundra), with absolute flux differences <2e-11 invisible at
+    hourly sampling. Full-record diurnalize confirmation (25 years,
+    300 months) shows GPP cell-hour mean flip rate 6.55% -> 0.12%
+    and Rh effectively zero. write_pchip.r is now invoked by both
+    produce_2025_2026.sh and run_year.sh; the polar-night clip in
+    diurnalize-ERA5.r (note 8) is now redundant for new diurnalizes
+    but kept as a defensive belt-and-suspenders. write_piqs.r and
+    write_mss.r remain in the tree as selectable alternatives via
+    direct invocation.
 
 
 (11) [CONSIDERED, DOMINATED BY PCHIP] Constrained-quadratic PIQS.

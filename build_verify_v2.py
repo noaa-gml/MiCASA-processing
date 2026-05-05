@@ -487,7 +487,17 @@ code('''
     cid, cname = "3.1", "sign-flip rate aggregate"
     pat_gpp = re.compile(r"PIQS sign-flip \\[GPP > 0\\]:\\s+\\d+ / \\d+ cells \\(([0-9.]+)%\\), \\d+ / \\d+ cell-hours \\(([0-9.]+)%\\)")
     pat_rsp = re.compile(r"PIQS sign-flip \\[resp < 0\\]:\\s+\\d+ / \\d+ cells \\(([0-9.]+)%\\), \\d+ / \\d+ cell-hours \\(([0-9.]+)%\\)")
-    logs = sorted(JOBS_DIR.glob("d-*-MiCASA*.o*"))
+    # Pick the most-recent log per year so tagged reruns (e.g. d-YYYY-pchip.o*)
+    # supersede the original d-YYYY-MiCASA.o* logs.
+    year_pat = re.compile(r"d-(\\d{4})-")
+    by_year = {}
+    for L in JOBS_DIR.glob("d-*.o*"):
+        mY = year_pat.match(L.name)
+        if not mY: continue
+        y = mY.group(1)
+        if y not in by_year or L.stat().st_mtime > by_year[y].stat().st_mtime:
+            by_year[y] = L
+    logs = [by_year[y] for y in sorted(by_year)]
     if not logs:
         record(cid, cname, INFO, "no diurnalize worker logs found")
     else:

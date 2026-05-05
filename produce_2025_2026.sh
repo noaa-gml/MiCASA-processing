@@ -84,9 +84,8 @@ print('  patched time to 2025-12-16 11:59:59.5 UTC')
 step 7/9 "cat_monthly (multi-year concat, 2001-01..2026-03)"
 ./cat_monthly.sh || echo "WARN: cat_monthly returned non-zero (likely check_bounds), continuing"
 
-step 8/9 "write_piqs PAD_RIGHT=2"
-MICASA_PIQS_PAD_RIGHT=2 MICASA_PIQS_PAD_LEFT=0 \
-  Rscript write_piqs.r
+step 8/9 "write_pchip (Fritsch-Carlson monotone-cubic Hermite)"
+Rscript write_pchip.r
 
 step 9/9 "submit diurnalize-2025 driver"
 DRV_JID=$(sbatch --parsable \
