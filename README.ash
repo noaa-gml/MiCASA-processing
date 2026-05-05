@@ -2,6 +2,26 @@ README written by Ash Pera 2025-05-13 17:03:37
 Updated 2026-04-26 — Tier-1 refactor + latent-bug sweep documented
 Updated 2026-04-27 — PIQS edge padding, fit-window guard, sign-flip diag (MiCASA_v2 dir)
 Updated 2026-05-04 — PCHIP promoted to production fitter (PIQS/MSS retained as selectable alternatives)
+Updated 2026-05-05 — Public release: CC0 license; main+legacy branch layout
+
+##########################
+# Repository layout
+##########################
+
+This repository has two branches with **unrelated histories**:
+
+  * `main`   — active development. PCHIP fitter (default), the verify_v2
+               test suite (45+ structural / sign / continuity / sanity
+               checks), bake-off scripts, plus PIQS and MSS as
+               selectable alternative fitters via direct invocation.
+  * `legacy` — historical MiCASA_v1 pipeline (classic PIQS only).
+               Preserved for archival reproducibility. The histories
+               diverge at git init, so attempts to merge will fail
+               without `--allow-unrelated-histories`. They are meant
+               to live side-by-side.
+
+If you are new here, work on `main`. Use `legacy` only if you need to
+reproduce a v1-vintage product or trace earlier provenance.
 
 ##########################
 # Overview
