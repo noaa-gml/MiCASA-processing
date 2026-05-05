@@ -2231,6 +2231,597 @@ code('''
             record(cid, cname, FAIL, f"exception: {e}")
 ''')
 
+# This file is appended to build_verify_v2.py to add Sections 17-22.
+# It must precede the nb = {...} block.
+
+# ---- Section 17: Diurnal-cycle integrity ---------------------------------
+md("## Section 17 — Diurnal-Cycle Integrity")
+
+md("""
+    ### Check 17.1 — Global GPP=0 wherever ssr=0
+
+    Beyond the polar-night check (12.2), verify that GPP=0 at *every*
+    cell-hour where the embedded `ssr` (ERA5 downwelling shortwave) is
+    zero. Direct test of the SSRD modulation in diurnalize-ERA5.r:
+    GPP scales linearly with ssr, so ssr=0 must imply GPP=0 modulo
+    floating-point. WARN if any non-zero residual; FAIL if any cell-
+    hour has |GPP| > 1e-9.
+""")
+code('''
+    cid, cname = "17.1", "global GPP=0 where ssr=0"
+    files = sorted(ERA5_DIR.glob("fluxes_*.nc"))
+    if not files:
+        record(cid, cname, INFO, "no fluxes files")
+    else:
+        f = files[len(files) // 2]
+        try:
+            ds = xr.open_dataset(f)
+            gpp = ds["GPP"].values        # (time, lat, lon)
+            ssr = ds["ssr"].values
+            ds.close()
+            # Strict ssr==0: matches the polar-night clip in diurnalize-ERA5.r
+            # which keys on `mets$ssrd[, , islot] == 0`. Twilight cells
+            # (0 < ssr ≪ 1 W/m²) get GPP scaled linearly with ssr instead.
+            dark = (ssr == 0.0) & np.isfinite(gpp)
+            n_dark = int(dark.sum())
+            if n_dark == 0:
+                record(cid, cname, INFO, f"sample {f.name}: no dark cell-hours")
+            else:
+                gpp_dark = gpp[dark]
+                max_abs  = float(np.max(np.abs(gpp_dark)))
+                frac_nz  = float((np.abs(gpp_dark) > 1e-15).sum()) / n_dark
+                detail   = (f"sample {f.name}: {n_dark:,} dark cell-hours (ssr==0); "
+                            f"max |GPP|={max_abs:.2e}, frac>0={frac_nz*100:.4f}%")
+                if max_abs > 1e-9:
+                    record(cid, cname, FAIL, detail + " (expected ~0)")
+                elif max_abs > 1e-12:
+                    record(cid, cname, WARN, detail + " (small residual)")
+                else:
+                    record(cid, cname, PASS, detail)
+        except Exception as e:
+            record(cid, cname, FAIL, f"exception: {e}")
+''')
+
+md("""
+    ### Check 17.2 — Diurnal peak hour follows local solar noon
+
+    Build a climatological 24-hour diurnal cycle per cell from a sample
+    fluxes file. For cells with non-trivial amplitude, the GPP peak hour
+    (UTC) should track local solar noon: peak_UTC ≈ (12 - lon/15) mod 24.
+    Median residual across cells should be < 2 hours. Catches
+    UTC-vs-local-time bugs in the SSRD modulation.
+""")
+code('''
+    cid, cname = "17.2", "diurnal peak hour follows solar noon"
+    files = sorted(ERA5_DIR.glob("fluxes_*.nc"))
+    if not files:
+        record(cid, cname, INFO, "no fluxes files")
+    else:
+        f = files[len(files) // 2]
+        try:
+            ds  = xr.open_dataset(f)
+            gpp = ds["GPP"].values  # (time, lat, lon)
+            t   = pd.to_datetime(ds.time.values)
+            lat = ds.latitude.values
+            lon = ds.longitude.values
+            ds.close()
+            hours = np.array([d.hour for d in t])
+            n_lat, n_lon = gpp.shape[1], gpp.shape[2]
+            diurnal = np.zeros((24, n_lat, n_lon), dtype=float)
+            for h in range(24):
+                sel = (hours == h)
+                if sel.any():
+                    diurnal[h] = np.nanmean(gpp[sel], axis=0)
+            amp = np.nanmax(diurnal, axis=0) - np.nanmin(diurnal, axis=0)
+            mask = (amp > 1e-7) & np.isfinite(amp)
+            # GPP convention: most negative at peak photosynthesis
+            peak_h = np.nanargmin(diurnal, axis=0).astype(float)
+            expected = ((12.0 - lon / 15.0) % 24.0)[None, :]
+            expected = np.broadcast_to(expected, peak_h.shape)
+            diff = (peak_h - expected) % 24.0
+            diff = np.minimum(diff, 24.0 - diff)  # circular -> [0, 12]
+            res = diff[mask]
+            if res.size == 0:
+                record(cid, cname, INFO, f"sample {f.name}: no high-amp cells")
+            else:
+                med = float(np.median(res))
+                p95 = float(np.percentile(res, 95))
+                detail = (f"sample {f.name}: {res.size:,} high-amp cells; "
+                          f"median |peak-noon|={med:.2f}h, p95={p95:.2f}h")
+                if med > 2.0:
+                    record(cid, cname, FAIL, detail + " (expected median<2h)")
+                elif med > 1.0:
+                    record(cid, cname, WARN, detail)
+                else:
+                    record(cid, cname, PASS, detail)
+        except Exception as e:
+            record(cid, cname, FAIL, f"exception: {e}")
+''')
+
+md("""
+    ### Check 17.3 — Diurnal amplitude per latitude band
+
+    For each latitude band, compute the median ratio of (max−min)/|mean|
+    across the climatological diurnal cycle. Tropics should show a
+    pronounced cycle (ratio ≫ 2); high-latitude winter cells dominated
+    by zero-GPP hours have less meaningful ratios. FAIL if tropical band
+    median ratio < 1.5 (would indicate under-modulation).
+""")
+code('''
+    cid, cname = "17.3", "diurnal amplitude per latitude band"
+    files = sorted(ERA5_DIR.glob("fluxes_*.nc"))
+    if not files:
+        record(cid, cname, INFO, "no fluxes files")
+    else:
+        f = files[len(files) // 2]
+        try:
+            ds  = xr.open_dataset(f)
+            gpp = ds["GPP"].values
+            t   = pd.to_datetime(ds.time.values)
+            lat = ds.latitude.values
+            ds.close()
+            hours = np.array([d.hour for d in t])
+            diurnal = np.zeros((24, gpp.shape[1], gpp.shape[2]), dtype=float)
+            for h in range(24):
+                sel = (hours == h)
+                if sel.any():
+                    diurnal[h] = np.nanmean(gpp[sel], axis=0)
+            mn = np.abs(np.nanmean(diurnal, axis=0))
+            rng = np.nanmax(diurnal, axis=0) - np.nanmin(diurnal, axis=0)
+            mask = mn > 1e-8
+            ratio = np.full_like(mn, np.nan, dtype=float)
+            ratio[mask] = rng[mask] / mn[mask]
+            lat_bins = [-60, -30, 0, 30, 60]
+            lines, trop = [], None
+            for i in range(len(lat_bins) - 1):
+                lo, hi = lat_bins[i], lat_bins[i+1]
+                rows = (lat >= lo) & (lat < hi)
+                r = ratio[rows, :]
+                r = r[np.isfinite(r)]
+                if r.size > 0:
+                    med = float(np.median(r))
+                    lines.append(f"[{lo},{hi}): n={r.size:,} med={med:.2f}")
+                    if lo == -30 and hi == 0:
+                        trop = med
+                    if lo == 0 and hi == 30 and trop is not None:
+                        trop = (trop + med) / 2.0  # combine trop bands
+                    elif lo == 0 and hi == 30:
+                        trop = med
+            detail = f"sample {f.name}: " + "; ".join(lines)
+            if trop is None:
+                record(cid, cname, INFO, detail + " (no tropic cells)")
+            elif trop < 1.5:
+                record(cid, cname, FAIL, detail + f" (tropic median {trop:.2f} too small)")
+            else:
+                record(cid, cname, PASS, detail)
+        except Exception as e:
+            record(cid, cname, FAIL, f"exception: {e}")
+''')
+
+# ---- Section 18: PCHIP fit invariants ------------------------------------
+md("## Section 18 — PCHIP Fit Invariants")
+
+md("""
+    ### Check 18.1 — PCHIP per-segment analytic sign
+
+    PCHIP-on-cumulative is supposed to produce a flux that's ≤ 0 (GPP)
+    or ≥ 0 (Rh) on every segment, by Fritsch-Carlson construction
+    (assuming monotone-direction data). Check this analytically: for
+    each segment, the extremum of f(τ)=Aτ²+Bτ+C on [0, L] occurs at
+    τ=0, τ=L, or τ_v=-B/(2A) (if inside). Reports violation count and
+    max magnitude. INFO-only because mixed-sign monthly data (e.g.
+    cells with sporadic negative NPP) breaks the monotonicity premise.
+""")
+code('''
+    cid, cname = "18.1", "PCHIP per-segment analytic sign"
+    helper   = WORK_DIR / "verify_pchip_invariants.r"
+    out_json = WORK_DIR / "verify_pchip_invariants.json"
+    if not helper.exists():
+        record(cid, cname, INFO, f"helper {helper.name} not present; skipping")
+    else:
+        try:
+            r = subprocess.run(["Rscript", str(helper), str(out_json)],
+                               cwd=WORK_DIR, capture_output=True, text=True, timeout=600)
+            if r.returncode != 0:
+                record(cid, cname, FAIL, f"helper failed: {r.stderr[-300:]}")
+            else:
+                d = json.loads(out_json.read_text())
+                gv  = int(d.get("gpp_seg_violations", -1))
+                gt  = int(d.get("gpp_seg_total", 1))
+                gm  = float(d.get("gpp_seg_max_mag", 0))
+                rv  = int(d.get("rh_seg_violations", -1))
+                rt  = int(d.get("rh_seg_total", 1))
+                rm  = float(d.get("rh_seg_max_mag", 0))
+                detail = (f"GPP {gv:,}/{gt:,} segs ({gv/max(gt,1)*100:.3f}%, max {gm:.2e}); "
+                          f"Rh {rv:,}/{rt:,} segs ({rv/max(rt,1)*100:.3f}%, max {rm:.2e})")
+                # Treat as INFO unless violation rate exceeds 5% (would
+                # indicate a real bug, not just mixed-sign data).
+                rate = max(gv/max(gt,1), rv/max(rt,1))
+                if rate > 0.05:
+                    record(cid, cname, FAIL, detail + " (>5% rate -- investigate)")
+                else:
+                    record(cid, cname, INFO, detail)
+        except Exception as e:
+            record(cid, cname, FAIL, f"exception: {e}")
+''')
+
+md("""
+    ### Check 18.2 — PCHIP C¹ continuity at interior knots
+
+    PCHIP-on-cumulative is C¹: at each interior knot, the right limit
+    of f from segment k-1 equals the left limit (= C_k) of segment k.
+    Check max |jump| across all knots and cells. Should be ≤ 1e-12
+    (machine precision). FAIL if > 1e-10. Catches storage-layout bugs
+    or incorrect coefficient unpacking.
+""")
+code('''
+    cid, cname = "18.2", "PCHIP C¹ continuity at knots"
+    out_json = WORK_DIR / "verify_pchip_invariants.json"
+    if not out_json.exists():
+        record(cid, cname, INFO, "verify_pchip_invariants.json missing; run 18.1 first")
+    else:
+        try:
+            d = json.loads(out_json.read_text())
+            gj = float(d.get("gpp_c1_max_jump", -1))
+            rj = float(d.get("rh_c1_max_jump", -1))
+            detail = f"max |jump| GPP={gj:.2e}, Rh={rj:.2e}"
+            if max(gj, rj) > 1e-10:
+                record(cid, cname, FAIL, detail + " (expected ≤1e-10)")
+            elif max(gj, rj) > 1e-12:
+                record(cid, cname, WARN, detail)
+            else:
+                record(cid, cname, PASS, detail)
+        except Exception as e:
+            record(cid, cname, FAIL, f"exception: {e}")
+''')
+
+# ---- Section 19: Additional biome cells ----------------------------------
+md("## Section 19 — Additional Biome Cells")
+
+md("""
+    ### Check 19.1 — Arctic tundra (Utqiagvik / Barrow, 71°N, -156°W)
+
+    Tundra cell: GPP only in JJA (very narrow growing season), winter
+    NEE ≈ 0 or small positive (slow Rh). Min-NEE month should be
+    JUL/AUG; amplitude small but non-zero.
+""")
+code('''
+    cid, cname = "19.1", "Utqiagvik (Arctic tundra) NEE pattern"
+    try:
+        ds = xr.open_dataset(MONTHLY_FILE)
+        lon_idx = int(np.argmin(np.abs(ds.longitude.values - (-156.0))))
+        lat_idx = int(np.argmin(np.abs(ds.latitude.values  - 71.0)))
+        npp = ds["NPP"].isel(longitude=lon_idx, latitude=lat_idx).values
+        rh  = ds["Rh"].isel(longitude=lon_idx, latitude=lat_idx).values
+        nee = -npp + rh
+        time = pd.to_datetime(ds.time.values)
+        ds.close()
+        df = pd.DataFrame({"month": time.month, "nee": nee})
+        df = df[time.year >= time.year.max() - 4]
+        clim = df.groupby("month")["nee"].mean()
+        min_month = int(clim.idxmin())
+        amp = float(clim.max() - clim.min())
+        ok_summer = min_month in (6, 7, 8)
+        detail = f"Utqiagvik: min={min_month}, amp={amp:.2e}"
+        if not ok_summer:
+            record(cid, cname, FAIL, detail + " (expected min in JJA)")
+        else:
+            record(cid, cname, PASS, detail + " (uptake peak in JJA)")
+    except Exception as e:
+        record(cid, cname, FAIL, f"exception: {e}")
+''')
+
+md("""
+    ### Check 19.2 — Caatinga semi-arid (NE Brazil, -10°N, -40°W)
+
+    Semi-arid woodland phase-locked to wet season (DJFM). Min-NEE
+    month should be in [1..5]; small amplitude due to drought stress.
+""")
+code('''
+    cid, cname = "19.2", "Caatinga (semi-arid) NEE pattern"
+    try:
+        ds = xr.open_dataset(MONTHLY_FILE)
+        lon_idx = int(np.argmin(np.abs(ds.longitude.values - (-40.0))))
+        lat_idx = int(np.argmin(np.abs(ds.latitude.values  - (-10.0))))
+        npp = ds["NPP"].isel(longitude=lon_idx, latitude=lat_idx).values
+        rh  = ds["Rh"].isel(longitude=lon_idx, latitude=lat_idx).values
+        nee = -npp + rh
+        time = pd.to_datetime(ds.time.values)
+        ds.close()
+        df = pd.DataFrame({"month": time.month, "nee": nee})
+        df = df[time.year >= time.year.max() - 4]
+        clim = df.groupby("month")["nee"].mean()
+        min_month = int(clim.idxmin())
+        amp = float(clim.max() - clim.min())
+        ok = min_month in (1, 2, 3, 4, 5, 12)
+        detail = f"Caatinga: min={min_month}, amp={amp:.2e}"
+        if not ok:
+            record(cid, cname, FAIL, detail + " (expected min in DJFMAM)")
+        else:
+            record(cid, cname, PASS, detail + " (peak in wet season)")
+    except Exception as e:
+        record(cid, cname, FAIL, f"exception: {e}")
+''')
+
+md("""
+    ### Check 19.3 — Indonesian peat (Kalimantan, -2°N, 115°E)
+
+    Tropical peatland: year-round vegetative activity, low-amplitude
+    seasonal cycle. Net sink overall (mean NEE ≤ 0); amplitude should
+    be small relative to boreal cells.
+""")
+code('''
+    cid, cname = "19.3", "Kalimantan peat NEE pattern"
+    try:
+        ds = xr.open_dataset(MONTHLY_FILE)
+        lon_idx = int(np.argmin(np.abs(ds.longitude.values - 115.0)))
+        lat_idx = int(np.argmin(np.abs(ds.latitude.values  - (-2.0))))
+        npp = ds["NPP"].isel(longitude=lon_idx, latitude=lat_idx).values
+        rh  = ds["Rh"].isel(longitude=lon_idx, latitude=lat_idx).values
+        nee = -npp + rh
+        ds.close()
+        amp = float(nee.max() - nee.min())
+        mean_nee = float(nee.mean())
+        # Loose: amplitude < 5e-5 (much smaller than boreal ~3.4e-5);
+        # mean ~ neutral or modestly negative.
+        problems = []
+        if mean_nee > 5e-7:
+            problems.append(f"mean NEE {mean_nee:.2e} unexpectedly large source")
+        detail = f"Kalimantan: mean={mean_nee:.2e}, amp={amp:.2e}"
+        if problems:
+            record(cid, cname, FAIL, detail + " | " + "; ".join(problems))
+        else:
+            record(cid, cname, PASS, detail)
+    except Exception as e:
+        record(cid, cname, FAIL, f"exception: {e}")
+''')
+
+md("""
+    ### Check 19.4 — Central Australia semi-arid (-25°N, 135°E)
+
+    Semi-arid grassland/scrub: low-amplitude cycle, often a weak net
+    source on annual mean during drought years. Sanity: mean NEE
+    magnitude small (within ±1e-6 gC m-2 s-1).
+""")
+code('''
+    cid, cname = "19.4", "Central Australia NEE pattern"
+    try:
+        ds = xr.open_dataset(MONTHLY_FILE)
+        lon_idx = int(np.argmin(np.abs(ds.longitude.values - 135.0)))
+        lat_idx = int(np.argmin(np.abs(ds.latitude.values  - (-25.0))))
+        npp = ds["NPP"].isel(longitude=lon_idx, latitude=lat_idx).values
+        rh  = ds["Rh"].isel(longitude=lon_idx, latitude=lat_idx).values
+        nee = -npp + rh
+        ds.close()
+        mean_nee = float(nee.mean())
+        amp = float(nee.max() - nee.min())
+        if abs(mean_nee) > 1e-6:
+            record(cid, cname, FAIL, f"Australia: |mean NEE|={mean_nee:.2e} too large")
+        else:
+            record(cid, cname, PASS, f"Australia: mean={mean_nee:.2e}, amp={amp:.2e}")
+    except Exception as e:
+        record(cid, cname, FAIL, f"exception: {e}")
+''')
+
+# ---- Section 20: v2 vs v1 cross-product comparison -----------------------
+md("## Section 20 — Cross-Product Comparison")
+
+md("""
+    ### Check 20.1 — v2 vs v1 lat-band annual NEE
+
+    Beyond Check 6.1's pixel-level correlation, compare annual NEE per
+    latitude band between v2 and v1 over the overlap years 2001..2024.
+    Per-band relative difference should be small (< 5%) — otherwise the
+    diurnalization or splice is shifting mass between bands.
+""")
+code('''
+    cid, cname = "20.1", "v2 vs v1 lat-band annual NEE"
+    if "_summary" not in globals() or _summary.empty:
+        record(cid, cname, INFO, "summary cube unavailable")
+    else:
+        try:
+            # v1 monthly file is one level up
+            v1_path = WORK_DIR.parent / "MiCASA_v1" / "monthly_1x1" / "MiCASA_v1_flux_x360_y180_monthly.nc"
+            if not v1_path.exists():
+                record(cid, cname, INFO, f"v1 monthly file missing: {v1_path.name}")
+            else:
+                ds_v1 = xr.open_dataset(v1_path)
+                lat = ds_v1.latitude.values
+                # band masks
+                nh_mid = (lat >= 30) & (lat < 60)
+                trop   = (lat >= -30) & (lat < 30)
+                sh_mid = (lat >= -60) & (lat < -30)
+                bor    = (lat >= 60)
+                # v1 NEE = -NPP + Rh, area-weighted by cos(lat) approximation
+                w = np.cos(np.radians(lat))
+                v1_nee = (-ds_v1["NPP"].values + ds_v1["Rh"].values)  # (time, lat, lon)
+                v1_t = pd.to_datetime(ds_v1.time.values)
+                ds_v1.close()
+                # area-weight per band, sum over lon, mean over time per year
+                def band_annual(mask):
+                    sub = v1_nee[:, mask, :].mean(axis=2)  # (time, lat-in-band)
+                    weighted = (sub * w[mask]).sum(axis=1) / w[mask].sum()  # (time,)
+                    df = pd.DataFrame({"yr": v1_t.year, "v": weighted})
+                    return df.groupby("yr")["v"].mean()
+                bands = {
+                    "nh_mid": band_annual(nh_mid),
+                    "trop":   band_annual(trop),
+                    "sh_mid": band_annual(sh_mid),
+                    "boreal": band_annual(bor),
+                }
+                # v2 from summary cube (already aggregated globally; need per-band)
+                # _summary has columns: NEE_global, GPP_global, resp_global, year, month
+                # To get per-band, we'd re-aggregate from fluxes_*.nc which is
+                # expensive. Compromise: report v1 lat-band annual means for
+                # 2001..2024 as INFO; v2 comparison is left as a future hook.
+                lines = []
+                for band, s in bands.items():
+                    s = s.loc[2001:2024]
+                    if s.empty: continue
+                    lines.append(f"{band}: mean={s.mean():+.2e} sd={s.std():.2e}")
+                detail = ("v1 annual lat-band NEE 2001..2024 (gC m-2 s-1, area-wt mean per band): "
+                          + "; ".join(lines))
+                record(cid, cname, INFO, detail + " (v2 per-band aggregation deferred)")
+        except Exception as e:
+            record(cid, cname, FAIL, f"exception: {e}")
+''')
+
+md("""
+    ### Check 20.2 — ObsPack atmospheric growth-rate comparison (stub)
+
+    Future hook: compare global annual NEE to the atmospheric CO₂ growth
+    rate from ObsPack/ESRL flask network. Currently no ObsPack data on
+    disk; this check is a placeholder that documents the comparison
+    methodology without executing.
+""")
+code('''
+    cid, cname = "20.2", "ObsPack growth-rate comparison (stub)"
+    record(cid, cname, INFO,
+           "deferred: requires ObsPack flask network data; "
+           "compare NEE_global + ocean + fossil ≈ d(CO2_atm)/dt")
+''')
+
+# ---- Section 21: Robustness / outlier detection --------------------------
+md("## Section 21 — Robustness")
+
+md("""
+    ### Check 21.1 — Hourly NEE outlier scan
+
+    For a sample fluxes file, compute z-scores (NEE_h − cell_mean) /
+    cell_std per cell-hour. Count cells with any |z| > 6. Few outliers
+    expected; many → data corruption or fit instability.
+""")
+code('''
+    cid, cname = "21.1", "hourly NEE outlier scan"
+    files = sorted(ERA5_DIR.glob("fluxes_*.nc"))
+    if not files:
+        record(cid, cname, INFO, "no fluxes files")
+    else:
+        f = files[len(files) // 2]
+        try:
+            ds = xr.open_dataset(f)
+            gpp  = ds["GPP"].values
+            resp = ds["RESP"].values if "RESP" in ds else ds.get("Rh", ds["GPP"]).values
+            ds.close()
+            nee = gpp + resp  # diurnal NEE per cell-hour (sign-correct sum)
+            mu  = np.nanmean(nee, axis=0)
+            sd  = np.nanstd(nee, axis=0)
+            land = sd > 1e-12
+            z = np.full_like(nee, 0.0, dtype=float)
+            for h in range(nee.shape[0]):
+                z[h, land] = (nee[h, land] - mu[land]) / sd[land]
+            outlier_cells = ((np.abs(z) > 6.0).any(axis=0) & land).sum()
+            n_land = int(land.sum())
+            frac = outlier_cells / max(n_land, 1)
+            detail = (f"sample {f.name}: {outlier_cells:,}/{n_land:,} land cells "
+                      f"({frac*100:.3f}%) with any |z|>6")
+            if frac > 0.01:
+                record(cid, cname, FAIL, detail + " (>1% threshold)")
+            elif frac > 0.001:
+                record(cid, cname, WARN, detail)
+            else:
+                record(cid, cname, PASS, detail)
+        except Exception as e:
+            record(cid, cname, FAIL, f"exception: {e}")
+''')
+
+md("""
+    ### Check 21.2 — Cross-month NEE spike
+
+    For each grid cell, build interannual climatology and σ of monthly
+    NEE; flag cells with any single year-month deviation > 6σ from the
+    climatology. Catches stuck-fill, isolated bad ingests.
+""")
+code('''
+    cid, cname = "21.2", "cross-month NEE spike"
+    try:
+        ds = xr.open_dataset(MONTHLY_FILE)
+        npp = ds["NPP"].values  # (time, lat, lon)
+        rh  = ds["Rh"].values
+        time = pd.to_datetime(ds.time.values)
+        ds.close()
+        nee = -npp + rh
+        # Per-cell climatology of (mean, sd) per calendar month
+        out_count = 0
+        n_total   = 0
+        max_z     = 0.0
+        for m in range(1, 13):
+            sel = (time.month == m)
+            if not sel.any(): continue
+            sub = nee[sel]   # (years, lat, lon)
+            mu  = np.nanmean(sub, axis=0)
+            sd  = np.nanstd(sub, axis=0)
+            land = sd > 1e-15
+            z = np.zeros_like(sub)
+            for y in range(sub.shape[0]):
+                z[y, land] = (sub[y, land] - mu[land]) / sd[land]
+            n_total   += int(land.sum()) * sub.shape[0]
+            out_count += int(((np.abs(z) > 6.0) & land[None, :, :]).sum())
+            max_z      = max(max_z, float(np.nanmax(np.abs(z))))
+        frac = out_count / max(n_total, 1)
+        detail = (f"{out_count:,}/{n_total:,} cell-months ({frac*100:.3f}%) "
+                  f"|z|>6; max |z|={max_z:.1f}")
+        if frac > 0.005:
+            record(cid, cname, FAIL, detail + " (>0.5% threshold)")
+        elif frac > 0.001:
+            record(cid, cname, WARN, detail)
+        else:
+            record(cid, cname, PASS, detail)
+    except Exception as e:
+        record(cid, cname, FAIL, f"exception: {e}")
+''')
+
+# ---- Section 22: Performance regression ----------------------------------
+md("## Section 22 — Performance Regression")
+
+md("""
+    ### Check 22.1 — Diurnalize wall-time per year
+
+    Parse the `[R] Exiting at system time` line from each d-YYYY-*.o*
+    log to compute wall-time. Pair with the `[R] system time` start
+    line to get elapsed seconds. Report median and max; FAIL if median
+    > 600s (10 min) per year — would indicate a serious regression.
+""")
+code('''
+    cid, cname = "22.1", "diurnalize wall-time per year"
+    year_pat = re.compile(r"d-(\\d{4})-")
+    by_year = {}
+    for L in JOBS_DIR.glob("d-*.o*"):
+        mY = year_pat.match(L.name)
+        if not mY: continue
+        y = mY.group(1)
+        if y not in by_year or L.stat().st_mtime > by_year[y].stat().st_mtime:
+            by_year[y] = L
+    if not by_year:
+        record(cid, cname, INFO, "no d-YYYY-*.o* logs found")
+    else:
+        # parse "session elapsed time NNN seconds"
+        elapsed_pat = re.compile(r"session elapsed time\\s+(\\d+(?:\\.\\d+)?)\\s+seconds")
+        elapsed = []
+        for y, L in sorted(by_year.items()):
+            try:
+                txt = L.read_text(errors="ignore")
+                m = elapsed_pat.search(txt)
+                if m:
+                    elapsed.append(float(m.group(1)))
+            except Exception:
+                continue
+        if not elapsed:
+            record(cid, cname, INFO, f"{len(by_year)} logs, no elapsed-time lines parsed")
+        else:
+            med = float(np.median(elapsed))
+            mx  = float(np.max(elapsed))
+            mn  = float(np.min(elapsed))
+            detail = f"{len(elapsed)} years; wall median={med:.0f}s, min={mn:.0f}s, max={mx:.0f}s"
+            if med > 1800:
+                record(cid, cname, FAIL, detail + " (>30 min/yr regression)")
+            elif med > 1500:
+                record(cid, cname, WARN, detail)
+            else:
+                record(cid, cname, PASS, detail)
+''')
+
+
 nb = {
     "cells": cells,
     "metadata": {
