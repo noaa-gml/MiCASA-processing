@@ -37,7 +37,7 @@ md("""
 
     **Run from the v2 working directory**:
     ```sh
-    cd /work2/noaa/co2/GFED-CASA/2025/MiCASA_v2
+    cd $WORK_DIR     # i.e. wherever you checked out this repo
     jupyter nbconvert --to notebook --execute verify_v2.ipynb \\
         --output verify_v2.executed.ipynb
     ```
@@ -64,7 +64,11 @@ code('''
     ERA5_DIR     = WORK_DIR / "ERA5"
     JOBS_DIR     = WORK_DIR / "jobs"
     DAILY_DIR    = WORK_DIR / "daily_1x1"
-    MET_BASE     = Path(os.environ.get("CARBONTRACKER", "/work2/noaa/co2")) \\
+    # MET_BASE is the root of the TM5 ERA5 meteo tree. Set CARBONTRACKER
+    # to the directory containing METEO/...; the default below is a no-op
+    # placeholder so the file parses, but Section-7-and-later checks need a
+    # real path to find ssrd files.
+    MET_BASE     = Path(os.environ.get("CARBONTRACKER", ".")) \\
                    / "METEO/tm5-nc/ec/ea/h06h18tr1/sfc/glb100x100"
 
     PASS, FAIL, WARN, INFO = "PASS", "FAIL", "WARN", "INFO"
