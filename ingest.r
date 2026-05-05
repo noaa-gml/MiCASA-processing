@@ -7,11 +7,10 @@
 #SBATCH --output %x.o%j
 #SBATCH --partition hercules
 #SBATCH --mail-type=FAIL
-#SBATCH --mail-user=andy.jacobson@noaa.gov
+#SBATCH --mail-user=${MAIL_USER}
 
 ct.setup()
-ingest.weir.timestamp <- "Time-stamp: <hercules-login-1.hpc.msstate.edu:/home/ajacobso/co2/GFED-CASA/2024/GFED_CMS/ingest.r: 05 Apr 2024 (Fri) 14:13:56 UTC>"
-
+ingest.weir.timestamp <- "Time-stamp: <(redacted)>"
 # submit a follow-on job
 cur.jobnum <- as.integer(Sys.getenv("SLURM_JOB_ID"))
 if(!is.na(cur.jobnum)) {

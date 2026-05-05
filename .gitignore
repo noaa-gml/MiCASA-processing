@@ -41,3 +41,6 @@ verify_v2_summary.csv
 *.rda.prev
 verify_piqs_tail_stability.json
 __pycache__/
+
+# Bake-off / smoke logs (regenerated)
+*.log

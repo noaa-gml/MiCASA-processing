@@ -10,7 +10,11 @@
 
 library(ncdf4)
 
-src <- "/work2/noaa/co2/GFED-CASA/2025/MiCASA_v1/ERA5/fluxes_202401.nc"
+## Pass the path to the input fluxes file as the first argument; e.g.:
+##     Rscript lib/bench_compression_diurnal.r ERA5/fluxes_202401.nc
+args <- commandArgs(trailingOnly = TRUE)
+src  <- if (length(args) >= 1) args[1]
+        else stop("Usage: Rscript lib/bench_compression_diurnal.r <fluxes_YYYYMM.nc>")
 stopifnot(file.exists(src))
 cat(sprintf("source: %s  (%.1f MB)\n", src, file.info(src)$size / 1024^2))
 

@@ -71,7 +71,7 @@ ncatted -O \
 # nominal-2001 climatology dailies pulls the mean time toward ~2018.
 # Overwrite with the correct mid-Dec 2025 timestamp matching the convention
 # used by ingest_monthly.r for other months (mid-month minus 0.5s).
-/work2/noaa/co2/miniconda3/envs/tm5/bin/python -c "
+${PYTHON:-python3} -c "
 import netCDF4 as nc, datetime
 ds = nc.Dataset('monthly_1x1/MiCASA_v1_flux_x360_y180_monthly_202512.nc', 'r+')
 t = datetime.datetime(2025, 12, 16, 11, 59, 59, 500000,
