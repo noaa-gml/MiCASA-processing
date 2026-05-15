@@ -35,10 +35,67 @@ clim.yrs <- as.integer(strsplit(
              sprintf("2000 %s", format(Sys.Date(), "%Y"))),
   "\\s+")[[1]])
 
-## Hourly 1° ERA5 from the TM5 meteo tree.
-era5dir <- sprintf("%s/METEO/tm5-nc/ec/ea/h06h18tr1/sfc/glb100x100",
-                   Sys.getenv("CARBONTRACKER", ""))
+## Hourly 1° ERA5 from the TM5 meteo tree. The primary tree is tried
+## first; the FastTrack tree (ea_0005) is a fallback for the NRT
+## trailing window where the primary has not yet been populated. A day
+## is resolved wholly to the first tree that holds all of varnms for it,
+## so provenance stays clean; the per-day attribution is written to the
+## output (meteo_source_* global attributes). Either root can be
+## overridden via MICASA_ERA5_DIR / MICASA_ERA5_DIR_FALLBACK.
+.ct <- Sys.getenv("CARBONTRACKER", "")
+era5dirs <- c(
+  primary   = sprintf("%s/METEO/tm5-nc/ec/ea/h06h18tr1/sfc/glb100x100",     .ct),
+  fasttrack = sprintf("%s/METEO/tm5-nc/ec/ea_0005/h06h18tr1/sfc/glb100x100", .ct))
+if (nchar(Sys.getenv("MICASA_ERA5_DIR")) > 0)
+  era5dirs["primary"]   <- Sys.getenv("MICASA_ERA5_DIR")
+if (nchar(Sys.getenv("MICASA_ERA5_DIR_FALLBACK")) > 0)
+  era5dirs["fasttrack"] <- Sys.getenv("MICASA_ERA5_DIR_FALLBACK")
 era5template <- "YYYY/MM/VVV_YYYYMMDD_00p01.nc"
+cat(sprintf("ERA5 meteo search order:\n%s\n",
+            paste(sprintf("  %-9s %s", names(era5dirs), era5dirs),
+                  collapse = "\n")))
+
+## Relative path of one (yr, mon, day, var) ERA5 file from era5template.
+era5.relpath <- function(yr, mon, day, varnm) {
+  e5nm <- gsub("YYYY", sprintf("%d",   yr),  era5template)
+  e5nm <- gsub("MM",   sprintf("%02d", mon), e5nm)
+  e5nm <- gsub("DD",   sprintf("%02d", day), e5nm)
+  gsub("VVV", varnm, e5nm)
+}
+
+## Resolve a day to the first meteo tree holding ALL varnms for it.
+## Returns the era5dirs name ("primary"/"fasttrack"), or NA if none.
+resolve.era5.source <- function(yr, mon, day, varnms) {
+  for (src in names(era5dirs)) {
+    paths <- file.path(era5dirs[[src]],
+                       vapply(varnms,
+                              function(v) era5.relpath(yr, mon, day, v),
+                              character(1)))
+    if (all(file.exists(paths))) return(src)
+  }
+  NA_character_
+}
+
+## Compact run-length encoding of a per-day source vector, e.g.
+## "primary:1-30 fasttrack:31". `days` are the day numbers to encode;
+## `srcvec` is indexed by day number.
+encode.day.runs <- function(days, srcvec) {
+  if (length(days) == 0) return("")
+  parts <- character(0)
+  for (s in unique(srcvec[days])) {
+    ds <- sort(days[srcvec[days] == s])
+    runs <- character(0); i <- 1
+    while (i <= length(ds)) {
+      j <- i
+      while (j < length(ds) && ds[j + 1] == ds[j] + 1) j <- j + 1
+      runs <- c(runs, if (j > i) sprintf("%d-%d", ds[i], ds[j])
+                      else        sprintf("%d", ds[i]))
+      i <- j + 1
+    }
+    parts <- c(parts, sprintf("%s:%s", s, paste(runs, collapse = ",")))
+  }
+  paste(parts, collapse = " ")
+}
 
 yr.env <- Sys.getenv("diurn_year")
 
@@ -168,19 +225,13 @@ for (mon in mon.range) {
   ## (crash on first nc_open) is preserved when every day is present.
   varnms <- c("t2m", "ssrd", "stl1", "swvl1")
   dpm.full <- days.in.month(yr)[mon]
-  available.days <- integer(0)
-  missing.days   <- integer(0)
-  for (day in 1:dpm.full) {
-    ok <- TRUE
-    for (varnm in varnms) {
-      e5nm <- gsub("YYYY", sprintf("%d",   yr),    era5template)
-      e5nm <- gsub("MM",   sprintf("%02d", mon),   e5nm)
-      e5nm <- gsub("DD",   sprintf("%02d", day),   e5nm)
-      e5nm <- gsub("VVV",  varnm,                  e5nm)
-      if (!file.exists(sprintf("%s/%s", era5dir, e5nm))) { ok <- FALSE; break }
-    }
-    if (ok) available.days <- c(available.days, day) else missing.days <- c(missing.days, day)
-  }
+  ## Per-day meteo source: "primary", "fasttrack", or NA (day missing
+  ## from every tree). day.source is indexed by day number.
+  day.source <- vapply(1:dpm.full,
+                       function(d) resolve.era5.source(yr, mon, d, varnms),
+                       character(1))
+  available.days <- which(!is.na(day.source))
+  missing.days   <- which(is.na(day.source))
   if (length(available.days) == 0) {
     cat(sprintf("WARN: %d/%02d has no complete ERA5 days; skipping month.\n", yr, mon))
     next
@@ -191,17 +242,17 @@ for (mon in mon.range) {
                 yr, mon, length(available.days), dpm.full,
                 paste(missing.days, collapse=",")))
   }
+  cat(sprintf("ERA5 meteo source: %s\n",
+              encode.day.runs(available.days, day.source)))
   dpm <- length(available.days)
   mets <- list()
   times <- rep(NA, dpm * 24)
   for (k in seq_along(available.days)) {
     day <- available.days[k]
+    src <- day.source[day]
     for (varnm in varnms) {
-      e5nm <- gsub("YYYY", sprintf("%d",   yr),    era5template)
-      e5nm <- gsub("MM",   sprintf("%02d", mon),   e5nm)
-      e5nm <- gsub("DD",   sprintf("%02d", day),   e5nm)
-      e5nm <- gsub("VVV",  varnm,                  e5nm)
-      ncname.in <- sprintf("%s/%s", era5dir, e5nm)
+      ncname.in <- file.path(unname(era5dirs[[src]]),
+                             era5.relpath(yr, mon, day, varnm))
       foo <- load.ncdf(ncname.in)
       if (is.null(mets[[varnm]])) {
         mets[[varnm]] <- array(NA, dim = c(360, 180, 24 * dpm))
@@ -359,7 +410,24 @@ for (mon in mon.range) {
                              format(Sys.time(), "%a %b %d %Y %H:%M:%S %Z"),
                              script.name),
             prec = "text")
-  ncatt_put(ncf, 0, "meteo_source_directory", attval = era5dir, prec = "text")
+  ## Meteo provenance. Each day is read wholly from one tree; record the
+  ## tree paths and the run-length per-day attribution. meteo_source_directory
+  ## is kept (pointing at the tree that supplied the most days) for any
+  ## downstream reader that still expects the old single-path attribute.
+  for (src in names(era5dirs))
+    ncatt_put(ncf, 0, sprintf("meteo_source_%s", src),
+              attval = unname(era5dirs[[src]]), prec = "text")
+  ncatt_put(ncf, 0, "meteo_source_by_day",
+            attval = encode.day.runs(available.days, day.source), prec = "text")
+  .src.counts <- table(day.source[available.days])
+  .dominant   <- names(.src.counts)[which.max(.src.counts)]
+  ncatt_put(ncf, 0, "meteo_source_directory",
+            attval = unname(era5dirs[[.dominant]]), prec = "text")
+  ## "yes" if any day came from a non-primary (fallback) tree.
+  ncatt_put(ncf, 0, "meteo_fallback_used",
+            attval = if (any(day.source[available.days] != names(era5dirs)[1]))
+                       "yes" else "no",
+            prec = "text")
   if (partial.month) {
     ncatt_put(ncf, 0, "status", attval = "provisional", prec = "text")
     ncatt_put(ncf, 0, "meteo_partial",

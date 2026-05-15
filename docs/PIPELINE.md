@@ -92,6 +92,8 @@ doesn't accidentally clim a fully-published year.
 | `MICASA_STRICT_PIQS` | `1` to escalate "year past PIQS fit edge" warning to an error |
 | `MICASA_DIURN_OUT_DIR` | A/B-test override for diurnalize output dir |
 | `MICASA_DIURN_ONLY_MONTH` | Restrict diurnalize to a single month for shadow-output testing |
+| `MICASA_ERA5_DIR` | Override the primary ERA5 meteo tree |
+| `MICASA_ERA5_DIR_FALLBACK` | Override the FastTrack (`ea_0005`) fallback ERA5 meteo tree |
 
 ## Flowchart
 
@@ -223,6 +225,25 @@ run_year.sh
   Driver mode (no `diurn_year`) fans out per year in
   `[MICASA_YEAR_START, MICASA_YEAR_END]`. Years in `MICASA_CLIM_YEARS`
   use day-of-year climatology (`NPPclim.nc`, `Rhclim.nc`).
+
+  **Meteo source resolution.** Each day is resolved to the first ERA5
+  tree that holds all four variables for it: the **primary** tree
+  (`ec/ea/h06h18tr1/sfc/glb100x100`) is tried first, then the
+  **FastTrack** fallback (`ec/ea_0005/...`), which is populated sooner
+  during the NRT window. A day is read wholly from one tree, so
+  provenance stays clean. Each output file records where its meteo
+  came from in global attributes:
+
+  | Attribute | Meaning |
+  |---|---|
+  | `meteo_source_primary` | Path to the primary tree |
+  | `meteo_source_fasttrack` | Path to the FastTrack fallback tree |
+  | `meteo_source_by_day` | Run-length per-day attribution, e.g. `primary:1-30 fasttrack:31` |
+  | `meteo_source_directory` | Back-compat: the tree that supplied the most days |
+  | `meteo_fallback_used` | `yes` if any day came from a non-primary tree, else `no` |
+
+  Days absent from every tree are dropped from the hourly time axis and
+  the output is marked `status = provisional` (see `meteo_partial`).
 
 ### Stage 6 — Daysplit
 

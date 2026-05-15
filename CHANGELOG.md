@@ -4,6 +4,28 @@ Dated engineering entries for the active (`main`) branch. Conceptual /
 methodological reasoning lives in [`docs/PROPOSALS.md`](docs/PROPOSALS.md);
 this file is for "what landed when, and what numbers it moved."
 
+## 2026-05-15 — FastTrack ERA5 meteo fallback
+
+`diurnalize-ERA5.r` now consults two meteo trees instead of one:
+
+- **primary** — `ec/ea/h06h18tr1/sfc/glb100x100`
+- **FastTrack fallback** — `ec/ea_0005/h06h18tr1/sfc/glb100x100`,
+  populated sooner during the NRT window (covers ~2 months further
+  than the primary as of 2026-05).
+
+Each day is resolved to the first tree holding all four variables
+(t2m, ssrd, stl1, swvl1); a day is read wholly from one tree.
+Provenance is written to the output file as global attributes
+`meteo_source_primary`, `meteo_source_fasttrack`,
+`meteo_source_by_day` (run-length, e.g. `primary:1-30 fasttrack:31`),
+`meteo_fallback_used` (`yes`/`no`), and `meteo_source_directory`
+(kept for back-compat, set to the dominant tree).
+
+Both roots are overridable via `MICASA_ERA5_DIR` /
+`MICASA_ERA5_DIR_FALLBACK`. Smoke-tested on 2026-02 (a month the
+primary tree lacks entirely): resolved `fasttrack:1-28`, wrote a
+clean `fluxes_202602.nc` with `meteo_fallback_used = "yes"`.
+
 ## 2026-05-05 — Public-release prep
 
 - Added `LICENSE` (CC0 1.0 Universal) and `README.md` as the GitHub
