@@ -26,23 +26,36 @@ for mon in $(seq 1 12); do
     for day in $(seq 1 "$ndays"); do
         dayf=$(printf '%02d' "$day")
 
-        # Match only real data years (2xxx) -- the 0000-prefixed climatology
-        # output from a previous run must NOT be averaged back in.
-        # (Bug found 17 July 2025.)
+        # Match real data years (2xxx) -- the literal 0000-prefixed
+        # climatology output from a previous run is excluded by the glob.
         files=( "${DAILY_1X1_DIR}/${prefix}_2???${monf}${dayf}.nc" )
 
-        if [ "${#files[@]}" -eq 0 ]; then
+        # ...but link_daily_clim.sh fills missing days (trailing NRT days,
+        # 2025-12-22..31, all of 2026 past the real record, etc.) with
+        # symlinks to the 0000MMDD climatology. Those carry a 2xxx-dated
+        # NAME, so the 2??? glob matches them -- averaging last run's
+        # climatology back in would contaminate the result. Keep only
+        # inputs that resolve to a real (non-0000) file.
+        real_inputs=()
+        for f in "${files[@]}"; do
+            case "$(basename "$(readlink -f "$f")")" in
+                *_daily_0000*) : ;;                 # clim-fill -- skip
+                *)             real_inputs+=( "$f" ) ;;
+            esac
+        done
+
+        if [ "${#real_inputs[@]}" -eq 0 ]; then
             echo
-            echo "ERROR: compute_daily_clim: no input files match" >&2
-            echo "       ${DAILY_1X1_DIR}/${prefix}_2???${monf}${dayf}.nc" >&2
-            echo "       daily_1x1/ is incomplete -- run the ingest and" >&2
-            echo "       link_old_micasa_finals.sh steps before this one." >&2
+            echo "ERROR: compute_daily_clim: no real input files for ${monf}${dayf}" >&2
+            echo "       (${prefix}_2???${monf}${dayf}.nc matched nothing, or only" >&2
+            echo "       clim-fill symlinks). daily_1x1/ is incomplete -- run the" >&2
+            echo "       ingest and link_old_micasa_finals.sh steps before this." >&2
             exit 1
         fi
 
         out="${DAILY_1X1_DIR}/${prefix}_0000${monf}${dayf}.nc"
         # ncea reads the newline-separated input list from stdin.
-        printf '%s\n' "${files[@]}" | ncea -O -o "$out" \
+        printf '%s\n' "${real_inputs[@]}" | ncea -O -o "$out" \
             || { echo; echo "ERROR: ncea failed building $out" >&2; exit 1; }
         echo -n "*"
     done
