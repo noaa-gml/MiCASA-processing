@@ -28,7 +28,10 @@ for mon in $(seq 1 12); do
 
         # Match real data years (2xxx) -- the literal 0000-prefixed
         # climatology output from a previous run is excluded by the glob.
-        files=( "${DAILY_1X1_DIR}/${prefix}_2???${monf}${dayf}.nc" )
+        # NOTE: the pattern is intentionally UNQUOTED so the shell glob-
+        # expands it (nullglob -> empty array if nothing matches). All
+        # path components are space-free, so word-splitting is safe.
+        files=( ${DAILY_1X1_DIR}/${prefix}_2???${monf}${dayf}.nc )
 
         # ...but link_daily_clim.sh fills missing days (trailing NRT days,
         # 2025-12-22..31, all of 2026 past the real record, etc.) with
