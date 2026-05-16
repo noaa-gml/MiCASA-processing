@@ -43,7 +43,7 @@ stage details.
 This repo has two branches with **unrelated histories**:
 
 - **`main`** — active development. PCHIP fitter (default), the `verify_v2`
-  test suite (45+ structural / sign / continuity / sanity checks),
+  test suite (55+ structural / sign / continuity / sanity checks),
   bake-off scripts, plus PIQS and MSS as selectable alternative fitters.
 - **`legacy`** — historical MiCASA_v1 pipeline (classic PIQS only).
   Preserved for archival reproducibility; do not try to merge into `main`
@@ -63,7 +63,7 @@ Work on `main`. Use `legacy` only to reproduce a v1-vintage product.
 
 ## Verification
 
-The `verify_v2.ipynb` notebook runs 45+ checks across the pipeline output:
+The `verify_v2.ipynb` notebook runs 55+ checks across the pipeline output:
 schema, mass conservation across re-aggregation, sign-flip rates,
 polar-night clipping, biome-cell sanity, climate-signal consistency
 (NEE trend, El Niño anomaly, COVID impact), PCHIP fit invariants, and

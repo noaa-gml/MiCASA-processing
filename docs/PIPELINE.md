@@ -131,8 +131,11 @@ run_year.sh
 - **`run_year.sh`** — Top-level driver. Sets `MICASA_YEAR`, sources
   `config.sh`, calls each pipeline stage in order. SBATCH stages
   submitted with `--wait`.
-- **`produce_2025_2026.sh`** — Multi-month batch driver for NRT updates.
-  Wraps `cat_monthly.sh` + `write_pchip.r` + diurnalize fan-out + daysplit.
+- **`produce_2025_2026.sh`** — Phase-2 NRT batch driver: ingest_monthly,
+  v1/vNRT symlinking, climatology fill for the trailing partial month,
+  `cat_monthly.sh`, `write_pchip.r`, then submits diurnalize drivers for
+  2025 (full year) and 2026 Q1. Day-splitting is run separately
+  (`daysplit_array.sbatch`).
 - **`daysplit_array.sbatch`** — SLURM array wrapper around
   `daysplitter.sh` (one task per year). Useful for parallel backfills.
 - **`config.sh` / `config.r`** — Single source of truth for env-driven
@@ -265,7 +268,7 @@ run_year.sh
 
 - **`build_verify_v2.py`** — Source-of-truth for the verify_v2 notebook;
   `python3 build_verify_v2.py` regenerates `verify_v2.ipynb` from this
-  file. 22 sections, 45+ checks.
+  file. 22 sections, 55+ checks.
 - **`verify_v2.ipynb`** — Generated. Run via `run_verify_v2.py`.
 - **`run_verify_v2.py`** — Execute `verify_v2.ipynb` as a script.
 - **`verify_pchip_invariants.r`** — Helper for verify_v2 §18 (PCHIP fit

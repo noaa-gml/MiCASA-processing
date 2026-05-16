@@ -4,6 +4,42 @@ Dated engineering entries for the active (`main`) branch. Conceptual /
 methodological reasoning lives in [`docs/PROPOSALS.md`](docs/PROPOSALS.md);
 this file is for "what landed when, and what numbers it moved."
 
+## 2026-05-16 — 2026-Q1 production run; verify partial-year + fallback fixes
+
+First production run using the FastTrack meteo fallback. Diurnalized
+2026-01/02/03 for v2 and day-split them; the v2 archive now spans
+2001-01..2026-03 (303 monthly hourly files; ~9220 daily NEE files).
+
+Meteo provenance of the new months (`meteo_source_by_day`):
+
+| Month | Source |
+|---|---|
+| 2026-01 | `primary:1-30 fasttrack:31` (mixed — primary ssrd ends Jan 30) |
+| 2026-02 | `fasttrack:1-28` |
+| 2026-03 | `fasttrack:1-31` |
+
+All three read real monthly NPP/Rh via the PCHIP fit (not
+climatology); GPP sub-monthly sign-flip 0.017-0.019%.
+
+verify_v2 adjustments the extended archive surfaced:
+
+- **Check 1.4** (ERA5 meteo coverage) probed only the primary tree,
+  so the FastTrack-sourced 2026-02/03 files flagged as missing meteo.
+  Now probes primary then fallback; `MET_BASE_FALLBACK` added.
+- **Checks 5.1 / 5.2** (annual totals, YoY) summed monthly values per
+  year and treated 2026's 3-month partial total as a full year
+  (GPP -22.9 PgC/yr, -81% YoY). Now drop years with <12 months before
+  the sanity comparison — the idiom 15.1 / 16.2 already use.
+
+`produce_2025_2026.sh`: step 9 split into 9 (diurnalize 2025 full
+year) and 10 (diurnalize 2026 Q1, `MICASA_MONTH_END=3`,
+`MICASA_CLIM_YEARS=2000`). The stale "2026 intentionally not
+diurnalized" header note is gone.
+
+Re-verify after the run + fixes: 0 FAIL, 2 WARN (6.2 edge/interior
+and 11.1 stale-log noise, both pre-existing). Check 3.1 spans 303
+months, GPP cell-hour flip mean 0.11%.
+
 ## 2026-05-15 — FastTrack ERA5 meteo fallback
 
 `diurnalize-ERA5.r` now consults two meteo trees instead of one:

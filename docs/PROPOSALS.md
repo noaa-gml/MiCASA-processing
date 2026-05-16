@@ -300,3 +300,55 @@ the cumulative F (Monotone Smoothing Spline; see
 [`docs/METHODOLOGY.md`](METHODOLOGY.md)). It's retained as a selectable
 fitter for cells where one prefers PIQS-style smoothness over PCHIP's
 local-slope determinism.
+
+## (12) [LANDED 2026-05-15] FastTrack ERA5 meteo fallback
+
+`diurnalize-ERA5.r` reads hourly ERA5 surface meteo (t2m, ssrd, stl1,
+swvl1) to redistribute the smoothed monthly fluxes within each month.
+It previously read from a single hardcoded tree:
+
+```
+$CARBONTRACKER/METEO/tm5-nc/ec/ea/h06h18tr1/sfc/glb100x100
+```
+
+That tree lags the NRT window — as of 2026-05 it stopped at
+2026-01-30, blocking diurnalize of Feb/Mar 2026 even though the
+MiCASA monthly product was current through 2026-03.
+
+A second tree, the **FastTrack** product, carries the same data but is
+populated sooner during the NRT window:
+
+```
+$CARBONTRACKER/METEO/tm5-nc/ec/ea_0005/h06h18tr1/sfc/glb100x100
+```
+
+It reaches 2026-03 against the primary's 2026-01; where the two
+overlap the files are byte-identical.
+
+`diurnalize-ERA5.r` now consults both. `resolve.era5.source()`
+resolves each day to the first tree holding all four variables for
+that day — the primary tree is always preferred, FastTrack fills the
+trailing gap. A day is read wholly from one tree, so provenance stays
+clean. Both roots are overridable via `MICASA_ERA5_DIR` /
+`MICASA_ERA5_DIR_FALLBACK`.
+
+Provenance is written to each `fluxes_<YYYYMM>.nc` as global
+attributes:
+
+| Attribute | Meaning |
+|---|---|
+| `meteo_source_primary` | path to the primary tree |
+| `meteo_source_fasttrack` | path to the FastTrack tree |
+| `meteo_source_by_day` | run-length per-day attribution, e.g. `primary:1-30 fasttrack:31` |
+| `meteo_fallback_used` | `yes` if any day used a non-primary tree, else `no` |
+| `meteo_source_directory` | kept for back-compat; the tree that supplied the most days |
+
+**Why per-day, not per-month resolution.** Near a tree's coverage edge
+a single month genuinely straddles both — 2026-01 resolved to
+`primary:1-30 fasttrack:31` because the primary's ssrd ends Jan 30.
+Per-day resolution keeps that exact, and the run-length encoding
+records it without bloating the attribute.
+
+Landed on `main` and backported to `legacy`. verify_v2 Check 1.4 was
+updated to probe both trees. First production use: the 2026-Q1 run on
+2026-05-16 (see [`CHANGELOG.md`](../CHANGELOG.md)).

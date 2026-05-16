@@ -1,6 +1,6 @@
 #!/bin/bash
 # produce_2025_2026.sh — Phase 2 of v2 generation, after ingest_byyear has
-# brought the 1° vNRT 2025 dailies up to date through 2025-12-21.
+# brought the 1° vNRT dailies up to date.
 #
 # Steps:
 #   1. ingest_monthly vNRT 2025 (Jan..Nov, raw exists)
@@ -10,10 +10,17 @@
 #   5. link_daily_clim 2025 to fill 2025-12-22..31 from day-of-year clim
 #   6. ncra 2025-12 dailies (21 real + 10 clim) into monthly file w/ provenance
 #   7. cat_monthly (multi-year concat now spans 2001-01..2026-03)
-#   8. write_piqs with PAD_RIGHT=2 (refit including new tail)
-#   9. submit diurnalize driver for 2025 (12 worker fan-out)
+#   8. write_pchip (refit, Fritsch-Carlson monotone-cubic Hermite)
+#   9. submit diurnalize driver for 2025 (12-month fan-out)
+#  10. submit diurnalize driver for 2026 Q1 (Jan..Mar)
 #
-# 2026 is intentionally not diurnalized: ERA5 ea/2026/ does not exist yet.
+# 2026-Q1 IS diurnalized: diurnalize-ERA5.r resolves each day's meteo from
+# the primary ERA5 tree first, then the FastTrack (ea_0005) fallback, which
+# is populated sooner during the NRT window. The 2026 driver is restricted
+# to MICASA_MONTH_END=3 (only Jan..Mar have monthly input on disk) and runs
+# with MICASA_CLIM_YEARS=2000 so 2026 uses its real fitted coefficients
+# rather than day-of-year climatology. See docs/PROPOSALS.md item (12).
+#
 # Re-running this script is idempotent: ingest_monthly is mtime-aware
 # skip-existing, symlinking checks for existing targets, and ncra will just
 # overwrite the synthetic Dec file.
@@ -30,19 +37,19 @@ echo "logging to $LOG"
 
 step() { echo; echo "=== [step $1] $2"; }
 
-step 1/9 "ingest_monthly vNRT 2025"
+step 1/10 "ingest_monthly vNRT 2025"
 MICASA_VERSION=vNRT MICASA_YEAR_START=2025 MICASA_YEAR_END=2025 \
   Rscript ingest_monthly.r
 
-step 2/9 "ingest_monthly vNRT 2026"
+step 2/10 "ingest_monthly vNRT 2026"
 MICASA_VERSION=vNRT MICASA_YEAR_START=2026 MICASA_YEAR_END=2026 \
   Rscript ingest_monthly.r
 
-step 3/9 "link_vNRT_to_v1.sh for dailies (2025, 2026)"
+step 3/10 "link_vNRT_to_v1.sh for dailies (2025, 2026)"
 MICASA_YEAR=2025 ./link_vNRT_to_v1.sh
 MICASA_YEAR=2026 ./link_vNRT_to_v1.sh || true   # 2026 only has Jan..~Apr days
 
-step 4/9 "symlink vNRT-named monthlies as v1-named"
+step 4/10 "symlink vNRT-named monthlies as v1-named"
 cd monthly_1x1
 for v in MiCASA_vNRT_flux_x360_y180_monthly_2025{01,02,03,04,05,06,07,08,09,10,11}.nc \
          MiCASA_vNRT_flux_x360_y180_monthly_2026{01,02,03}.nc; do
@@ -54,10 +61,10 @@ for v in MiCASA_vNRT_flux_x360_y180_monthly_2025{01,02,03,04,05,06,07,08,09,10,1
 done
 cd ..
 
-step 5/9 "link_daily_clim.sh for 2025 (fills 2025-12-22..31)"
+step 5/10 "link_daily_clim.sh for 2025 (fills 2025-12-22..31)"
 MICASA_CLIM_YEARS="2025" MICASA_VERSION=v1 ./link_daily_clim.sh
 
-step 6/9 "ncra 2025-12 dailies -> monthly_202512.nc with provenance"
+step 6/10 "ncra 2025-12 dailies -> monthly_202512.nc with provenance"
 ncra -O daily_1x1/MiCASA_v1_flux_x360_y180_daily_202512??.nc \
         monthly_1x1/MiCASA_v1_flux_x360_y180_monthly_202512.nc
 ncatted -O \
@@ -81,24 +88,40 @@ ds.close()
 print('  patched time to 2025-12-16 11:59:59.5 UTC')
 "
 
-step 7/9 "cat_monthly (multi-year concat, 2001-01..2026-03)"
+step 7/10 "cat_monthly (multi-year concat, 2001-01..2026-03)"
 ./cat_monthly.sh || echo "WARN: cat_monthly returned non-zero (likely check_bounds), continuing"
 
-step 8/9 "write_pchip (Fritsch-Carlson monotone-cubic Hermite)"
+step 8/10 "write_pchip (Fritsch-Carlson monotone-cubic Hermite)"
 Rscript write_pchip.r
 
-step 9/9 "submit diurnalize-2025 driver"
-DRV_JID=$(sbatch --parsable \
-  --account=co2 \
-  --time=10:00 \
-  --ntasks=1 --cpus-per-task=1 --mem=4g \
-  --partition=orion \
-  --job-name=diurn-2025-driver \
-  --output=jobs/diurn-2025-driver.o%j \
-  --mail-type=FAIL --mail-user="$MAIL_USER" \
-  --chdir="$PWD" \
-  --export=ALL,MICASA_YEAR_START=2025,MICASA_YEAR_END=2025,MICASA_STRICT_PIQS=1,WORK_DIR="$PWD" \
-  --wrap='Rscript diurnalize-ERA5.r')
-echo "submitted diurnalize-2025 driver: $DRV_JID"
+# diurnalize driver submission. SBATCH knobs shared by both years.
+submit_diurn() {
+    local label=$1 ; shift
+    sbatch --parsable \
+      --account=co2 \
+      --time=10:00 \
+      --ntasks=1 --cpus-per-task=1 --mem=4g \
+      --partition=orion \
+      --job-name="diurn-${label}-driver" \
+      --output="jobs/diurn-${label}-driver.o%j" \
+      --mail-type=FAIL --mail-user="$MAIL_USER" \
+      --chdir="$PWD" \
+      --export="ALL,WORK_DIR=$PWD,MICASA_STRICT_PIQS=1,$*" \
+      --wrap='Rscript diurnalize-ERA5.r'
+}
+
+step 9/10 "submit diurnalize driver for 2025 (full year)"
+DRV25=$(submit_diurn 2025 \
+  "MICASA_YEAR_START=2025,MICASA_YEAR_END=2025")
+echo "submitted diurnalize-2025 driver: $DRV25"
+
+step 10/10 "submit diurnalize driver for 2026 Q1 (Jan..Mar)"
+# MICASA_MONTH_END=3: only Jan..Mar 2026 have monthly input on disk.
+# MICASA_CLIM_YEARS=2000: keep 2026 out of the climatology set so it uses
+# its real fitted coefficients. Meteo for 2026 comes from the FastTrack
+# fallback tree (the primary ERA5 tree lags the NRT window).
+DRV26=$(submit_diurn 2026 \
+  "MICASA_YEAR_START=2026,MICASA_YEAR_END=2026,MICASA_MONTH_START=1,MICASA_MONTH_END=3,MICASA_CLIM_YEARS=2000")
+echo "submitted diurnalize-2026 driver: $DRV26"
 
 echo "=== produce_2025_2026 finished $(date -u) ==="

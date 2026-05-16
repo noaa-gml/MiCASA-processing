@@ -113,6 +113,12 @@ The fit gives a smooth monthly NPP and Rh per grid cell. Within each
 month, `diurnalize-ERA5.r` redistributes those totals across the 24
 hours of each day using ERA5 surface meteo.
 
+The hourly meteo (t2m, ssrd, stl1, swvl1) is resolved per day from the
+primary ERA5 tree, falling back to the FastTrack (`ea_0005`) tree for
+the NRT trailing window where the primary is not yet populated. Each
+output file records the per-day source in `meteo_source_*` global
+attributes — see [proposal #12](PROPOSALS.md).
+
 For each month being diurnalized:
 
 - If `t_i` lies within `[min(piqsfit.time), max(piqsfit.time)]` the
