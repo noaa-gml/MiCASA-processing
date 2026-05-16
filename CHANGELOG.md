@@ -13,6 +13,14 @@ this file is for "what landed when, and what numbers it moved."
   [`docs/PROPOSALS.md` #13](docs/PROPOSALS.md). Removes the last
   PyFerret dependency.
 
+- **`compute_daily_clim.sh` hardened.** It built the day-of-year
+  climatology with `fls=$(ls <glob>)`, which under `set -e` aborted
+  the whole script with a cryptic `ls: cannot access` the moment a
+  day's glob was empty (hit mid-aggregate in the 2026-05 v1 run).
+  Now globs into a `nullglob` array and, on a genuinely empty day,
+  fails with a clear message naming the missing pattern instead of a
+  raw `ls` error.
+
 - **GitHub Actions CI added** (`.github/workflows/ci.yml`): three jobs
   — Python byte-compile + `verify_v2.ipynb`-in-sync check, `bash -n`
   on every shell script, R `parse()` on every R script. The data
