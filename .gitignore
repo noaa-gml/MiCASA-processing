@@ -34,3 +34,6 @@ index.html*
 
 # Bake-off / smoke logs (regenerated)
 *.log
+
+# Python byte-compile cache (created by CI py_compile)
+__pycache__/
