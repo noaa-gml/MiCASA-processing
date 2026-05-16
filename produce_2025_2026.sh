@@ -12,14 +12,15 @@
 #   7. cat_monthly (multi-year concat now spans 2001-01..2026-03)
 #   8. write_pchip (refit, Fritsch-Carlson monotone-cubic Hermite)
 #   9. submit diurnalize driver for 2025 (12-month fan-out)
-#  10. submit diurnalize driver for 2026 Q1 (Jan..Mar)
+#  10. submit diurnalize driver for 2026 (12-month fan-out)
 #
-# 2026-Q1 IS diurnalized: diurnalize-ERA5.r resolves each day's meteo from
-# the primary ERA5 tree first, then the FastTrack (ea_0005) fallback, which
-# is populated sooner during the NRT window. The 2026 driver is restricted
-# to MICASA_MONTH_END=3 (only Jan..Mar have monthly input on disk) and runs
-# with MICASA_CLIM_YEARS=2000 so 2026 uses its real fitted coefficients
-# rather than day-of-year climatology. See docs/PROPOSALS.md item (12).
+# Both diurnalize drivers run the full 12-month range with no special
+# scoping. diurnalize-ERA5.r picks real-vs-climatology per month by
+# monthly-file presence (docs/PROPOSALS.md item 14), and skips months
+# with no complete ERA5 meteo -- so 2026's Apr.. (no monthly file yet)
+# fall to climatology and are skipped where ERA5 is absent, without a
+# crash. Meteo comes from the FastTrack (ea_0005) fallback where the
+# primary ERA5 tree lags the NRT window (item 12).
 #
 # Re-running this script is idempotent: ingest_monthly is mtime-aware
 # skip-existing, symlinking checks for existing targets, and ncra will just
@@ -115,13 +116,13 @@ DRV25=$(submit_diurn 2025 \
   "MICASA_YEAR_START=2025,MICASA_YEAR_END=2025")
 echo "submitted diurnalize-2025 driver: $DRV25"
 
-step 10/10 "submit diurnalize driver for 2026 Q1 (Jan..Mar)"
-# MICASA_MONTH_END=3: only Jan..Mar 2026 have monthly input on disk.
-# MICASA_CLIM_YEARS=2000: keep 2026 out of the climatology set so it uses
-# its real fitted coefficients. Meteo for 2026 comes from the FastTrack
-# fallback tree (the primary ERA5 tree lags the NRT window).
+step 10/10 "submit diurnalize driver for 2026 (full year)"
+# No MICASA_MONTH_END / MICASA_CLIM_YEARS scoping needed: diurnalize-ERA5.r
+# auto-detects real-vs-climatology per month by monthly-file presence, so
+# Jan..Mar use their real monthly files and later months fall to
+# climatology (skipped where ERA5 is unavailable).
 DRV26=$(submit_diurn 2026 \
-  "MICASA_YEAR_START=2026,MICASA_YEAR_END=2026,MICASA_MONTH_START=1,MICASA_MONTH_END=3,MICASA_CLIM_YEARS=2000")
+  "MICASA_YEAR_START=2026,MICASA_YEAR_END=2026")
 echo "submitted diurnalize-2026 driver: $DRV26"
 
 echo "=== produce_2025_2026 finished $(date -u) ==="

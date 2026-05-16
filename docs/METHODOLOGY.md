@@ -123,10 +123,14 @@ For each month being diurnalized:
 
 - If `t_i` lies within `[min(piqsfit.time), max(piqsfit.time)]` the
   gridcell's `(a, b, c)` for that month are used directly.
-- Otherwise (years in `$MICASA_CLIM_YEARS`, or any month past the right
-  end of the current fit) a climatology of the coefficients is used:
-  the per-cell mean of `(a, b, c)` across every same-calendar-month
-  entry in the fit.
+- Otherwise (any month past the right end of the current fit) a
+  climatology of the coefficients is used: the per-cell mean of
+  `(a, b, c)` across every same-calendar-month entry in the fit.
+
+A month's monthly *mean* (the NPP/Rh the fit is evaluated against) is
+likewise taken from the real monthly file when it exists, or the
+day-of-year climatology (`NPPclim.nc` / `Rhclim.nc`) when it does not
+— decided per month by file presence (proposal #14).
 
 Within the month:
 

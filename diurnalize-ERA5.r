@@ -15,12 +15,12 @@
 ## per year in [$MICASA_YEAR_START, $MICASA_YEAR_END]. Months processed are
 ## [$MICASA_MONTH_START, $MICASA_MONTH_END] (default 1..12).
 ##
-## Climatology fallback: years in $MICASA_CLIM_YEARS (space-separated env
-## var) use Rh/NPP day-of-year climatology instead of monthly files.
-## Default: "2000 <current calendar year>" — i.e. the years where ERA5 is
-## either not yet (pre-2000) or not yet fully (current year, NRT phase)
-## available. Independent of $MICASA_YEAR (the year being processed) so
-## backfills don't accidentally clim a fully-published year.
+## Climatology fallback: per (year, month), the monthly NPP/Rh file is
+## used if present; otherwise the Rh/NPP day-of-year climatology
+## (NPPclim.nc / Rhclim.nc) stands in. The choice is made per month by
+## file existence -- no year list to maintain -- so a partially-published
+## year is handled automatically (real early months, climatology for the
+## rest).
 
 script.name <- "diurnalize-ERA5.r"
 
@@ -29,11 +29,6 @@ source(file.path(work.dir, "config.r"))
 cfg <- micasa.config()
 
 product.name <- sprintf("MiCASA_%s_flux_x360_y180_monthly", cfg$version)
-
-clim.yrs <- as.integer(strsplit(
-  Sys.getenv("MICASA_CLIM_YEARS",
-             sprintf("2000 %s", format(Sys.Date(), "%Y"))),
-  "\\s+")[[1]])
 
 ## Hourly 1° ERA5 from the TM5 meteo tree. The primary tree is tried
 ## first; the FastTrack tree (ea_0005) is a fallback for the NRT
@@ -119,18 +114,10 @@ if (exists("piqsfit.meta")) {
 }
 cat(sprintf("Active diurnalization year: %d\n", yr))
 
-strict.piqs  <- as.integer(Sys.getenv("MICASA_STRICT_PIQS", unset = "0")) == 1
-yr.last.fit  <- as.POSIXlt(max(piqsfit.time))$year + 1900
-yr.first.fit <- as.POSIXlt(min(piqsfit.time))$year + 1900
-if (!(yr %in% clim.yrs) && (yr > yr.last.fit || yr < yr.first.fit)) {
-  msg <- sprintf("Year %d is outside the PIQS fit window [%d..%d]; the climatology fallback in diurnalize-ERA5.r will be used for every month.",
-                 yr, yr.first.fit, yr.last.fit)
-  if (strict.piqs) {
-    stop(msg, " Re-run write_piqs.r with the latest monthly data, or unset MICASA_STRICT_PIQS to allow.")
-  } else {
-    warning(msg, " Set MICASA_STRICT_PIQS=1 to make this an error.", immediate. = TRUE)
-  }
-}
+strict.piqs <- as.integer(Sys.getenv("MICASA_STRICT_PIQS", unset = "0")) == 1
+## The fit-edge check is per month, in the loop below: a month with real
+## monthly data but past the fit window gets climatological sub-monthly
+## coefficients (MICASA_STRICT_PIQS=1 escalates that to a hard error).
 ## --------------------------------------------------------------------------
 
 lon.dim <- ncdim_def("longitude", "degrees_east", vals = seq(-179.5, 179.5, 1))
@@ -153,7 +140,23 @@ for (mon in mon.range) {
   current.time <- ISOdatetime(yr, mon, 1, 0, 0, 0, tz = "UTC")
   ncname.out <- sprintf("%s/fluxes_%s.nc", out.dir, monstr)
 
-  if (yr %in% clim.yrs) {
+  ## Per-month clim decision: use the real monthly file when it exists,
+  ## else fall back to the NPP/Rh day-of-year climatology. Decided by file
+  ## existence, so a partially-published year needs no special handling.
+  real.monthly <- sprintf("%s/%s_%s.nc", in.dir, product.name, monstr)
+  use.clim <- !file.exists(real.monthly)
+  in.fit   <- current.time >= min(piqsfit.time) &&
+              current.time <= max(piqsfit.time)
+  if (!use.clim && !in.fit) {
+    msg <- sprintf("%d-%02d has real monthly data but lies past the PIQS fit window [%s..%s]; its sub-monthly shape will come from coefficient-climatology. Re-run write_pchip.r with the latest monthly data.",
+                   yr, mon, format(min(piqsfit.time), "%Y-%m"),
+                   format(max(piqsfit.time), "%Y-%m"))
+    if (strict.piqs) stop(msg, " Or unset MICASA_STRICT_PIQS to allow.")
+    else warning(msg, " Set MICASA_STRICT_PIQS=1 to make this an error.",
+                 immediate. = TRUE)
+  }
+
+  if (use.clim) {
     fname <- sprintf("%s/NPPclim.nc", in.dir)
     if (!file.exists(fname)) stop(sprintf("%d-%02d:  %s does not exist.", yr, mon, fname))
     foo <- load.ncdf(fname)

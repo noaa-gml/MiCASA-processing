@@ -45,14 +45,15 @@ PCHIP fitter. Kept here for the legacy PIQS fitter and for reference.
 
 The climatology-fallback branch introduces a hard discontinuity at the
 boundary between "in fit" and "outside fit" months.
-`diurnalize-ERA5.r` now prints the fit window, the padding metadata,
-and the active diurnalization year on startup, and warns if the active
-year extends past the fit edge. Set `MICASA_STRICT_PIQS=1` to escalate
-that warning to a hard error — recommended for the NRT cadence so that
-nobody silently diurnalizes a month outside the fit.
+`diurnalize-ERA5.r` prints the fit window and padding metadata on
+startup, and — per month — warns if a month with **real** monthly data
+lies past the fit edge (its sub-monthly shape would silently come from
+coefficient-climatology). Set `MICASA_STRICT_PIQS=1` to escalate that
+warning to a hard error — recommended for the NRT cadence.
 
-Years listed in `$MICASA_CLIM_YEARS` bypass this guard since they
-intentionally use `NPPclim`/`Rhclim` instead of the PIQS fit.
+Climatology months (no real monthly file) do not trigger the guard:
+their coefficient-climatology is intentional. The check became
+per-month with proposal #14.
 
 ## (3) [STAGED] v1 → vNRT handoff sanity check
 
@@ -385,3 +386,42 @@ built from pre-bugfix monthly data; the new clim, built from the
 corrected inputs, is the more accurate of the two.
 
 Removes the last pipeline dependency on PyFerret.
+
+## (14) [LANDED 2026-05-16] Per-month climatology auto-detect
+
+`diurnalize-ERA5.r` decided real-vs-climatology per **year**, from the
+`MICASA_CLIM_YEARS` env list (default `"2000 <current year>"`):
+
+- a year in the list -> every month read `NPPclim`/`Rhclim`;
+- a year not in the list -> every month read its real monthly file,
+  with **no existence check** (`load.ncdf` crashed on a missing file).
+
+Year granularity is wrong for the current NRT year, which is partly
+real (early months published) and partly not. Neither blanket choice
+works: listing the year climatologises the real months too; not
+listing it crashes on the unpublished months. The 2026-Q1 production
+run had to be hand-scoped (`MICASA_MONTH_END=3` + `MICASA_CLIM_YEARS=2000`)
+to work around this.
+
+`diurnalize-ERA5.r` now decides **per month, by file presence**:
+
+```
+real.monthly <- <monthly_1x1>/MiCASA_<ver>_..._<YYYYMM>.nc
+use.clim     <- !file.exists(real.monthly)
+```
+
+A month with a real monthly file uses it; a month without one falls to
+the day-of-year climatology. No year list, no crash, no manual scoping
+-- a partially-published year just works (real early months,
+climatology for the rest, skipped where ERA5 is also absent).
+
+`MICASA_CLIM_YEARS` is no longer read by `diurnalize-ERA5.r`; it
+remains `link_daily_clim.sh`'s knob (which days to fill with
+climatology symlinks). The fit-edge guard (proposal #2) became
+per-month to match -- it warns only when a month with real data lies
+past the PIQS fit window.
+
+Validated: diurnalizing all of 2026 with no `MICASA_MONTH_END` /
+`MICASA_CLIM_YEARS` -- Jan-Mar read their real monthly files, Apr-Dec
+fell to climatology and were skipped (no ERA5), with no crash.
+

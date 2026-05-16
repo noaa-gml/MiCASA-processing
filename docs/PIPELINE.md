@@ -66,7 +66,7 @@ profile).
 | `MICASA_YEAR_END` | `${MICASA_YEAR}` | Last year for multi-year stages |
 | `MICASA_MONTH_START` | `1` | First month for diurnalize / daysplit |
 | `MICASA_MONTH_END` | `12` | Last month for diurnalize / daysplit |
-| `MICASA_CLIM_YEARS` | `2000 $(date +%Y)` | Years that should use day-of-year climatology instead of real ERA5 data |
+| `MICASA_CLIM_YEARS` | `2000 $(date +%Y)` | Years `link_daily_clim.sh` fills with day-of-year climatology symlinks (diurnalize auto-detects clim per month, see below) |
 | `WORK_DIR` | auto-detect | Set explicitly to point at a different checkout |
 | `PORTAL_URL_BASE` | NCCS portal | Source download URL |
 | `DAILY_1X1_DIR` | `daily_1x1` | Layout knobs (rarely changed) |
@@ -75,9 +75,12 @@ profile).
 | `RAW_SRC_DIR` | `portal.nccs.nasa.gov` | Raw 0.1° mirror |
 | `JOBS_DIR` | `jobs` | |
 
-Default `MICASA_CLIM_YEARS` covers (a) years before ERA5 starts (≤ 2000)
-and (b) the current calendar year (NRT phase, ERA5 not yet fully
-published). Independent of `MICASA_YEAR` so backfilling an earlier year
+`MICASA_CLIM_YEARS` is consumed only by `link_daily_clim.sh` (which days
+to fill with climatology symlinks); its default covers (a) years before
+the record starts (≤ 2000) and (b) the current calendar year (NRT
+phase). `diurnalize-ERA5.r` no longer uses it — it auto-detects
+real-vs-climatology per month from monthly-file presence (proposal #14).
+Independent of `MICASA_YEAR` so backfilling an earlier year
 doesn't accidentally clim a fully-published year.
 
 ### Runtime-only knobs (driver-set; do not set manually)
@@ -230,8 +233,10 @@ run_year.sh
   swvl1) to the smoothed (PCHIP/PIQS/MSS) monthly fluxes to get hourly
   GPP/RESP/NEE per (year, month). Writes `ERA5/fluxes_<YYYYMM>.nc`.
   Driver mode (no `diurn_year`) fans out per year in
-  `[MICASA_YEAR_START, MICASA_YEAR_END]`. Years in `MICASA_CLIM_YEARS`
-  use day-of-year climatology (`NPPclim.nc`, `Rhclim.nc`).
+  `[MICASA_YEAR_START, MICASA_YEAR_END]`. Real-vs-climatology is decided
+  per month by monthly-file presence: a month with a real monthly
+  NPP/Rh file uses it; a month without one falls to the day-of-year
+  climatology (`NPPclim.nc`, `Rhclim.nc`). See proposal #14.
 
   **Meteo source resolution.** Each day is resolved to the first ERA5
   tree that holds all four variables for it: the **primary** tree

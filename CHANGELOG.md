@@ -47,6 +47,17 @@ this file is for "what landed when, and what numbers it moved."
   `modulo_month_mean`. diurnalize-ERA5.r was re-smoke-tested after the
   extraction (2026-02, FastTrack fallback, metadata intact).
 
+- **Per-month climatology auto-detect** (`docs/PROPOSALS.md` #14).
+  `diurnalize-ERA5.r` chose real-vs-climatology per *year* from
+  `MICASA_CLIM_YEARS`, and the real branch had no file-existence check
+  -- so a partially-published year forced a choice between
+  climatologising its real months or crashing on its unpublished ones
+  (the 2026-Q1 run was hand-scoped around this). It now decides per
+  *month* by monthly-file presence: real file present -> use it, else
+  fall to day-of-year climatology. `MICASA_CLIM_YEARS` is now solely
+  `link_daily_clim.sh`'s knob; `produce_2025_2026.sh`'s 2026 step
+  dropped its `MICASA_MONTH_END`/`MICASA_CLIM_YEARS` workaround.
+
 - **CI dry-run caught two real bugs:**
   - `lib/bench_compression_diurnal.r` had an `if/else` split across
     lines (a syntax error introduced in the 2026-05-05 public-release
