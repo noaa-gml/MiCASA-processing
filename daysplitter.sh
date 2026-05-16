@@ -33,7 +33,13 @@ for yr in $(seq "${MICASA_YEAR_START}" "${MICASA_YEAR_END}"); do
             min=$(calc "${daym1}*24")
             max=$(calc "$min + 23")
             targetfile="${ERA5_DIR}/MiCASA_${MICASA_VERSION}.nee.${yr}${monf}${dayf}.nc"
-            ncks -v NEE -O -d time,"$min","$max" "$srcfile" "$targetfile"
+            # ncks copies the source file's global attributes (so the daily
+            # file inherits diurnalize-ERA5.r's CF/ACDD provenance) and
+            # appends its own command to `history`. The --gaa markers below
+            # record that this file is a single-day NEE subset.
+            ncks --gaa "daily_split_from=fluxes_${yr}${monf}.nc" \
+                 --gaa "daily_split_tool=daysplitter.sh" \
+                 -v NEE -O -d time,"$min","$max" "$srcfile" "$targetfile"
             echo -n '.'
         done
         echo ']'

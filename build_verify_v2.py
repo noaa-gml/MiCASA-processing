@@ -2861,6 +2861,129 @@ code('''
                 record(cid, cname, PASS, detail)
 ''')
 
+# ---- Section 23: Output provenance --------------------------------------
+md("## Section 23 — Output Provenance")
+
+md("""
+    Phase 3 added CF/ACDD provenance metadata to every netCDF the pipeline
+    writes (`lib/provenance.r` / `lib/provenance.py`): the producing
+    software and its git commit, a processing timestamp, the host, input
+    files with SHA-256 checksums, and citation metadata. These checks
+    confirm the production outputs actually carry it. Outputs generated
+    before Phase 3 must be stamped by `stamp_provenance.py --retrofit`
+    (or regenerated) for 23.1 / 23.2 to pass.
+""")
+
+md("""
+    ### Check 23.1 — Hourly flux file provenance attributes
+
+    A sampled `fluxes_*.nc` should carry the provenance global attributes
+    written by `diurnalize-ERA5.r`: `Conventions`, `institution` and
+    `processing_pipeline` at minimum. A file from the instrumented pipeline
+    also has `processing_pipeline_commit` and `input_*` checksums (full
+    provenance); a file stamped after the fact by `stamp_provenance.py
+    --retrofit` has the static subset plus a `provenance_note`. FAIL only
+    if a sampled file has no provenance at all.
+""")
+code('''
+    cid, cname = "23.1", "hourly flux file provenance"
+    files = sorted(ERA5_DIR.glob("fluxes_*.nc"))
+    if not files:
+        record(cid, cname, INFO, "no fluxes_*.nc files")
+    else:
+        f = files[len(files) // 2]
+        try:
+            with xr.open_dataset(f) as ds:
+                attrs = dict(ds.attrs)
+            has_base = all(k in attrs for k in
+                           ("Conventions", "institution", "processing_pipeline"))
+            full  = ("processing_pipeline_commit" in attrs
+                     and any(k.startswith("input_") for k in attrs))
+            retro = "provenance_note" in attrs
+            if has_base and full:
+                commit = str(attrs.get("processing_pipeline_commit", ""))[:12]
+                record(cid, cname, PASS,
+                       f"{f.name}: full in-pipeline provenance (commit {commit})")
+            elif has_base and retro:
+                record(cid, cname, PASS,
+                       f"{f.name}: retrofit (static) provenance present")
+            elif has_base:
+                record(cid, cname, WARN,
+                       f"{f.name}: base provenance only, no commit/checksums")
+            else:
+                record(cid, cname, FAIL,
+                       f"{f.name}: no provenance global attributes")
+        except Exception as e:
+            record(cid, cname, FAIL, f"exception: {e}")
+''')
+
+md("""
+    ### Check 23.2 — Daily NEE file provenance inheritance
+
+    `daysplitter.sh` builds each `MiCASA_*.nee.YYYYMMDD.nc` with `ncks`,
+    which copies the source `fluxes_*.nc` global attributes — so the daily
+    file inherits the hourly file's provenance — and adds `daily_split_from`
+    / `daily_split_tool` markers. Verify a sampled daily file carries
+    provenance; the daysplit markers are reported when present.
+""")
+code('''
+    cid, cname = "23.2", "daily NEE file provenance"
+    daily = sorted(ERA5_DIR.glob("MiCASA_*.nee.*.nc"))
+    if not daily:
+        record(cid, cname, INFO, "no daily NEE files")
+    else:
+        f = daily[len(daily) // 2]
+        try:
+            with xr.open_dataset(f) as ds:
+                attrs = dict(ds.attrs)
+            has_prov = "processing_pipeline" in attrs or "provenance_note" in attrs
+            split = attrs.get("daily_split_from")
+            if not has_prov:
+                record(cid, cname, FAIL,
+                       f"{f.name}: no provenance attributes inherited")
+            else:
+                detail = f"{f.name}: provenance present"
+                detail += (f", daily_split_from={split}" if split
+                           else " (daysplit markers absent -- pre-instrumentation split)")
+                record(cid, cname, PASS, detail)
+        except Exception as e:
+            record(cid, cname, FAIL, f"exception: {e}")
+''')
+
+md("""
+    ### Check 23.3 — provenance.conf is the single citation source
+
+    `lib/provenance.conf` is the one place the DOI, institution and
+    pipeline URL are defined; `lib/provenance.r` and `lib/provenance.py`
+    both read it. Confirm it is present and parses, and report whether the
+    archival DOI has been registered (it ships as `PENDING`).
+""")
+code('''
+    cid, cname = "23.3", "provenance.conf citation source"
+    conf_path = WORK_DIR / "lib" / "provenance.conf"
+    if not conf_path.exists():
+        record(cid, cname, FAIL, "lib/provenance.conf missing")
+    else:
+        conf = {}
+        for line in conf_path.read_text().splitlines():
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            k, v = line.split("=", 1)
+            conf[k.strip()] = v.strip().strip('"')
+        need = ["MICASA_DOI", "MICASA_PROV_INSTITUTION", "MICASA_PROV_PIPELINE_URL"]
+        missing = [k for k in need if k not in conf]
+        if missing:
+            record(cid, cname, FAIL, f"keys missing from provenance.conf: {missing}")
+        elif conf["MICASA_DOI"] == "PENDING":
+            record(cid, cname, INFO,
+                   "provenance.conf parses; archival DOI still PENDING "
+                   "(set MICASA_DOI when the record is minted)")
+        else:
+            record(cid, cname, PASS,
+                   f"provenance.conf parses; DOI registered: {conf['MICASA_DOI']}")
+''')
+
 
 nb = {
     "cells": cells,

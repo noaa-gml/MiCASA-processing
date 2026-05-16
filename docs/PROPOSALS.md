@@ -425,3 +425,48 @@ Validated: diurnalizing all of 2026 with no `MICASA_MONTH_END` /
 `MICASA_CLIM_YEARS` -- Jan-Mar read their real monthly files, Apr-Dec
 fell to climatology and were skipped (no ERA5), with no crash.
 
+## (15) [LANDED 2026-05-16] Output provenance metadata
+
+Before this change a `fluxes_*.nc` recorded only a one-line `history`
+("Created on &lt;date&gt; by script 'diurnalize-ERA5.r'") and the
+FastTrack meteo-source attributes (#12). A downstream user — or a
+future maintainer — could not tell which revision of this pipeline
+produced a file, from which inputs, or when. For a public data product
+that is a real gap.
+
+`lib/provenance.r` and `lib/provenance.py` now build one standard
+CF/ACDD global-attribute set:
+
+- **Software** — `processing_pipeline`, `processing_pipeline_url`,
+  `processing_pipeline_commit` (full git SHA), `processing_pipeline_version`
+  (`git describe --tags --always --dirty`), `processing_step`.
+- **Run** — `date_created` (ISO-8601 UTC), `processing_host`.
+- **Inputs** — `input_<name>` and `input_<name>_sha256` for each input
+  file (the monthly NPP/Rh source or climatology, and the coefficient
+  fit `fit.piqs.rda`).
+- **Method** — `flux_fit_method` (pchip / piqs / mss, from
+  `piqsfit.meta`), `micasa_version`, `flux_from_climatology`.
+- **Citation** — `institution`, `references`, `license`, `creator_*`,
+  `Conventions = "CF-1.10, ACDD-1.3"`.
+- **`history`** — one CF audit line; downstream NCO tools append theirs.
+
+The citation constants live in `lib/provenance.conf` — one
+`KEY="VALUE"` file, shell-sourceable and parsed by both helpers — so
+the DOI is defined in exactly one place. It ships as `PENDING` until
+the archival record is minted.
+
+Writers: `diurnalize-ERA5.r` and `compute_clim.py` call the helper
+directly. `daysplitter.sh` relies on `ncks` copying the source file's
+global attributes into each daily NEE file (so they inherit the hourly
+file's provenance) and adds `daily_split_from` markers. `cat_monthly.sh`
+stamps the concatenated monthly file via `stamp_provenance.py`.
+
+`stamp_provenance.py` doubles as a retrofit tool: `--retrofit` adds the
+**static** citation subset to a file that predates this change, with an
+explicit `provenance_note` — it never fabricates a generating commit or
+input checksums it cannot recover. Outputs from the next full pipeline
+run carry the complete set.
+
+Verified: R/ncdf4 and Python/xarray netCDF round-trips, 26 + 26 unit
+checks (`tests/test_provenance.{r,py}`), and `verify_v2` Section 23.
+

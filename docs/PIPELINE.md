@@ -155,6 +155,18 @@ run_year.sh
   buggy implementation.
 - **`lib/bench_compression_diurnal.r`** — Compression-level benchmark
   for the diurnalize output (see CHANGELOG entry).
+- **`lib/era5_meteo.r`** — ERA5 hourly-meteo path resolution
+  (`era5.relpath`, `resolve.era5.source`, `encode.day.runs`): the
+  primary / FastTrack search order. Unit-tested by
+  `tests/test_era5_meteo.r`.
+- **`lib/provenance.r`** / **`lib/provenance.py`** — build the CF/ACDD
+  provenance global-attribute set (git commit, timestamp, input
+  checksums, citation) for the R and Python netCDF writers
+  respectively (see "Output provenance metadata" below). Unit-tested by
+  `tests/test_provenance.{r,py}`.
+- **`lib/provenance.conf`** — `KEY="VALUE"` citation constants
+  (institution, pipeline URL, DOI) read by both helpers; the single
+  place the archival DOI is set.
 
 ### Stage 1 — Download
 
@@ -185,9 +197,9 @@ run_year.sh
 ### Stage 3 — Aggregate / climatology
 
 - **`cat_monthly.sh`** — Concatenate per-month 1° monthly files into a
-  single time-stacked `monthly_1x1/MiCASA_<VER>_flux_x360_y180_monthly.nc`.
-  Runs `check_bounds.sh` (with `|| true` to survive a known NCO
-  chunking bug).
+  single time-stacked `monthly_1x1/MiCASA_<VER>_flux_x360_y180_monthly.nc`,
+  then stamp it with provenance via `stamp_provenance.py`. Runs
+  `check_bounds.sh` afterward as a non-fatal sanity print.
 - **`check_bounds.sh`** — Simple unweighted-area average sanity check.
   Not used in production aggregation (that's `aggregate.to.1x1`).
 - **`compute_clim.sh`** / **`compute_clim.py`** — Modulo-month
@@ -261,7 +273,10 @@ run_year.sh
 
 - **`daysplitter.sh`** — Split `ERA5/fluxes_<YYYYMM>.nc` into per-day
   `ERA5/MiCASA_v1.nee.<YYYYMMDD>.nc` files (NEE only). Range from
-  `MICASA_YEAR_*` × `MICASA_MONTH_*`.
+  `MICASA_YEAR_*` × `MICASA_MONTH_*`. `ncks` copies the source file's
+  global attributes, so each daily file inherits the hourly file's
+  provenance; `daily_split_from` markers are added (see "Output
+  provenance metadata").
 
 ### Symlink helpers
 
@@ -277,7 +292,11 @@ run_year.sh
 
 - **`build_verify_v2.py`** — Source-of-truth for the verify_v2 notebook;
   `python3 build_verify_v2.py` regenerates `verify_v2.ipynb` from this
-  file. 22 sections, 55+ checks.
+  file. 23 sections, 60+ checks (Section 23 confirms output provenance).
+- **`stamp_provenance.py`** — CLI to write CF/ACDD provenance global
+  attributes onto a netCDF; backs `cat_monthly.sh` and, with
+  `--retrofit`, stamps pre-existing outputs (see "Output provenance
+  metadata").
 - **`verify_v2.ipynb`** — Generated. Run via `run_verify_v2.py`.
 - **`run_verify_v2.py`** — Execute `verify_v2.ipynb` as a script.
 - **`verify_pchip_invariants.r`** — Helper for verify_v2 §18 (PCHIP fit
@@ -326,6 +345,60 @@ ERA5/fluxes_<YYYYMM>.nc
 ERA5/MiCASA_v1.nee.<YYYYMMDD>.nc
         Daily NEE-only files, created by daysplitter.sh.
 ```
+
+## Output provenance metadata
+
+Every netCDF the pipeline writes carries a CF/ACDD-style set of global
+attributes describing how it was produced, so a downstream user can
+trace any file back to an exact pipeline revision and its inputs. The
+attributes are built by `lib/provenance.r` (R writers) and
+`lib/provenance.py` (Python writers) from the shared citation file
+`lib/provenance.conf`.
+
+| Attribute | Meaning |
+|---|---|
+| `Conventions` | `CF-1.10, ACDD-1.3` |
+| `title` / `summary` | Human-readable product description |
+| `institution`, `creator_name`, `creator_url` | NOAA GML attribution |
+| `source` | Pipeline + producing step |
+| `references` | Pipeline URL; dataset DOI once registered |
+| `license` | `CC0-1.0` |
+| `date_created` | ISO-8601 UTC processing timestamp |
+| `processing_pipeline` / `_url` | `MiCASA-processing` + repository URL |
+| `processing_pipeline_commit` | Full git SHA of the producing code |
+| `processing_pipeline_version` | `git describe --tags --always --dirty` |
+| `processing_step` | Producing script |
+| `processing_host` | Host the step ran on |
+| `input_<name>` / `input_<name>_sha256` | Each input file + its SHA-256 |
+| `flux_fit_method` | `pchip` / `piqs` / `mss` (hourly files) |
+| `history` | CF audit line; NCO tools append their own |
+
+Citation constants — institution, pipeline URL, and the archival
+**DOI** — live in `lib/provenance.conf`. The DOI ships as the literal
+`PENDING`; set `MICASA_DOI` (and `MICASA_LANDING_PAGE`) there and in
+`CITATION.cff` once the archival record is minted (`grep -rl PENDING`
+finds every spot).
+
+Which step writes what:
+
+- **`diurnalize-ERA5.r`** stamps `ERA5/fluxes_*.nc` directly, including
+  the `input_*` checksums of the monthly NPP/Rh source (or climatology)
+  and `fit.piqs.rda`, plus the FastTrack meteo attributes (Stage 5).
+- **`compute_clim.py`** stamps `monthly_1x1/{NPP,Rh}clim.nc`.
+- **`daysplitter.sh`** uses `ncks`, which copies the source file's
+  global attributes — so each daily `MiCASA_*.nee.*.nc` inherits the
+  hourly file's provenance — and adds `daily_split_from` /
+  `daily_split_tool` markers.
+- **`cat_monthly.sh`** stamps the concatenated monthly file via
+  `stamp_provenance.py`.
+
+**`stamp_provenance.py`** is a standalone CLI that writes the
+provenance attributes onto an existing netCDF (it backs `cat_monthly.sh`).
+Run with `--retrofit` to add the static citation subset to outputs
+generated before provenance stamping existed; retrofit mode never
+asserts a generating commit or input checksums it cannot recover, and
+marks the file with a `provenance_note`. Outputs from a fresh pipeline
+run carry the complete set. See [proposal #15](PROPOSALS.md).
 
 ## NetCDF input schema (raw daily file)
 

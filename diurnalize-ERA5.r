@@ -55,6 +55,11 @@ cat(sprintf("ERA5 meteo search order:\n%s\n",
 ## standalone (tests/test_era5_meteo.r).
 source(file.path(Sys.getenv("WORK_DIR", getwd()), "lib", "era5_meteo.r"))
 
+## Provenance helpers (provenance.attrs, nc.write.provenance): the CF/ACDD
+## global-attribute set -- producing software, git commit, input checksums,
+## host, timestamp -- stamped onto every output. See lib/provenance.r.
+source(file.path(Sys.getenv("WORK_DIR", getwd()), "lib", "provenance.r"))
+
 yr.env <- Sys.getenv("diurn_year")
 
 if (nchar(yr.env) == 0) {
@@ -94,6 +99,13 @@ ct.setup()
 load(file.path(work.dir, "fit.piqs.rda"))
 piqsfit.time <- epoch.seconds.to.POSIX(piqsfit.time)
 piqsfit.lts  <- as.POSIXlt(piqsfit.time)
+
+## Provenance of the coefficient fit: path + SHA-256 (hashed once here, not
+## once per month -- fit.piqs.rda is ~190 MB) and the fitter that wrote it.
+fit.rda.path   <- file.path(work.dir, "fit.piqs.rda")
+fit.rda.sha256 <- prov.file.sha256(fit.rda.path)
+fit.method     <- if (exists("piqsfit.meta") && !is.null(piqsfit.meta$fitter))
+                     piqsfit.meta$fitter else "unknown"
 
 ## ---- Fit-window banner (proposal #2 in README.ash) ------------------------
 ## Always report the loaded fit's coverage and any padding metadata, and warn
@@ -371,11 +383,32 @@ for (mon in mon.range) {
     file.remove(ncname.out)
   }
   ncf <- nc_create(ncname.out, vars = vars)
-  ncatt_put(ncf, 0, "history",
-            attval = sprintf("Created on %s\nby script '%s'",
-                             format(Sys.time(), "%a %b %d %Y %H:%M:%S %Z"),
-                             script.name),
-            prec = "text")
+
+  ## CF/ACDD provenance: producing software (git commit/version), input
+  ## files (path + SHA-256), the fitter, host and timestamp -- and the CF
+  ## `history` line. The fit file goes through `extra` so its ~190 MB are
+  ## hashed once (before the loop), not once per month.
+  flux.inputs <- if (use.clim)
+    list(npp_climatology = sprintf("%s/NPPclim.nc", in.dir),
+         rh_climatology  = sprintf("%s/Rhclim.nc",  in.dir))
+  else
+    list(monthly_flux = real.monthly)
+  nc.write.provenance(
+    ncf, step = script.name, work.dir = work.dir,
+    title = sprintf("MiCASA %s hourly land carbon flux (GPP, ecosystem respiration, NEE), %d-%02d",
+                    cfg$version, yr, mon),
+    summary = paste("Hourly gross primary production, ecosystem respiration",
+                    "and net ecosystem exchange on a global 1-degree grid,",
+                    "from monthly MiCASA NPP/Rh diurnalized with ERA5 hourly",
+                    "meteorology. Sign convention: positive = flux to atmosphere."),
+    inputs = flux.inputs,
+    extra = list(micasa_version         = cfg$version,
+                 flux_fit_method        = fit.method,
+                 flux_from_climatology  = if (use.clim) "yes" else "no",
+                 input_pchip_fit        = fit.rda.path,
+                 input_pchip_fit_sha256 = if (is.na(fit.rda.sha256))
+                                            "unavailable" else fit.rda.sha256))
+
   ## Meteo provenance. Each day is read wholly from one tree; record the
   ## tree paths and the run-length per-day attribution. meteo_source_directory
   ## is kept (pointing at the tree that supplied the most days) for any

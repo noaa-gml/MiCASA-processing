@@ -4,6 +4,43 @@ Dated engineering entries for the active (`main`) branch. Conceptual /
 methodological reasoning lives in [`docs/PROPOSALS.md`](docs/PROPOSALS.md);
 this file is for "what landed when, and what numbers it moved."
 
+## 2026-05-16 — output provenance metadata + release prep
+
+- **CF/ACDD provenance stamped into every netCDF the pipeline writes.**
+  New helpers `lib/provenance.r` and `lib/provenance.py` build one
+  standard global-attribute set — producing software with its git
+  commit and `git describe` version, an ISO-8601 processing timestamp,
+  the host, input files with SHA-256 checksums, the fitter, and
+  citation metadata (`institution`, `references`, `license`,
+  `creator_*`, CF/ACDD `Conventions`). `diurnalize-ERA5.r` (hourly
+  `fluxes_*.nc`) and `compute_clim.py` (`{NPP,Rh}clim.nc`) call them
+  directly; `daysplitter.sh` carries the attributes into the daily NEE
+  files (copied by `ncks`) and tags each with `daily_split_from`;
+  `cat_monthly.sh` stamps the concatenated monthly file. See
+  [`docs/PROPOSALS.md` #15](docs/PROPOSALS.md).
+
+- **`lib/provenance.conf`** — single source of truth for the citation
+  constants (institution, pipeline URL, archival DOI), read by both
+  helpers and shell-sourceable. The DOI ships as `PENDING`;
+  `grep -rl PENDING` finds every spot to update once it is minted.
+
+- **`stamp_provenance.py`** — CLI to write the provenance attributes
+  onto an existing netCDF. Used in-pipeline by `cat_monthly.sh`, and
+  with `--retrofit` to add the static citation subset to outputs that
+  predate this change (it never asserts a generating commit it cannot
+  know).
+
+- **Tests + verify section.** `tests/test_provenance.r` and
+  `tests/test_provenance.py` (26 checks each, CI-run) cover the conf
+  parser, SHA-256, and the attribute builder. `verify_v2` gained
+  Section 23 (3 checks) confirming production outputs carry the
+  attributes.
+
+- **Release prep.** Added `CITATION.cff` (GitHub "Cite this
+  repository"), `CONTRIBUTING.md`, and pinned dependencies
+  (`requirements.txt`); `.gitignore` widened to cover regenerated
+  `fit.piqs.rda.*` / `verify_*.json` artifacts; tagged `v2.0.0`.
+
 ## 2026-05-16 — pipeline-robustness pass
 
 - **`compute_clim` ported off PyFerret.** PyFerret is broken on Orion

@@ -26,6 +26,11 @@ import warnings
 
 import numpy as np
 
+# lib/ holds provenance.py -- the CF/ACDD global-attribute helper. Resolve it
+# relative to this file so the import works from any working directory.
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "lib"))
+from provenance import provenance_attrs
+
 FILL = -1.0e34
 
 
@@ -93,7 +98,21 @@ def main():
                    "climatology_time_range": trange,
                    "missing_value": FILL})
         out = os.path.join(monthly_dir, f"{flux}clim.nc")
-        da.to_dataset().to_netcdf(out, encoding={climvar: {"_FillValue": FILL}})
+        dset = da.to_dataset()
+        # CF/ACDD provenance global attributes (lib/provenance.py): producing
+        # software + git commit, input file + SHA-256, timestamp, host.
+        dset.attrs.update(provenance_attrs(
+            step="compute_clim.py", work_dir=work,
+            title=f"MiCASA {version} modulo-month climatology of {flux}",
+            summary=(f"Mean of each calendar month of MiCASA {flux} across "
+                     f"the monthly record {trange}, on a global 1-degree "
+                     f"grid. Consumed by diurnalize-ERA5.r as the climatology "
+                     f"fallback for months with no published monthly file."),
+            inputs={"monthly_flux_series": src},
+            extra={"micasa_version": version,
+                   "climatology_method": "modulo-month mean (mean per calendar month)",
+                   "climatology_time_range": trange}))
+        dset.to_netcdf(out, encoding={climvar: {"_FillValue": FILL}})
         finite = np.isfinite(clim)
         print(f"compute_clim: wrote {out}  {climvar}{clim.shape}  "
               f"mean={np.nanmean(clim[finite]):.4e} gC m-2 s-1")

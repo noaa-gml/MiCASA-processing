@@ -1,0 +1,22 @@
+# Python dependencies for the MiCASA-processing pipeline.
+#
+# Install into an isolated environment, e.g.:
+#     python3 -m venv .venv && . .venv/bin/activate
+#     pip install -r requirements.txt
+# or with conda/mamba. On Orion the pipeline runs in the `sci` conda env.
+#
+# What needs what:
+#   - lib/provenance.py            -- standard library only (no deps)
+#   - compute_clim.modulo_month_mean, check_bounds.py -- numpy only
+#   - compute_clim.py netCDF I/O   -- xarray + netCDF4
+#   - stamp_provenance.py          -- netCDF4
+#   - verify_v2.ipynb              -- numpy + pandas + xarray + netCDF4
+#
+# Versions below are lower bounds known to work. The Orion `sci` conda env
+# at the v2.0.0 release carried: numpy 2.2.6, xarray 2025.6.1,
+# netCDF4 1.7.4, pandas 2.x.
+
+numpy>=1.21
+xarray>=2023.1.0
+netCDF4>=1.5.6
+pandas>=1.3

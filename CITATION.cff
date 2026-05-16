@@ -1,0 +1,35 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it using the metadata below."
+title: "MiCASA-processing: MiCASA Land Carbon Flux processing pipeline"
+abstract: >-
+  Pipeline that processes raw MiCASA Land Carbon Flux data (global
+  0.1-degree NPP, Rh, FIRE and FUEL fields) into hourly 1-degree
+  GPP / ecosystem-respiration / NEE products for NOAA's CarbonTracker
+  inverse-modelling system.
+type: software
+authors:
+  # Affiliations and ORCID iDs may be added to each entry by the authors.
+  - given-names: Ash
+    family-names: Pera
+  - given-names: Andy
+    family-names: Jacobson
+  - given-names: Brad
+    family-names: Weir
+repository-code: "https://github.com/noaa-gml/MiCASA-processing"
+url: "https://github.com/noaa-gml/MiCASA-processing"
+license: CC0-1.0
+version: "2.0.0"
+date-released: "2026-05-16"
+keywords:
+  - carbon flux
+  - net ecosystem exchange
+  - MiCASA
+  - CarbonTracker
+  - terrestrial biosphere
+# Archival dataset DOI -- uncomment and set once the record is minted,
+# keeping it in sync with lib/provenance.conf (MICASA_DOI):
+# doi: "10.XXXX/XXXXXXXX"
+# identifiers:
+#   - type: doi
+#     value: "10.XXXX/XXXXXXXX"
+#     description: "Archived dataset record"

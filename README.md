@@ -55,7 +55,7 @@ Work on `main`. Use `legacy` only to reproduce a v1-vintage product.
 
 | Document | Contents |
 |---|---|
-| [`docs/PIPELINE.md`](docs/PIPELINE.md) | Versions (v1 vs vNRT), configuration env vars, flowchart, every program in the tree, data-layout reference, NetCDF input schema |
+| [`docs/PIPELINE.md`](docs/PIPELINE.md) | Versions (v1 vs vNRT), configuration env vars, flowchart, every program in the tree, data-layout reference, output provenance metadata, NetCDF input schema |
 | [`docs/METHODOLOGY.md`](docs/METHODOLOGY.md) | PIQS / PCHIP / MSS fitter theory; diurnalization with ERA5; why NEE = Rh − NPP and not Rh − NPP − ATMC |
 | [`docs/PROPOSALS.md`](docs/PROPOSALS.md) | Architecture decision records: 11 numbered notes covering landed / proposed / rejected design changes, with rationale |
 | [`CHANGELOG.md`](CHANGELOG.md) | Dated engineering entries: latent-bug sweep, performance tuning, ATMC integration arc, PCHIP promotion |
@@ -66,8 +66,8 @@ Work on `main`. Use `legacy` only to reproduce a v1-vintage product.
 The `verify_v2.ipynb` notebook runs 55+ checks across the pipeline output:
 schema, mass conservation across re-aggregation, sign-flip rates,
 polar-night clipping, biome-cell sanity, climate-signal consistency
-(NEE trend, El Niño anomaly, COVID impact), PCHIP fit invariants, and
-diurnalize timing.
+(NEE trend, El Niño anomaly, COVID impact), PCHIP fit invariants,
+diurnalize timing, and output-provenance attributes.
 
 ```sh
 # Build the notebook from source-of-truth
