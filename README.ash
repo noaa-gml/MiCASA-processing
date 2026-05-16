@@ -260,7 +260,6 @@ daysplitter.sh:
 Deprecated / kept-for-reference:
     ingest.r                       — superseded by ingest_byyear/monthly
     download_and_check.sh          — superseded by run_year.sh stage 1
-    test_gca.r                     — geometry sanity test (pre-refactor)
     create_era5_move.py            — one-time data-move script
     download-NRT.sh                — merged into download.sh
 
