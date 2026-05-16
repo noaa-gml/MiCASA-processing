@@ -21,11 +21,31 @@ this file is for "what landed when, and what numbers it moved."
   fails with a clear message naming the missing pattern instead of a
   raw `ls` error.
 
+- **`check_bounds` ported off NCO.** `check_bounds.sh` (the global-mean
+  flux sanity print run by `cat_monthly.sh`) used `ncwa`, which hits an
+  NCO chunking bug on the concatenated record — so `cat_monthly.sh`
+  wrapped it in `|| true` and the check effectively never ran.
+  `check_bounds.py` recomputes the same crude metric with xarray;
+  `check_bounds.sh` is now a thin wrapper. With this and `compute_clim`,
+  no pipeline step depends on NCO `ncwa`/PyFerret quirks anymore.
+
 - **GitHub Actions CI added** (`.github/workflows/ci.yml`): three jobs
   — Python byte-compile + `verify_v2.ipynb`-in-sync check, `bash -n`
   on every shell script, R `parse()` on every R script. The data
   pipeline can't run in CI, but syntax/build regressions are now
   caught on every push. Present on both `main` and `legacy`.
+
+- **Behavior tests + a CI `tests` job.** The CI above only checked
+  *syntax* — which this session proved insufficient (the
+  `compute_daily_clim.sh` quoted-glob bug passed `bash -n` cleanly;
+  only running it caught the failure). Added a self-contained `tests/`
+  suite that CI runs: `tests/test_compute_clim.py` (the modulo-month
+  mean, numpy-only) and `tests/test_era5_meteo.r` (the FastTrack
+  resolver + run-length encoder, base R). To make the latter testable,
+  the ERA5 path helpers were extracted from `diurnalize-ERA5.r` into
+  `lib/era5_meteo.r`; `compute_clim.py`'s core is now the pure-NumPy
+  `modulo_month_mean`. diurnalize-ERA5.r was re-smoke-tested after the
+  extraction (2026-02, FastTrack fallback, metadata intact).
 
 - **CI dry-run caught two real bugs:**
   - `lib/bench_compression_diurnal.r` had an `if/else` split across

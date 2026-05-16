@@ -55,47 +55,10 @@ cat(sprintf("ERA5 meteo search order:\n%s\n",
             paste(sprintf("  %-9s %s", names(era5dirs), era5dirs),
                   collapse = "\n")))
 
-## Relative path of one (yr, mon, day, var) ERA5 file from era5template.
-era5.relpath <- function(yr, mon, day, varnm) {
-  e5nm <- gsub("YYYY", sprintf("%d",   yr),  era5template)
-  e5nm <- gsub("MM",   sprintf("%02d", mon), e5nm)
-  e5nm <- gsub("DD",   sprintf("%02d", day), e5nm)
-  gsub("VVV", varnm, e5nm)
-}
-
-## Resolve a day to the first meteo tree holding ALL varnms for it.
-## Returns the era5dirs name ("primary"/"fasttrack"), or NA if none.
-resolve.era5.source <- function(yr, mon, day, varnms) {
-  for (src in names(era5dirs)) {
-    paths <- file.path(era5dirs[[src]],
-                       vapply(varnms,
-                              function(v) era5.relpath(yr, mon, day, v),
-                              character(1)))
-    if (all(file.exists(paths))) return(src)
-  }
-  NA_character_
-}
-
-## Compact run-length encoding of a per-day source vector, e.g.
-## "primary:1-30 fasttrack:31". `days` are the day numbers to encode;
-## `srcvec` is indexed by day number.
-encode.day.runs <- function(days, srcvec) {
-  if (length(days) == 0) return("")
-  parts <- character(0)
-  for (s in unique(srcvec[days])) {
-    ds <- sort(days[srcvec[days] == s])
-    runs <- character(0); i <- 1
-    while (i <= length(ds)) {
-      j <- i
-      while (j < length(ds) && ds[j + 1] == ds[j] + 1) j <- j + 1
-      runs <- c(runs, if (j > i) sprintf("%d-%d", ds[i], ds[j])
-                      else        sprintf("%d", ds[i]))
-      i <- j + 1
-    }
-    parts <- c(parts, sprintf("%s:%s", s, paste(runs, collapse = ",")))
-  }
-  paste(parts, collapse = " ")
-}
+## ERA5 meteo path-resolution helpers (era5.relpath, resolve.era5.source,
+## encode.day.runs) live in lib/era5_meteo.r so they can be unit-tested
+## standalone (tests/test_era5_meteo.r).
+source(file.path(Sys.getenv("WORK_DIR", getwd()), "lib", "era5_meteo.r"))
 
 yr.env <- Sys.getenv("diurn_year")
 
@@ -228,7 +191,7 @@ for (mon in mon.range) {
   ## Per-day meteo source: "primary", "fasttrack", or NA (day missing
   ## from every tree). day.source is indexed by day number.
   day.source <- vapply(1:dpm.full,
-                       function(d) resolve.era5.source(yr, mon, d, varnms),
+                       function(d) resolve.era5.source(era5dirs, era5template, yr, mon, d, varnms),
                        character(1))
   available.days <- which(!is.na(day.source))
   missing.days   <- which(is.na(day.source))
@@ -252,7 +215,7 @@ for (mon in mon.range) {
     src <- day.source[day]
     for (varnm in varnms) {
       ncname.in <- file.path(unname(era5dirs[[src]]),
-                             era5.relpath(yr, mon, day, varnm))
+                             era5.relpath(era5template, yr, mon, day, varnm))
       foo <- load.ncdf(ncname.in)
       if (is.null(mets[[varnm]])) {
         mets[[varnm]] <- array(NA, dim = c(360, 180, 24 * dpm))
