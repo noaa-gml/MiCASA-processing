@@ -11,7 +11,7 @@ cd "${MONTHLY_1X1_DIR}"
 ls ${prefix}_2*.nc | sort | ncrcat -h -O -o "${prefix}.nc"
 
 cd ..
-# check_bounds is a sanity print; ncwa hits an NCO chunking bug on the
-# concatenated record. Don't let that fail the cat (mirrors the
-# || true workaround already used in produce_2025_2026.sh).
-bash ./check_bounds.sh || echo "WARN: check_bounds failed (known ncwa chunking issue), continuing"
+# check_bounds is a post-hoc sanity print -- the cat has already
+# succeeded by this point, so don't let a check_bounds hiccup abort
+# cat_monthly under set -e.
+bash ./check_bounds.sh || echo "WARN: check_bounds sanity print failed, continuing"
