@@ -70,6 +70,8 @@ code('''
     # real path to find ssrd files.
     MET_BASE     = Path(os.environ.get("CARBONTRACKER", ".")) \\
                    / "METEO/tm5-nc/ec/ea/h06h18tr1/sfc/glb100x100"
+    MET_BASE_FALLBACK = Path(os.environ.get("CARBONTRACKER", ".")) \
+                        / "METEO/tm5-nc/ec/ea_0005/h06h18tr1/sfc/glb100x100"
 
     PASS, FAIL, WARN, INFO = "PASS", "FAIL", "WARN", "INFO"
     _RESULTS = []
@@ -247,10 +249,10 @@ md("""
     ### Check 1.4 — ERA5 meteo coverage matches diurnalized year range
 
     Every year/month with a `fluxes_YYYYMM.nc` output must have had its
-    meteo input on disk under `$CARBONTRACKER/METEO/.../<year>/<MM>/`.
-    Catches the `ea_0005` vs `ea/` regression (workers fail at first
-    `nc_open`) before it actually fails -- by checking representative meteo
-    paths exist.
+    meteo input on disk. diurnalize-ERA5.r resolves each day to the
+    primary tree or the FastTrack fallback (`ea_0005`); this check probes
+    a representative t2m file in *either* tree and fails only if neither
+    has it.
 """)
 code('''
     cid, cname = "1.4", "ERA5 meteo coverage"
@@ -260,9 +262,9 @@ code('''
         m = re.search(r"fluxes_(\\d{4})(\\d{2})\\.nc$", f.name)
         if not m: continue
         yr, mo = m.group(1), m.group(2)
-        # Just probe the first day t2m file for that year/month
-        probe = MET_BASE / yr / mo / f"t2m_{yr}{mo}01_00p01.nc"
-        if not probe.exists():
+        # Probe the first-day t2m file in the primary then fallback tree.
+        rel = f"{yr}/{mo}/t2m_{yr}{mo}01_00p01.nc"
+        if not ((MET_BASE / rel).exists() or (MET_BASE_FALLBACK / rel).exists()):
             missing.append(f"{yr}-{mo}")
     if not files:
         record(cid, cname, INFO, "no fluxes_*.nc to check yet")
@@ -738,6 +740,10 @@ code('''
         })
         # GgC/yr -> PgC/yr (1e6 GgC = 1 PgC)
         annual = annual / 1e6
+        # Drop trailing partial years (e.g. the current NRT year with
+        # <12 months); their summed totals aren't comparable to a full year.
+        _mpy = _summary.groupby("year").size()
+        annual = annual.loc[sorted(_mpy[_mpy >= 12].index)]
         problems = []
         # GPP should be roughly -100 to -150 PgC/yr (uptake = negative in our convention)
         if not ((-200 <= annual["GPP_global"]).all() and (annual["GPP_global"] <= -50).all()):
@@ -754,7 +760,7 @@ code('''
             record(cid, cname, FAIL, "; ".join(problems))
         else:
             record(cid, cname, PASS,
-                   f"{len(annual)} years; GPP in [{annual['GPP_global'].min():.1f},{annual['GPP_global'].max():.1f}], "
+                   f"{len(annual)} complete years; GPP in [{annual['GPP_global'].min():.1f},{annual['GPP_global'].max():.1f}], "
                    f"resp in [{annual['resp_global'].min():.1f},{annual['resp_global'].max():.1f}] PgC/yr")
 ''')
 code('''
@@ -764,6 +770,10 @@ code('''
         annual = _summary.groupby("year").agg({
             "NEE_global": "sum", "GPP_global": "sum", "resp_global": "sum",
         }) / 1e6  # PgC/yr
+        # Drop trailing partial years (e.g. the current NRT year with
+        # <12 months); their summed totals aren't comparable to a full year.
+        _mpy = _summary.groupby("year").size()
+        annual = annual.loc[sorted(_mpy[_mpy >= 12].index)]
         fig, axes = plt.subplots(3, 1, figsize=(10, 8), sharex=True)
         for ax, col, ylabel in zip(
             axes, ["GPP_global", "resp_global", "NEE_global"],
@@ -794,6 +804,10 @@ code('''
         annual = _summary.groupby("year").agg({
             "NEE_global": "sum", "GPP_global": "sum", "resp_global": "sum",
         }) / 1e6
+        # Drop trailing partial years (e.g. the current NRT year with
+        # <12 months); their summed totals aren't comparable to a full year.
+        _mpy = _summary.groupby("year").size()
+        annual = annual.loc[sorted(_mpy[_mpy >= 12].index)]
         problems = []
         warnings = []
         for col in ("GPP_global", "resp_global"):
