@@ -958,13 +958,14 @@ code('''
 ''')
 
 md("""
-    ### Check 6.2 — Right-edge difference vs interior difference
+    ### Check 6.2 — Right-edge difference vs interior (diagnostic)
 
-    The v2 methodology change targets the right edge of the PIQS fit.
-    Quantify: for late-2024 months (closest to v1's stale fit edge), the
-    v2−v1 NEE RMS difference should be larger than for interior months
-    (e.g., 2015-07). If that's NOT the case, the PAD_RIGHT=2 change isn't
-    doing what we expect.
+    Reports the v2−v1 NEE RMS difference at right-edge months vs interior
+    months. Originally a pass/fail test of the PIQS `PAD_RIGHT=2` edge
+    effect — but v2's production fitter is now PCHIP (local Fritsch-
+    Carlson slopes, no edge padding), so that premise no longer holds.
+    Kept as an INFO diagnostic; the v2-vs-v1 sanity invariant lives in
+    Check 6.1 (spatial correlation).
 """)
 code('''
     cid, cname = "6.2", "right-edge differs more than interior"
@@ -1018,13 +1019,14 @@ code('''
         # much as interior, since right-edge tail propagation adds on top
         # of the clip-induced background), but accept ratios down to 0.5
         # since the clip can flip the dominant signal.
-        if ratio >= 1.5:
-            record(cid, cname, PASS, f"{detail} (edge differs more, as expected)")
-        elif ratio >= 0.5:
-            record(cid, cname, WARN, f"{detail} (edge similar to interior; expected post-clip)")
-        else:
-            record(cid, cname, FAIL,
-                   f"{detail} (interior differs MUCH more than edge -- unexpected)")
+        # Diagnostic only. This check was built to confirm the PIQS
+        # PAD_RIGHT=2 edge effect. v2's production fitter is now PCHIP,
+        # which uses local Fritsch-Carlson slopes and no edge padding, so
+        # "edge differs more than interior" is no longer an invariant --
+        # the ratio is reported for inspection, not graded. The v2-vs-v1
+        # sanity invariant lives in Check 6.1.
+        record(cid, cname, INFO,
+               f"{detail} (diagnostic; PAD_RIGHT premise obsolete under PCHIP)")
 ''')
 
 # ---- Section 7: Spatial Sanity ------------------------------------------
@@ -1467,18 +1469,34 @@ md("## Section 11 — Pipeline Health")
 md("""
     ### Check 11.1 — Job log error scan
 
-    Grep every `jobs/*.o*` log for `ERROR` / `Execution halted` / `FAIL` /
-    `nco_err_exit`. Excludes the known-OK NCO `check_bounds` `EINVAL` that
-    fires after every successful `cat_monthly.sh` (separately tracked in
-    the cat_monthly script). Catches errors that produced output anyway
-    (NCO's quirk of writing the file before exiting non-zero).
+    Grep recent `jobs/*.o*` logs for `ERROR` / `Execution halted` /
+    `FAIL` / `nco_err_exit`. verify_v2's own `verify-*.o*` logs are
+    skipped (they quote error strings from the logs they scanned).
+    Only logs modified within
+    `MICASA_VERIFY_LOG_AGE_DAYS` (default 14) are scanned — old
+    experiment and superseded-run logs accumulate in `jobs/` and would
+    otherwise flag forever. Excludes the known-OK NCO `check_bounds`
+    `EINVAL` that fires after every successful `cat_monthly.sh`. Catches
+    errors that produced output anyway (NCO writes the file before
+    exiting non-zero).
 """)
 code('''
     cid, cname = "11.1", "job log error scan"
     if not JOBS_DIR.exists():
         record(cid, cname, INFO, "no jobs/ directory")
     else:
-        logs = sorted(JOBS_DIR.glob("*.o*"))
+        # Only scan recent logs -- old experiment / superseded-run logs
+        # accumulate in jobs/ and would otherwise flag forever.
+        import time
+        max_age_days = float(os.environ.get("MICASA_VERIFY_LOG_AGE_DAYS", "14"))
+        cutoff = time.time() - max_age_days * 86400.0
+        # Exclude verify_v2's own logs: a verify log quotes "Execution
+        # halted" / "[FAIL]" strings from the logs IT scanned, so
+        # scanning verify logs is self-referential and always flags.
+        all_logs = [L for L in sorted(JOBS_DIR.glob("*.o*"))
+                    if not L.name.startswith("verify")]
+        logs = [L for L in all_logs if L.stat().st_mtime >= cutoff]
+        n_skipped_old = len(all_logs) - len(logs)
         # Patterns to flag, and known-OK lines to skip
         flag_pat = re.compile(
             r"^.*(Execution halted|^ERROR |^FAIL\\b|nco_err_exit|"
@@ -1507,18 +1525,22 @@ code('''
                     problems.append(f"{L.name}: {len(hits)} unexpected line(s); first: {hits[0][:120]}")
             except Exception as e:
                 problems.append(f"{L.name}: {e}")
+        age_note = f"last {max_age_days:.0f}d"
         if n_logs == 0:
-            record(cid, cname, INFO, "no job logs to scan")
+            record(cid, cname, INFO,
+                   f"no job logs within {age_note} ({n_skipped_old} older logs skipped)")
         elif problems:
             # WARN if a small fraction; FAIL if many
             frac_bad = (n_logs - n_clean) / max(n_logs, 1)
             status = FAIL if frac_bad > 0.2 else WARN
             record(cid, cname, status,
-                   f"{n_logs - n_clean} of {n_logs} logs flagged. First few: " +
+                   f"{n_logs - n_clean} of {n_logs} logs ({age_note}) flagged "
+                   f"({n_skipped_old} older skipped). First few: " +
                    "; ".join(problems[:3]))
         else:
             record(cid, cname, PASS,
-                   f"all {n_logs} logs clean of unexpected ERROR / Halted / Traceback")
+                   f"all {n_logs} logs ({age_note}) clean of unexpected "
+                   f"ERROR / Halted / Traceback ({n_skipped_old} older skipped)")
 ''')
 
 md("""

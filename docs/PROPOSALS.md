@@ -352,3 +352,36 @@ records it without bloating the attribute.
 Landed on `main` and backported to `legacy`. verify_v2 Check 1.4 was
 updated to probe both trees. First production use: the 2026-Q1 run on
 2026-05-16 (see [`CHANGELOG.md`](../CHANGELOG.md)).
+
+## (13) [LANDED 2026-05-16] compute_clim ported off PyFerret
+
+`compute_clim.sh` built the NPP/Rh modulo-month climatologies
+(`monthly_1x1/{NPP,Rh}clim.nc`, consumed by diurnalize-ERA5.r's
+climatology-fallback branch) by running PyFerret:
+
+```
+let <flux>clim = <flux>[d=1,GT=MONTH_IRREG@MOD]
+```
+
+PyFerret is broken on Orion — a NumPy 1.x/2.x ABI mismatch makes
+`import pyferret` abort (`_ARRAY_API not found`). The clim files
+survived only as a stale build from 2025-06; if they ever needed
+regenerating, the pipeline could not do it.
+
+The climatology is just the mean of each calendar month across every
+year in the record. `compute_clim.py` computes it with xarray
+(`groupby("time.month").mean("time")`) and writes the same schema —
+variables `NPPCLIM`/`RHCLIM`, dimensions `(MONTH_IRREG, lat, lon)`,
+units gC m-2 s-1 — so diurnalize-ERA5.r picks them up unchanged.
+`compute_clim.sh` is now a thin wrapper.
+
+Validation: the Python climatology restricted to 2001-2024 was
+compared against the old PyFerret output. The algorithm is exact — a
+hand-computed January mean matched `groupby` to 1e-12. The two builds
+differ by ≤4.7% at a few cells (median 0.05%), and the difference
+grows poleward — the signature of the area-weighted aggregator bug
+fixed in the 2026-04 latent-bug sweep. The old PyFerret clim was
+built from pre-bugfix monthly data; the new clim, built from the
+corrected inputs, is the more accurate of the two.
+
+Removes the last pipeline dependency on PyFerret.

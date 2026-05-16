@@ -1,0 +1,71 @@
+name: CI
+
+# Syntax / parse / build checks. The data pipeline itself needs Orion and
+# the MiCASA + ERA5 archives, so it cannot run here -- but every shell, R,
+# and Python file is checked for syntax, and the verify_v2 notebook is
+# checked for being in sync with its source-of-truth generator.
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  python:
+    name: Python — byte-compile + notebook sync
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Byte-compile every .py file
+        run: |
+          set -e
+          find . -name '*.py' -print0 | xargs -0 -n1 python -m py_compile
+          echo "all Python files compile"
+      - name: verify_v2.ipynb is in sync with build_verify_v2.py
+        run: |
+          if [ ! -f build_verify_v2.py ]; then
+            echo "build_verify_v2.py not present (legacy branch) -- skipping"
+            exit 0
+          fi
+          python3 build_verify_v2.py
+          if ! git diff --quiet verify_v2.ipynb; then
+            echo "::error::verify_v2.ipynb is stale -- run 'python3 build_verify_v2.py' and commit the result"
+            git diff --stat verify_v2.ipynb
+            exit 1
+          fi
+          echo "verify_v2.ipynb matches build_verify_v2.py"
+
+  shell:
+    name: Shell — bash -n
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: bash -n on every shell script
+        run: |
+          fail=0
+          while IFS= read -r f; do
+            echo "checking $f"
+            bash -n "$f" || { echo "::error file=$f::bash syntax error"; fail=1; }
+          done < <(find . \( -name '*.sh' -o -name '*.sbatch' \) -type f)
+          exit $fail
+
+  rlang:
+    name: R — parse
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: r-lib/actions/setup-r@v2
+      - name: Parse every R script
+        run: |
+          fail=0
+          while IFS= read -r f; do
+            echo "parsing $f"
+            Rscript -e 'q(status = tryCatch({ parse(file = commandArgs(TRUE)[1]); 0 }, error = function(e) { message(conditionMessage(e)); 1 }))' "$f" \
+              || { echo "::error file=$f::R parse error"; fail=1; }
+          done < <(find . \( -name '*.r' -o -name '*.R' \) -type f)
+          exit $fail

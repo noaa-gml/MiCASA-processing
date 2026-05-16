@@ -150,7 +150,6 @@ run_year.sh
 - **`lib/test_aggregate.r`** — Self-contained Rscript test for
   `aggregate.to.1x1`, with regression test against the pre-2026-04-26
   buggy implementation.
-- **`lib/test_gca.r`** — Grid-cell-area utility (geometry sanity).
 - **`lib/bench_compression_diurnal.r`** — Compression-level benchmark
   for the diurnalize output (see CHANGELOG entry).
 
@@ -188,8 +187,13 @@ run_year.sh
   chunking bug).
 - **`check_bounds.sh`** — Simple unweighted-area average sanity check.
   Not used in production aggregation (that's `aggregate.to.1x1`).
-- **`compute_clim.sh`** — Ferret-driven modulo-month average of the
-  concatenated monthly file. Writes `monthly_1x1/{NPP,Rh}clim.nc`.
+- **`compute_clim.sh`** / **`compute_clim.py`** — Modulo-month
+  climatology (mean of each calendar month across all years) of the
+  concatenated monthly file. Writes `monthly_1x1/{NPP,Rh}clim.nc`
+  (variables `NPPCLIM`/`RHCLIM`). `compute_clim.sh` is a thin wrapper;
+  the logic lives in `compute_clim.py` (xarray). It was a PyFerret
+  script until 2026-05 — PyFerret is broken on Orion (NumPy ABI
+  mismatch). See [proposal #13](PROPOSALS.md).
 - **`compute_daily_clim.sh`** — `ncea` across-year average per day-of-year,
   writing `daily_1x1/MiCASA_<VER>_flux_x360_y180_daily_0000<MMDD>.nc`.
 - **`link_daily_clim.sh`** — For each year in `$MICASA_CLIM_YEARS`,
@@ -309,7 +313,7 @@ monthly_1x1/MiCASA_<VER>_flux_x360_y180_monthly.nc
         Concatenated multi-year monthly file (cat_monthly.sh).
 
 monthly_1x1/{NPP,Rh}clim.nc
-        Climatology, created by compute_clim.sh (Ferret).
+        Modulo-month climatology, created by compute_clim.sh / .py.
 
 ERA5/fluxes_<YYYYMM>.nc
         Hourly diurnalized monthly file, created by diurnalize-ERA5.r.

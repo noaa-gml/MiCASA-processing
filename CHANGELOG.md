@@ -4,6 +4,41 @@ Dated engineering entries for the active (`main`) branch. Conceptual /
 methodological reasoning lives in [`docs/PROPOSALS.md`](docs/PROPOSALS.md);
 this file is for "what landed when, and what numbers it moved."
 
+## 2026-05-16 — pipeline-robustness pass
+
+- **`compute_clim` ported off PyFerret.** PyFerret is broken on Orion
+  (NumPy ABI mismatch); `compute_clim.sh` is now a thin wrapper around
+  `compute_clim.py` (xarray modulo-month mean). Algorithm validated
+  exact against a hand-computed mean; see
+  [`docs/PROPOSALS.md` #13](docs/PROPOSALS.md). Removes the last
+  PyFerret dependency.
+
+- **GitHub Actions CI added** (`.github/workflows/ci.yml`): three jobs
+  — Python byte-compile + `verify_v2.ipynb`-in-sync check, `bash -n`
+  on every shell script, R `parse()` on every R script. The data
+  pipeline can't run in CI, but syntax/build regressions are now
+  caught on every push. Present on both `main` and `legacy`.
+
+- **CI dry-run caught two real bugs:**
+  - `lib/bench_compression_diurnal.r` had an `if/else` split across
+    lines (a syntax error introduced in the 2026-05-05 public-release
+    cleanup) — fixed.
+  - `lib/test_gca.r` was a broken, incomplete pre-refactor stub
+    (`print()` missing a paren); `archimedes()` is maintained in
+    `lib/ingest_common.r`. Removed.
+
+- **verify_v2 Check 6.2** downgraded to INFO. It tested the PIQS
+  `PAD_RIGHT=2` edge effect; PCHIP (the production fitter) uses local
+  slopes and no edge padding, so the premise is obsolete. The
+  v2-vs-v1 sanity invariant lives in Check 6.1.
+
+- **verify_v2 Check 11.1** now scans only logs modified within
+  `MICASA_VERIFY_LOG_AGE_DAYS` (default 14). Old experiment /
+  superseded-run logs in `jobs/` were flagging the check forever.
+
+`compute_clim.py`/`.sh` and the CI workflow were also ported to the
+`legacy` (v1) branch.
+
 ## 2026-05-16 — 2026-Q1 production run; verify partial-year + fallback fixes
 
 First production run using the FastTrack meteo fallback. Diurnalized
