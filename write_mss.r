@@ -54,98 +54,12 @@ m0 <- plt.start$mon  + 1
 x.time <- as.numeric(seq(ISOdatetime(y0, m0, 1, 0, 0, 0, tz = "UTC"),
                          by = "1 month", length.out = nmon + 1))
 
-## Pre-build the constant smoothness Hessian and constraint template.
-## The Hessian and the "shape" of constraints depend only on x.time
-## (the knot positions), not on ybar values. Precompute once outside
-## the cell loop.
-n.test.per.segment <- 8
-h.seg <- diff(x.time)            # length n
-n.seg <- length(h.seg)
-n.var <- n.seg + 1               # number of m_k (knot slopes)
-
-build.G <- function(h) {
-  G <- matrix(0, n.var, n.var)
-  for (k in seq_len(n.seg)) {
-    inv.h <- 1 / h[k]
-    G[k,     k]     <- G[k,     k]     + 8 * inv.h
-    G[k + 1, k + 1] <- G[k + 1, k + 1] + 8 * inv.h
-    G[k,     k + 1] <- G[k,     k + 1] + 4 * inv.h
-    G[k + 1, k]     <- G[k + 1, k]     + 4 * inv.h
-  }
-  ## tiny ridge for numerical stability of solve.QP (D must be PD)
-  G + 1e-20 * diag(n.var)
-}
-G.const <- build.G(h.seg)
-
-## Constraint matrix C is partly constant (the test-point coefficients
-## on m_k, m_{k+1}) and partly cell-dependent (the b vector includes u_k).
-## Pre-build the dense (n.var, n.constraints) C matrix.
-n.constraints <- n.seg * n.test.per.segment + 2
-C.const <- matrix(0, n.var, n.constraints)
-test.s  <- (seq_len(n.test.per.segment) - 0.5) / n.test.per.segment
-j <- 0
-for (k in seq_len(n.seg)) {
-  for (s in test.s) {
-    j <- j + 1
-    C.const[k,     j] <- 3 * s * s - 4 * s + 1
-    C.const[k + 1, j] <- 3 * s * s - 2 * s
-  }
-}
-j <- j + 1; C.const[1,     j] <- 1
-j <- j + 1; C.const[n.var, j] <- 1
-## Per-segment, the s-dependent constant in the constraint b is
-##   b_j = -(6s - 6s^2) * u_k
-## We'll build b per cell using a (n.constraints, n.seg) coefficient
-## matrix that maps u to b (boundary rows have zero coefficient).
-b.coef <- matrix(0, n.constraints, n.seg)
-j <- 0
-for (k in seq_len(n.seg)) {
-  for (s in test.s) {
-    j <- j + 1
-    b.coef[j, k] <- -(6 * s - 6 * s * s)
-  }
-}
-
-mss.fit.cell <- function(x, ybar) {
-  if (all(ybar == 0)) {
-    return(list(a = rep(0, n.seg), b = rep(0, n.seg), c = rep(0, n.seg)))
-  }
-  ## Like write_pchip.r, allow the data to be uniformly negative by
-  ## flipping sign and unflipping the final coefficients.
-  if (mean(ybar) < 0) {
-    u <- -ybar
-    sign.flip <- -1
-  } else {
-    u <- ybar
-    sign.flip <- 1
-  }
-  inv.h <- 1 / h.seg
-  ## Linear term in 0.5 m^T G m - a^T m form: a[k] = +12 u[k] / h[k]
-  a.lin <- numeric(n.var)
-  for (k in seq_len(n.seg)) {
-    a.lin[k]     <- a.lin[k]     + 12 * u[k] * inv.h[k]
-    a.lin[k + 1] <- a.lin[k + 1] + 12 * u[k] * inv.h[k]
-  }
-  ## b vector for inequality constraints: b[j] = sum_k b.coef[j,k] * u[k]
-  bvec <- as.vector(b.coef %*% u)
-  sol <- tryCatch(
-    solve.QP(Dmat = G.const, dvec = a.lin, Amat = C.const, bvec = bvec, meq = 0),
-    error = function(e) NULL)
-  if (is.null(sol)) {
-    ## Fall back to PCHIP on this cell if QP fails (rare; very pathological
-    ## inputs only).
-    fn <- splinefun(x, c(0, cumsum(u * h.seg)), method = "monoH.FC")
-    m <- fn(x, deriv = 1)
-  } else {
-    m <- sol$solution
-  }
-  Q <- -6 * u + 3 * m[1:n.seg] + 3 * m[2:n.var]
-  L <-  6 * u - 4 * m[1:n.seg] - 2 * m[2:n.var]
-  K <- m[1:n.seg]
-  list(a = sign.flip * Q / h.seg^2,
-       b = sign.flip * L / h.seg,
-       c = sign.flip * K)
-}
+## QP fitter core (mss.fit.setup, mss.fit.cell) -- lib/mss_fit.r,
+## unit-tested standalone by tests/test_mss_fit.r. The QP smoothness
+## Hessian and constraint matrices depend only on the knot positions,
+## so build them once here and reuse across every cell.
+source(file.path(Sys.getenv("WORK_DIR", getwd()), "lib", "mss_fit.r"))
+mss.setup <- mss.fit.setup(x.time)
 
 ## ---- Loop over cells -------------------------------------------------------
 piqsfit.gpp  <- list()
@@ -167,8 +81,8 @@ for (i in 1:360) {
         max(abs(din$Rh [i, j, ])) < COEF_ZERO_THRESHOLD) {
       next
     }
-    fit.gpp  <- mss.fit.cell(x.time, gpp [i, j, ])
-    fit.rtot <- mss.fit.cell(x.time, rtot[i, j, ])
+    fit.gpp  <- mss.fit.cell(x.time, gpp [i, j, ], mss.setup)
+    fit.rtot <- mss.fit.cell(x.time, rtot[i, j, ], mss.setup)
     piqsfit.gpp$a [i, j, ] <- fit.gpp$a
     piqsfit.gpp$b [i, j, ] <- fit.gpp$b
     piqsfit.gpp$c [i, j, ] <- fit.gpp$c

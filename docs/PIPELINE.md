@@ -166,6 +166,9 @@ run_year.sh
 - **`lib/diurnal.r`** — the diurnalize flux transform (`diurnal.flux`,
   `polar.night.clip`) that `diurnalize-ERA5.r` applies per time slot.
   Unit-tested by `tests/test_diurnal.r`.
+- **`lib/mss_fit.r`** — the monotone-smoothing-spline QP fitter core
+  (`mss.fit.setup`, `mss.fit.cell`) that `write_mss.r` runs per grid
+  cell. Unit-tested by `tests/test_mss_fit.r`.
 - **`lib/provenance.r`** / **`lib/provenance.py`** — build the CF/ACDD
   provenance global-attribute set (git commit, timestamp, input
   checksums, citation) for the R and Python netCDF writers

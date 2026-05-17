@@ -4,6 +4,21 @@ Dated engineering entries for the active (`main`) branch. Conceptual /
 methodological reasoning lives in [`docs/PROPOSALS.md`](docs/PROPOSALS.md);
 this file is for "what landed when, and what numbers it moved."
 
+## 2026-05-16 — more unit tests: MSS QP fitter + check_hashes
+
+- **`write_mss.r` QP fitter core extracted to `lib/mss_fit.r`.**
+  `mss.fit.setup` (the data-independent QP smoothness Hessian and
+  constraint matrices) and `mss.fit.cell` (one cell's monotone
+  smoothing-spline fit) move into a helper that `write_mss.r` sources.
+- **`tests/test_mss_fit.r`** — 10 checks of the MSS fitter: integral /
+  monthly-mean preservation, non-negativity at the QP test points, and
+  the sign-flip branch. Skips cleanly where the `quadprog` package is
+  unavailable.
+- **`tests/test_check_hashes.py`** — 12 checks of `check_hashes.py`'s
+  helpers (`sha256_file`, `parse_manifest`, `merge_manifests`,
+  `year_range_from_env`, `verify_dir`). No code change — the functions
+  were already pure.
+
 ## 2026-05-16 — diurnalize flux core extracted + unit-tested
 
 - **`diurnalize-ERA5.r` flux transform extracted to `lib/diurnal.r`.**
