@@ -4,6 +4,19 @@ Dated engineering entries for the active (`main`) branch. Conceptual /
 methodological reasoning lives in [`docs/PROPOSALS.md`](docs/PROPOSALS.md);
 this file is for "what landed when, and what numbers it moved."
 
+## 2026-05-16 — diurnalize flux core extracted + unit-tested
+
+- **`diurnalize-ERA5.r` flux transform extracted to `lib/diurnal.r`.**
+  `diurnal.flux` (driver-scaled monthly mean with the flat mean swapped
+  for the fitted sub-monthly shape) and `polar.night.clip` (GPP = 0 in
+  the dark) move into a pure base-R helper that `diurnalize-ERA5.r`
+  sources. Verified byte-for-byte identical to the pre-refactor inline
+  code on random arrays.
+- **`tests/test_diurnal.r`** — 11 CI checks of the transform's
+  invariants: monthly-mean preservation, driver proportionality,
+  polar-night zeroing, the negative-mean (GPP) case, and matrix
+  (grid-slice) operation.
+
 ## 2026-05-16 — more unit tests: grid geometry + budget conversion
 
 - **`tests/test_ingest_geometry.r`** — 20 CI checks of `archimedes()`

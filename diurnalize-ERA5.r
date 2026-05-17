@@ -64,6 +64,11 @@ source(file.path(Sys.getenv("WORK_DIR", getwd()), "lib", "provenance.r"))
 ## fail to jobs/run_manifest.tsv, which verify_v2 reads. See lib/manifest.r.
 source(file.path(Sys.getenv("WORK_DIR", getwd()), "lib", "manifest.r"))
 
+## Diurnalize flux transform (diurnal.flux, polar.night.clip): the pure
+## arithmetic core, extracted so its invariants can be unit-tested
+## (tests/test_diurnal.r). See lib/diurnal.r.
+source(file.path(Sys.getenv("WORK_DIR", getwd()), "lib", "diurnal.r"))
+
 yr.env <- Sys.getenv("diurn_year")
 
 if (nchar(yr.env) == 0) {
@@ -324,25 +329,18 @@ for (mon in mon.range) {
     flip.hours.gpp  <- flip.hours.gpp  + sum(flip.gpp.now)
     flip.hours.resp <- flip.hours.resp + sum(flip.resp.now)
 
-    gpp[ , , islot] <- mets$ssrd[, , islot] * gpp.mn  / ssr.mn
-    resp[, , islot] <- q10[      , , islot] * rtot.mn / q10.mn
-
-    gpp[ , , islot] <- gpp[ , , islot] - gpp.mn  + qmod.gpp
-    resp[, , islot] <- resp[, , islot] - rtot.mn + qmod.resp
+    ## Hourly flux: the meteo driver scales the monthly mean, and the flat
+    ## monthly mean is swapped for the fitted sub-monthly shape (qmod).
+    ## See lib/diurnal.r :: diurnal.flux.
+    gpp[ , , islot] <- diurnal.flux(mets$ssrd[, , islot], gpp.mn,  ssr.mn, qmod.gpp)
+    resp[, , islot] <- diurnal.flux(q10[      , , islot], rtot.mn, q10.mn, qmod.resp)
 
     ## Polar-night clip (Check 12.2). No incoming shortwave => no
-    ## photosynthesis. Without this, the PIQS quadratic component
-    ## (qmod.gpp - gpp.mn) leaks a small residual into hours where ssrd
-    ## is identically 0 (~2.6% of cells in fluxes_202512.nc, max
-    ## |GPP|=9.4e-9 mol m-2 s-1). The clip zeros gpp at those cell-hours
-    ## before nee is summed; resp/qgpp/qresp are unaffected (Rh has no
-    ## physical reason to vanish in darkness).
-    dark <- which(mets$ssrd[, , islot] == 0)
-    if (length(dark) > 0) {
-      gpp.slot       <- gpp[, , islot]
-      gpp.slot[dark] <- 0
-      gpp[, , islot] <- gpp.slot
-    }
+    ## photosynthesis. Without this, the sub-monthly quadratic leaks a
+    ## small residual into hours where ssrd is identically 0 (~2.6% of
+    ## cells in fluxes_202512.nc, max |GPP|=9.4e-9 mol m-2 s-1). resp /
+    ## qgpp / qresp are unaffected (Rh has no reason to vanish in dark).
+    gpp[ , , islot] <- polar.night.clip(gpp[, , islot], mets$ssrd[, , islot])
     nee[ , , islot] <- gpp[, , islot] + resp[, , islot]
     qgpp[ , , islot] <- qmod.gpp
     qresp[, , islot] <- qmod.resp

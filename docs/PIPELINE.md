@@ -163,6 +163,9 @@ run_year.sh
   (`pchip.fit.cell`, Fritsch-Carlson monotone cubic Hermite) that
   `write_pchip.r` runs per grid cell. Unit-tested by
   `tests/test_pchip_fit.r`.
+- **`lib/diurnal.r`** — the diurnalize flux transform (`diurnal.flux`,
+  `polar.night.clip`) that `diurnalize-ERA5.r` applies per time slot.
+  Unit-tested by `tests/test_diurnal.r`.
 - **`lib/provenance.r`** / **`lib/provenance.py`** — build the CF/ACDD
   provenance global-attribute set (git commit, timestamp, input
   checksums, citation) for the R and Python netCDF writers
