@@ -4,6 +4,21 @@ Dated engineering entries for the active (`main`) branch. Conceptual /
 methodological reasoning lives in [`docs/PROPOSALS.md`](docs/PROPOSALS.md);
 this file is for "what landed when, and what numbers it moved."
 
+## 2026-05-16 — more unit tests: grid geometry + budget conversion
+
+- **`tests/test_ingest_geometry.r`** — 20 CI checks of `archimedes()`
+  and `compute.gca()` in `lib/ingest_common.r`, the spherical
+  grid-cell-area functions the 0.1°→1° aggregation weights depend on:
+  analytic areas (a sphere is 4·π·R²), the 0.1° grid tiling the sphere,
+  equator symmetry, input validation, plus the `out.is.fresh()`
+  mtime gate. No code change — the functions were already pure.
+- **`check_bounds.py`** — the `gC m-2 s-1` → `TgC/yr` unit conversion
+  is extracted as the pure function `flux_to_tgc_per_year`, and the
+  `xarray` import is now lazy (inside `main()`), so the function is
+  importable with only numpy. Behaviour is unchanged.
+- **`tests/test_check_bounds.py`** — 7 CI checks pinning the conversion
+  and its constants (catches a wrong scale constant or a units flip).
+
 ## 2026-05-16 — per-step run manifest
 
 - **Pipeline steps now write a structured run manifest.** New helpers
