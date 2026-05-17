@@ -4,6 +4,19 @@ Dated engineering entries for the active (`main`) branch. Conceptual /
 methodological reasoning lives in [`docs/PROPOSALS.md`](docs/PROPOSALS.md);
 this file is for "what landed when, and what numbers it moved."
 
+## 2026-05-16 — PCHIP fitter unit test
+
+- **`pchip.fit.cell` extracted to `lib/pchip_fit.r`.** The
+  Fritsch-Carlson PCHIP-on-cumulative fitter core that `write_pchip.r`
+  runs per grid cell is now a standalone pure-base-R helper, sourced by
+  `write_pchip.r`. No behaviour change — the function body is unchanged.
+- **`tests/test_pchip_fit.r`** — 12 CI-run checks pinning the fitter's
+  contract on synthetic monthly series: integral / monthly-mean
+  preservation (uniform and non-uniform knots), C¹ continuity at knots,
+  non-negativity for single-signed input, the GPP sign-flip branch, and
+  the constant / all-zero edge cases. Previously the fitter was only
+  exercised by a post-production `verify_v2` run.
+
 ## 2026-05-16 — output provenance metadata + release prep
 
 - **CF/ACDD provenance stamped into every netCDF the pipeline writes.**

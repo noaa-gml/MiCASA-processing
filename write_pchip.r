@@ -29,6 +29,10 @@ ct.setup()
 source(file.path(Sys.getenv("WORK_DIR", getwd()), "config.r"))
 cfg <- micasa.config()
 
+## PCHIP-on-cumulative fitter core (pchip.fit.cell) -- lib/pchip_fit.r,
+## unit-tested standalone by tests/test_pchip_fit.r.
+source(file.path(Sys.getenv("WORK_DIR", getwd()), "lib", "pchip_fit.r"))
+
 din <- load.ncdf(micasa.out.monthly.cat(cfg))
 
 gpp  <- -2 * din$NPP
@@ -40,57 +44,6 @@ y0 <- plt.start$year + 1900
 m0 <- plt.start$mon  + 1
 x.time <- as.numeric(seq(ISOdatetime(y0, m0, 1, 0, 0, 0, tz = "UTC"),
                          by = "1 month", length.out = nmon + 1))
-
-## PCHIP-on-cumulative: per-cell, return list(a,b,c) of length nmon
-## such that piece i is f(t) = a*(t - x[i])^2 + b*(t - x[i]) + c.
-pchip.fit.cell <- function(x, ybar) {
-  n <- length(x) - 1
-  delta <- diff(x)
-  ## Fritsch-Carlson is monotone iff input is monotone; cumulative is
-  ## monotone iff all ybar same sign. We pass the SIGN of the data
-  ## explicitly: PCHIP on cum_F where F is non-decreasing for ybar>=0.
-  ## For GPP (ybar <= 0), the cumulative is non-increasing -- we negate
-  ## before fitting so monoH.FC sees a non-decreasing sequence, then
-  ## negate the resulting derivative coefficients.
-  if (all(ybar == 0)) {
-    return(list(a = rep(0, n), b = rep(0, n), c = rep(0, n)))
-  }
-  ## Determine direction. If data is mixed-sign (not the GPP/Rh case
-  ## here, both are unsigned-magnitude), splinefun(monoH.FC) won't
-  ## guarantee monotone -- but it will still return SOMETHING. We
-  ## handle the unsigned case (flip sign if needed).
-  if (mean(ybar) < 0) {
-    ybar.s <- -ybar
-    sign.flip <- -1
-  } else {
-    ybar.s <- ybar
-    sign.flip <- 1
-  }
-  cum.F <- c(0, cumsum(ybar.s * delta))   # length n+1
-  ## R's splinefun with monoH.FC returns a function of t. Internal
-  ## representation can be queried via the function's environment for
-  ## the per-piece slopes.
-  fn <- splinefun(x, cum.F, method = "monoH.FC")
-  ## Sample F' at the knots to get slopes m_k. monoH.FC uses
-  ## Fritsch-Carlson per-knot slopes; calling fn(x, deriv = 1) returns
-  ## the slope EXACTLY at each knot.
-  m <- fn(x, deriv = 1)
-  ## Build the per-piece quadratic. Cubic Hermite on segment k:
-  ##   f(s) = (6s - 6s^2) u_k + (3s^2 - 4s + 1) m_k + (3s^2 - 2s) m_{k+1}
-  ## where s = (t - x[k])/h_k, u_k = (F[k+1] - F[k])/h_k = ybar.s[k],
-  ## h_k = delta[k]. Convert to t coordinates:
-  ##   f(t) = (Q/h^2) (t - x[k])^2 + (L/h) (t - x[k]) + K
-  ## with Q = -6 u + 3 m_k + 3 m_{k+1},
-  ##      L =  6 u - 4 m_k - 2 m_{k+1},
-  ##      K = m_k.
-  u <- ybar.s
-  Q <- -6 * u + 3 * m[1:n] + 3 * m[2:(n + 1)]
-  L <-  6 * u - 4 * m[1:n] - 2 * m[2:(n + 1)]
-  K <- m[1:n]
-  list(a = sign.flip * Q / delta^2,
-       b = sign.flip * L / delta,
-       c = sign.flip * K)
-}
 
 ## ---- Loop over cells -------------------------------------------------------
 piqsfit.gpp  <- list()

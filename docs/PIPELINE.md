@@ -159,6 +159,10 @@ run_year.sh
   (`era5.relpath`, `resolve.era5.source`, `encode.day.runs`): the
   primary / FastTrack search order. Unit-tested by
   `tests/test_era5_meteo.r`.
+- **`lib/pchip_fit.r`** — the PCHIP-on-cumulative fitter core
+  (`pchip.fit.cell`, Fritsch-Carlson monotone cubic Hermite) that
+  `write_pchip.r` runs per grid cell. Unit-tested by
+  `tests/test_pchip_fit.r`.
 - **`lib/provenance.r`** / **`lib/provenance.py`** — build the CF/ACDD
   provenance global-attribute set (git commit, timestamp, input
   checksums, citation) for the R and Python netCDF writers
@@ -222,6 +226,8 @@ run_year.sh
   `fit.piqs.rda`. Provably non-negative everywhere by Fritsch-Carlson
   construction. Confirmed reduction in sub-monthly sign flips:
   GPP cell-hour mean 6.55% → 0.12%, max 14.70% → 0.94%.
+  The per-cell fitter core `pchip.fit.cell` lives in `lib/pchip_fit.r`,
+  unit-tested by `tests/test_pchip_fit.r`.
   See [`docs/METHODOLOGY.md`](METHODOLOGY.md) and
   [proposal #10](PROPOSALS.md).
 - **`write_piqs.r`** — *Legacy alternative, retained.* Classic Piecewise
