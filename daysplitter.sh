@@ -8,12 +8,19 @@
 set -e
 
 . "$(dirname "$0")/config.sh"
+. "$(dirname "$0")/lib/manifest.sh"
 
 calc() {
     awk " function ceiling(x) {print int(x+0.9999999)} \
           function round(x)   {print int(x+0.4999999)} \
           BEGIN{OFMT = \"%.12g\"; print $* }"
 }
+
+# Run manifest (lib/manifest.sh): record start now, ok/fail on exit.
+_ds_t0=$(date +%s)
+_ds_detail="years ${MICASA_YEAR_START}-${MICASA_YEAR_END} months ${MICASA_MONTH_START}-${MICASA_MONTH_END}"
+manifest_record daysplitter.sh start - "$_ds_detail"
+trap '_ds_rc=$?; [ "$_ds_rc" -ne 0 ] && manifest_record daysplitter.sh fail "$(($(date +%s)-_ds_t0))" "exit $_ds_rc"' EXIT
 
 for yr in $(seq "${MICASA_YEAR_START}" "${MICASA_YEAR_END}"); do
     for mon in $(seq "${MICASA_MONTH_START}" "${MICASA_MONTH_END}"); do
@@ -45,3 +52,6 @@ for yr in $(seq "${MICASA_YEAR_START}" "${MICASA_YEAR_END}"); do
         echo ']'
     done
 done
+
+manifest_record daysplitter.sh ok "$(($(date +%s)-_ds_t0))" "$_ds_detail"
+trap - EXIT

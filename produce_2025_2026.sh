@@ -29,6 +29,8 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 . ./config.sh
+. ./lib/manifest.sh
+_prod_t0=$(date +%s)
 
 mkdir -p jobs
 LOG="jobs/produce_2025_2026.$(date -u +%Y%m%d_%H%M%S).log"
@@ -36,7 +38,13 @@ exec > >(tee -a "$LOG") 2>&1
 echo "=== produce_2025_2026 started $(date -u) ==="
 echo "logging to $LOG"
 
-step() { echo; echo "=== [step $1] $2"; }
+CURRENT_STEP="(init)"
+step() {
+    CURRENT_STEP="$1"
+    echo; echo "=== [step $1] $2"
+    manifest_record produce_2025_2026.sh start - "step $1: $2"
+}
+trap 'manifest_record produce_2025_2026.sh fail - "aborted at step ${CURRENT_STEP} (line $LINENO)"' ERR
 
 step 1/10 "ingest_monthly vNRT 2025"
 MICASA_VERSION=vNRT MICASA_YEAR_START=2025 MICASA_YEAR_END=2025 \
@@ -125,4 +133,5 @@ DRV26=$(submit_diurn 2026 \
   "MICASA_YEAR_START=2026,MICASA_YEAR_END=2026")
 echo "submitted diurnalize-2026 driver: $DRV26"
 
+manifest_record produce_2025_2026.sh ok "$(($(date +%s) - _prod_t0))" "all 10 steps complete"
 echo "=== produce_2025_2026 finished $(date -u) ==="

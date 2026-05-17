@@ -60,6 +60,10 @@ source(file.path(Sys.getenv("WORK_DIR", getwd()), "lib", "era5_meteo.r"))
 ## host, timestamp -- stamped onto every output. See lib/provenance.r.
 source(file.path(Sys.getenv("WORK_DIR", getwd()), "lib", "provenance.r"))
 
+## Run-manifest helper (manifest.record): the worker records start / ok /
+## fail to jobs/run_manifest.tsv, which verify_v2 reads. See lib/manifest.r.
+source(file.path(Sys.getenv("WORK_DIR", getwd()), "lib", "manifest.r"))
+
 yr.env <- Sys.getenv("diurn_year")
 
 if (nchar(yr.env) == 0) {
@@ -76,6 +80,18 @@ if (nchar(yr.env) == 0) {
 ## ---- Worker mode -----------------------------------------------------------
 
 yr <- as.integer(yr.env)
+
+## Run manifest: record this worker's start, and arm an error handler that
+## records `fail` on any uncaught error. The matching `ok` (and disarm) is
+## written after the month loop.
+diurn.t0 <- Sys.time()
+manifest.record("diurnalize-ERA5.r", "start", detail = sprintf("year=%d", yr))
+options(error = function() {
+  manifest.record("diurnalize-ERA5.r", "fail",
+                  elapsed = as.integer(difftime(Sys.time(), diurn.t0,
+                                                units = "secs")),
+                  detail  = sprintf("year=%d uncaught error", yr))
+})
 
 setwd(work.dir)
 in.dir  <- cfg$monthly.1x1
@@ -145,6 +161,7 @@ if (.diurn.only.mon > 0) {
   mon.range <- .diurn.only.mon
   cat(sprintf("** Test mode: restricted to month %d **\n", .diurn.only.mon))
 }
+n.written <- 0L
 for (mon in mon.range) {
 
   cat(sprintf("%d/%02d\n", yr, mon))
@@ -446,5 +463,13 @@ for (mon in mon.range) {
   ncvar_put(ncf, vars$stl1,  vals = mets$stl1)
   ncvar_put(ncf, vars$swvl1, vals = mets$swvl1)
   nc_close(ncf)
+  n.written <- n.written + 1L
   cat("\n")
 }
+
+## Worker finished cleanly: record `ok` and disarm the error handler.
+options(error = NULL)
+manifest.record("diurnalize-ERA5.r", "ok",
+                elapsed = as.integer(difftime(Sys.time(), diurn.t0,
+                                              units = "secs")),
+                detail  = sprintf("year=%d months_written=%d", yr, n.written))

@@ -2817,48 +2817,50 @@ md("## Section 22 — Performance Regression")
 md("""
     ### Check 22.1 — Diurnalize wall-time per year
 
-    Parse the `[R] Exiting at system time` line from each d-YYYY-*.o*
-    log to compute wall-time. Pair with the `[R] system time` start
-    line to get elapsed seconds. Report median and max; FAIL if median
-    > 600s (10 min) per year — would indicate a serious regression.
+    Read the per-year `diurnalize-ERA5.r` records from the run manifest
+    (`jobs/run_manifest.tsv`, written by `lib/manifest.r`) and report
+    the `elapsed_s` distribution. FAIL if the median exceeds 1800 s
+    (30 min) per year — a serious regression. This replaces the former
+    regex parse of `[R] session elapsed time` lines out of
+    `d-YYYY-*.o*` logs. INFO if the manifest has no diurnalize rows yet
+    (the pipeline has not run since the manifest was added).
 """)
 code('''
     cid, cname = "22.1", "diurnalize wall-time per year"
-    year_pat = re.compile(r"d-(\\d{4})-")
-    by_year = {}
-    for L in JOBS_DIR.glob("d-*.o*"):
-        mY = year_pat.match(L.name)
-        if not mY: continue
-        y = mY.group(1)
-        if y not in by_year or L.stat().st_mtime > by_year[y].stat().st_mtime:
-            by_year[y] = L
-    if not by_year:
-        record(cid, cname, INFO, "no d-YYYY-*.o* logs found")
+    manifest = JOBS_DIR / "run_manifest.tsv"
+    if not manifest.exists():
+        record(cid, cname, INFO, "no jobs/run_manifest.tsv (pipeline not run "
+               "since run-manifest instrumentation was added)")
     else:
-        # parse "session elapsed time NNN seconds"
-        elapsed_pat = re.compile(r"session elapsed time\\s+(\\d+(?:\\.\\d+)?)\\s+seconds")
-        elapsed = []
-        for y, L in sorted(by_year.items()):
-            try:
-                txt = L.read_text(errors="ignore")
-                m = elapsed_pat.search(txt)
-                if m:
-                    elapsed.append(float(m.group(1)))
-            except Exception:
-                continue
-        if not elapsed:
-            record(cid, cname, INFO, f"{len(by_year)} logs, no elapsed-time lines parsed")
-        else:
-            med = float(np.median(elapsed))
-            mx  = float(np.max(elapsed))
-            mn  = float(np.min(elapsed))
-            detail = f"{len(elapsed)} years; wall median={med:.0f}s, min={mn:.0f}s, max={mx:.0f}s"
-            if med > 1800:
-                record(cid, cname, FAIL, detail + " (>30 min/yr regression)")
-            elif med > 1500:
-                record(cid, cname, WARN, detail)
+        try:
+            elapsed = []
+            for line in manifest.read_text(errors="ignore").splitlines():
+                if line.startswith("#") or not line.strip():
+                    continue
+                f = line.split("\\t")
+                if len(f) != 7:
+                    continue
+                if f[1] == "diurnalize-ERA5.r" and f[2] == "ok" and "year=" in f[6]:
+                    try:
+                        elapsed.append(float(f[5]))
+                    except ValueError:
+                        pass
+            if not elapsed:
+                record(cid, cname, INFO,
+                       "run manifest present but no diurnalize-ERA5.r ok rows")
             else:
-                record(cid, cname, PASS, detail)
+                med = float(np.median(elapsed))
+                mx, mn = float(np.max(elapsed)), float(np.min(elapsed))
+                detail = (f"{len(elapsed)} year-runs; wall median={med:.0f}s, "
+                          f"min={mn:.0f}s, max={mx:.0f}s")
+                if med > 1800:
+                    record(cid, cname, FAIL, detail + " (>30 min/yr regression)")
+                elif med > 1500:
+                    record(cid, cname, WARN, detail)
+                else:
+                    record(cid, cname, PASS, detail)
+        except Exception as e:
+            record(cid, cname, FAIL, f"exception: {e}")
 ''')
 
 # ---- Section 23: Output provenance --------------------------------------
@@ -2982,6 +2984,109 @@ code('''
         else:
             record(cid, cname, PASS,
                    f"provenance.conf parses; DOI registered: {conf['MICASA_DOI']}")
+''')
+
+# ---- Section 24: Run manifest -------------------------------------------
+md("## Section 24 — Run Manifest")
+
+md("""
+    Pipeline steps now append a structured record to
+    `jobs/run_manifest.tsv` via the `lib/manifest.{sh,r}` helpers —
+    `diurnalize-ERA5.r`, `daysplitter.sh`, and the `run_year.sh` /
+    `produce_2025_2026.sh` orchestrators each write a `start` / `ok` /
+    `fail` row per step, with timestamp, host, git commit and elapsed
+    seconds. verify_v2 reads this manifest (Check 22.1 and the checks
+    below) instead of regex-scraping job logs. The manifest does not
+    exist until the instrumented pipeline runs at least once.
+""")
+
+md("""
+    ### Check 24.1 — Run manifest integrity
+
+    `jobs/run_manifest.tsv` is present and every row is well-formed
+    (seven tab-separated columns). Reports the record count, the
+    distinct steps seen, and the most recent run timestamp.
+""")
+code('''
+    cid, cname = "24.1", "run manifest integrity"
+    manifest = JOBS_DIR / "run_manifest.tsv"
+    if not manifest.exists():
+        record(cid, cname, INFO, "no jobs/run_manifest.tsv yet (pipeline not "
+               "run since run-manifest instrumentation was added)")
+    else:
+        try:
+            rows, malformed = [], 0
+            for line in manifest.read_text(errors="ignore").splitlines():
+                if line.startswith("#") or not line.strip():
+                    continue
+                f = line.split("\\t")
+                if len(f) != 7:
+                    malformed += 1
+                else:
+                    rows.append(f)
+            if not rows and not malformed:
+                record(cid, cname, INFO, "manifest present but empty")
+            elif malformed:
+                record(cid, cname, FAIL,
+                       f"{malformed} malformed row(s) (expected 7 columns); "
+                       f"{len(rows)} well-formed")
+            else:
+                steps = sorted(set(r[1] for r in rows))
+                last  = max(r[0] for r in rows)
+                shown = ", ".join(steps[:6]) + ("..." if len(steps) > 6 else "")
+                record(cid, cname, PASS,
+                       f"{len(rows)} records, {len(steps)} distinct steps "
+                       f"({shown}); latest {last}")
+        except Exception as e:
+            record(cid, cname, FAIL, f"exception: {e}")
+''')
+
+md("""
+    ### Check 24.2 — No failed pipeline steps
+
+    Scan the run manifest for `fail` records — a step that reported a
+    non-zero exit or an uncaught error. FAIL if any fall within
+    `MICASA_VERIFY_LOG_AGE_DAYS` (default 14); older resolved failures
+    are counted but not flagged. Reports the most recent few.
+""")
+code('''
+    cid, cname = "24.2", "no failed pipeline steps"
+    manifest = JOBS_DIR / "run_manifest.tsv"
+    if not manifest.exists():
+        record(cid, cname, INFO, "no jobs/run_manifest.tsv yet")
+    else:
+        try:
+            import datetime as _dt
+            max_age = float(os.environ.get("MICASA_VERIFY_LOG_AGE_DAYS", "14"))
+            now = _dt.datetime.now(_dt.timezone.utc)
+            fails, n_old_fail = [], 0
+            for line in manifest.read_text(errors="ignore").splitlines():
+                if line.startswith("#") or not line.strip():
+                    continue
+                f = line.split("\\t")
+                if len(f) != 7 or f[2] != "fail":
+                    continue
+                try:
+                    ts = _dt.datetime.strptime(
+                        f[0], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=_dt.timezone.utc)
+                    age_days = (now - ts).total_seconds() / 86400.0
+                except ValueError:
+                    age_days = 0.0
+                if age_days <= max_age:
+                    fails.append(f"{f[0]} {f[1]}: {f[6]}")
+                else:
+                    n_old_fail += 1
+            if fails:
+                record(cid, cname, FAIL,
+                       f"{len(fails)} fail record(s) in last {max_age:.0f}d "
+                       f"({n_old_fail} older skipped); most recent: " +
+                       "; ".join(fails[-3:]))
+            else:
+                record(cid, cname, PASS,
+                       f"no fail records in last {max_age:.0f}d "
+                       f"({n_old_fail} older skipped)")
+        except Exception as e:
+            record(cid, cname, FAIL, f"exception: {e}")
 ''')
 
 

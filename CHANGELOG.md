@@ -4,6 +4,25 @@ Dated engineering entries for the active (`main`) branch. Conceptual /
 methodological reasoning lives in [`docs/PROPOSALS.md`](docs/PROPOSALS.md);
 this file is for "what landed when, and what numbers it moved."
 
+## 2026-05-16 — per-step run manifest
+
+- **Pipeline steps now write a structured run manifest.** New helpers
+  `lib/manifest.sh` and `lib/manifest.r` append `start` / `ok` / `fail`
+  records — timestamp, host, git commit, elapsed seconds, detail — to
+  `jobs/run_manifest.tsv`. `diurnalize-ERA5.r` and `daysplitter.sh`
+  self-record (the SBATCH-fanned steps); `run_year.sh` and
+  `produce_2025_2026.sh` record every stage they run. The helpers are
+  failure-tolerant — a logging call never aborts the pipeline, even
+  under `set -e`.
+- **`verify_v2` reads the manifest instead of scraping logs.** Check
+  22.1 (diurnalize wall-time) now reads `elapsed_s` from the manifest
+  rather than regex-parsing `[R] session elapsed time` out of
+  `d-*.o*` logs. New Section 24 verifies the manifest itself
+  (24.1 integrity, 24.2 no failed steps). See
+  [`docs/PROPOSALS.md` #16](docs/PROPOSALS.md).
+- **`tests/test_manifest.r`** — 15 CI-run checks of the manifest record
+  format and the never-error-the-caller guarantee.
+
 ## 2026-05-16 — PCHIP fitter unit test
 
 - **`pchip.fit.cell` extracted to `lib/pchip_fit.r`.** The

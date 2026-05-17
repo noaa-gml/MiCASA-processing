@@ -470,3 +470,48 @@ run carry the complete set.
 Verified: R/ncdf4 and Python/xarray netCDF round-trips, 26 + 26 unit
 checks (`tests/test_provenance.{r,py}`), and `verify_v2` Section 23.
 
+## (16) [LANDED 2026-05-16] Per-step run manifest
+
+`verify_v2` answered "did each pipeline step run, succeed, and how long
+did it take?" by globbing `jobs/*.o*` and regex-scraping the logs.
+That is fragile: Check 3.1 once read a stale PIQS log, Check 11.1 hit a
+self-referential recursion (a verify log quotes the error strings it
+found), and Check 22.1's timing depended on the exact wording of an
+`[R]` banner line. Logs are unstructured and accumulate forever.
+
+Pipeline steps now append a structured record to a single
+tab-separated `jobs/run_manifest.tsv` via `lib/manifest.sh` (shell) and
+`lib/manifest.r` (R). Each record is
+
+    timestamp  step  status  host  commit  elapsed_s  detail
+
+with `status` one of `start` / `ok` / `fail`. `diurnalize-ERA5.r` and
+`daysplitter.sh` -- the steps fanned out as separate SBATCH jobs, which
+the orchestrator cannot time inline -- record themselves: a `start`
+when the worker begins and an `ok` (or `fail`, via an R error handler /
+shell `EXIT` trap) when it finishes, carrying the elapsed seconds and
+the year. The orchestrators `run_year.sh` and `produce_2025_2026.sh`
+record every stage they run.
+
+The helpers are deliberately failure-tolerant: a logging call must
+never abort a pipeline run, so `manifest_record` runs its body in a
+guarded subshell and `manifest.record` wraps everything in `tryCatch`.
+Both are safe to call under `set -e`.
+
+`verify_v2` now reads the manifest. Check 22.1 (diurnalize wall-time)
+takes `elapsed_s` straight from the manifest instead of parsing logs;
+new Section 24 verifies the manifest itself (integrity; no failed
+steps within the age window). Check 11.1's log error-scan is kept --
+it catches a step that died so hard it could not record its own
+`fail` (segfault, OOM-kill), which a manifest cannot capture; that is
+defense-in-depth, not fragility.
+
+The manifest does not exist until the instrumented pipeline runs once,
+so 22.1 / 24.x report INFO until the next run -- there is nothing to
+retrofit (per-run timing of past runs is not recoverable in structured
+form).
+
+Verified: shell and R round-trips, 15 unit checks
+(`tests/test_manifest.r`), and the Section 24 / 22.1 parse logic on a
+synthetic manifest.
+

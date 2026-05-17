@@ -61,6 +61,8 @@ done
 # ---- Config -----------------------------------------------------------------
 
 . "$(dirname "$0")/config.sh"
+. "$(dirname "$0")/lib/manifest.sh"
+trap 'manifest_record run_year.sh fail - "aborted (line $LINENO)"' ERR
 
 # Single-year mode for the SBATCH fan-outs.
 export MICASA_YEAR_START="${MICASA_YEAR}"
@@ -75,7 +77,20 @@ run() {
     echo
     echo "==> $*"
     if [ "$dry_run" -eq 1 ]; then return 0; fi
-    "$@"
+    # Manifest step name: the script, not the interpreter wrapping it.
+    case "$1" in
+        sh|bash|Rscript|python|python3) _rs_step=$(basename "$2") ;;
+        *)                              _rs_step=$(basename "$1") ;;
+    esac
+    _rs_t0=$(date +%s)
+    if "$@"; then
+        manifest_record "$_rs_step" ok "$(($(date +%s) - _rs_t0))" "run_year: $*"
+    else
+        _rs_rc=$?
+        manifest_record "$_rs_step" fail "$(($(date +%s) - _rs_t0))" \
+            "run_year: $* (exit $_rs_rc)"
+        return $_rs_rc
+    fi
 }
 
 # Submit an Rscript via SBATCH and block until it completes. Extra exports
@@ -90,11 +105,20 @@ sbatch_wait() {
     echo
     echo "==> sbatch --wait $script  (export: ${export_arg})"
     if [ "$dry_run" -eq 1 ]; then return 0; fi
-    sbatch --wait \
-           -J "${jobname}" \
-           --mail-user="${MAIL_USER}" \
-           --export="${export_arg}" \
-           "${script}"
+    local t0; t0=$(date +%s)
+    if sbatch --wait \
+              -J "${jobname}" \
+              --mail-user="${MAIL_USER}" \
+              --export="${export_arg}" \
+              "${script}"; then
+        manifest_record "$(basename "$script")" ok "$(($(date +%s) - t0))" \
+            "run_year sbatch: $jobname"
+    else
+        local rc=$?
+        manifest_record "$(basename "$script")" fail "$(($(date +%s) - t0))" \
+            "run_year sbatch: $jobname (exit $rc)"
+        return $rc
+    fi
 }
 
 # ---- Banner -----------------------------------------------------------------
@@ -171,5 +195,6 @@ if [ "${MICASA_VERSION}" = "vNRT" ]; then
     echo "     run:  ./link_vNRT_to_v1.sh"
 fi
 
+manifest_record run_year.sh ok - "year ${MICASA_YEAR} version ${MICASA_VERSION}"
 echo
 echo "==> Pipeline finished for ${MICASA_YEAR} (${MICASA_VERSION})."

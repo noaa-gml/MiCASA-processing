@@ -171,6 +171,11 @@ run_year.sh
 - **`lib/provenance.conf`** — `KEY="VALUE"` citation constants
   (institution, pipeline URL, DOI) read by both helpers; the single
   place the archival DOI is set.
+- **`lib/manifest.sh`** / **`lib/manifest.r`** — append `start` / `ok` /
+  `fail` records to `jobs/run_manifest.tsv` (the structured run record
+  verify_v2 reads instead of globbing logs). Failure-tolerant: a
+  logging call never aborts the pipeline. See "Run manifest" below.
+  Unit-tested by `tests/test_manifest.r`.
 
 ### Stage 1 — Download
 
@@ -298,7 +303,8 @@ run_year.sh
 
 - **`build_verify_v2.py`** — Source-of-truth for the verify_v2 notebook;
   `python3 build_verify_v2.py` regenerates `verify_v2.ipynb` from this
-  file. 23 sections, 60+ checks (Section 23 confirms output provenance).
+  file. 24 sections, 60+ checks (Section 23 confirms output provenance;
+  Section 24 reads the run manifest).
 - **`stamp_provenance.py`** — CLI to write CF/ACDD provenance global
   attributes onto a netCDF; backs `cat_monthly.sh` and, with
   `--retrofit`, stamps pre-existing outputs (see "Output provenance
@@ -405,6 +411,31 @@ generated before provenance stamping existed; retrofit mode never
 asserts a generating commit or input checksums it cannot recover, and
 marks the file with a `provenance_note`. Outputs from a fresh pipeline
 run carry the complete set. See [proposal #15](PROPOSALS.md).
+
+## Run manifest
+
+Each pipeline step appends a structured record to a single
+tab-separated `jobs/run_manifest.tsv` as it runs, via the
+`lib/manifest.sh` (shell) and `lib/manifest.r` (R) helpers. This is the
+pipeline's machine-readable run log — `verify_v2` reads it instead of
+regex-scraping `jobs/*.o*`. Columns:
+
+```
+timestamp  step  status  host  commit  elapsed_s  detail
+```
+
+`status` is `start` / `ok` / `fail`. The SBATCH-fanned steps
+(`diurnalize-ERA5.r`, `daysplitter.sh`) record themselves — a `start`
+when the worker begins and an `ok` (or `fail`, via an error handler or
+`EXIT` trap) when it finishes, with the elapsed seconds and the year.
+The orchestrators `run_year.sh` and `produce_2025_2026.sh` record every
+stage they run. The helpers are failure-tolerant: a logging call never
+aborts the pipeline, even under `set -e`.
+
+`verify_v2` Check 22.1 reads diurnalize wall-times from the manifest,
+and Section 24 verifies the manifest itself. The file is append-only
+and lives under the git-ignored `jobs/`; it does not exist until the
+instrumented pipeline has run once. See [proposal #16](PROPOSALS.md).
 
 ## NetCDF input schema (raw daily file)
 
