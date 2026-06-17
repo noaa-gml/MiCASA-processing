@@ -105,9 +105,15 @@ if [ -z "${MICASA_SKIP_HASH_CHECK:-}" ]; then
     echo
     echo "Verifying SHA-256 hashes for ${MICASA_YEAR}..."
     if [ -x "$(dirname "$0")/check_hashes.py" ]; then
-        # check_hashes.py reads MICASA_YEAR (set by config.sh) and
-        # restricts itself to that year via the y_one branch.
-        "$(dirname "$0")/check_hashes.py" || {
+        # Scope the verify to the year we just downloaded. config.sh
+        # exports MICASA_YEAR_START=2001 (needed for the full multi-year
+        # concat in cat_monthly), and check_hashes.py honors START/END
+        # ahead of the single-year MICASA_YEAR -- so without this override
+        # every NRT download re-hashes the entire 2001..present archive
+        # (hundreds of GB) instead of just the new files. download.sh only
+        # ever fetches $MICASA_YEAR, so one year is the correct scope.
+        MICASA_YEAR_START="${MICASA_YEAR}" MICASA_YEAR_END="${MICASA_YEAR}" \
+            "$(dirname "$0")/check_hashes.py" || {
             echo "ERROR: SHA-256 verification failed for ${MICASA_YEAR}; see above."
             exit 1
         }

@@ -4,6 +4,19 @@ Dated engineering entries for the active (`main`) branch. Conceptual /
 methodological reasoning lives in [`docs/PROPOSALS.md`](docs/PROPOSALS.md);
 this file is for "what landed when, and what numbers it moved."
 
+## 2026-06-17 — NRT download verify scoped to the downloaded year
+
+- **`download.sh` SHA-256 verify no longer re-hashes the whole archive.**
+  `config.sh` exports `MICASA_YEAR_START=2001` (needed for the full
+  multi-year concat in `cat_monthly`), and `check_hashes.py` honors
+  `START`/`END` ahead of the single-year `MICASA_YEAR`. The post-download
+  verify therefore re-hashed every raw file from 2001 to the present on
+  each NRT run -- hundreds of GB, 20+ min on a throttled login node --
+  instead of just the year that was fetched. The verify call now pins
+  `MICASA_YEAR_START`/`END` to `MICASA_YEAR`. `run_year.sh` was already
+  immune (it sets both to the run year); this only affected standalone
+  `download.sh`. No change to which files get verified for a given year.
+
 ## 2026-05-16 — more unit tests: MSS QP fitter + check_hashes
 
 - **`write_mss.r` QP fitter core extracted to `lib/mss_fit.r`.**
