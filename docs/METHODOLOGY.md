@@ -98,10 +98,13 @@ via the R `quadprog` package.
 
 - Recovers PIQS-level smoothness in cells where positivity isn't
   binding.
-- Drops sign-flip rate ~5–25× in cells where PIQS overshoots.
-- Not provably zero — residual ~1% from constraint discretization.
-- Slower (~30–450 ms/cell vs <1 ms for PIQS / PCHIP). Still produces
-  the full grid in <30 min single-threaded.
+- **Caveat (measured 2026-06-18):** the non-negativity constraint binds only
+  at the interior test points, NOT at the knots, so MSS still overshoots
+  (peak/envelope median ~1.35, max ~1.57) and ~24% of land cells carry a
+  wrong-sign GPP knot — it is not the overshoot remedy its name suggests.
+  See [`docs/FITTER_COMPARISON.md`](FITTER_COMPARISON.md) §4.1.
+- Slower (~180–370 ms/cell vs <1 ms for PIQS / PCHIP), ~hours for the full
+  grid. The QP's banded Hessian keeps it NRT-local (footprint ≤1 month).
 
 See [`bakeoff_mss.py`](../bakeoff_mss.py) for the cell-level diagnostic
 and [proposal #11](PROPOSALS.md) for why we did not adopt this as the

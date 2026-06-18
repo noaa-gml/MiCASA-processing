@@ -217,8 +217,7 @@ points (far smaller than minmod's).
 
 - **MSS — monotone smoothing spline** (in-tree, `write_mss.r`): cubic on `F`
   minimising `∫(F″)²` subject to `F′≥0` at test points, solved per-cell as a QP.
-  PIQS-like smoothness without most of the overshoot, but ~30–450 ms/cell
-  (orders slower) and only *approximately* non-negative.
+  Measured on the real record (2026-06-18) it is **not** overshoot-free (peak/env median 1.35, max 1.57) and ~24% of land cells carry a wrong-sign GPP knot — the non-negativity constraint binds only at interior test points, not at knots. It is also ~180–370 ms/cell (~100–300× slower than PPM/PCHIP). The QP's banded Hessian does keep it NRT-local (footprint ≤1 month). Not adopted: overshoots like PIQS and far costlier (see §4.1).
 - **Bounded iterative mean-preserving**: Rymes & Myers (2001), Solar Energy
   71(4):225–231, doi:[10.1016/S0038-092X(01)00052-4](https://doi.org/10.1016/S0038-092X(01)00052-4);
   Wang & Bartlein (2022), J. Atmos. Oceanic Technol. 39(4):503–512,
@@ -296,6 +295,19 @@ overshoot is.** (2) On fidelity to that daily truth the ranking is consistent:
 matches the daily data marginally better. (These fit-level differences are
 small because ERA5 supplies the within-month weather in the real pipeline.)
 
+### 4.1 Other methods evaluated (2026-06-18)
+
+Four further candidates were scored on the same record so the field is complete; **none beats PPM**:
+
+| Method | overshoot peak/env (med / max) | wrong-sign cells | cost | verdict |
+|---|---|---|---|---|
+| **MSS** (in-tree QP, `write_mss.r`) | 1.35 / 1.57 | ~24% | ~180–370 ms/cell | overshoots *and* slow — reject |
+| **Steffen-on-cumulative** (1990) | 0.83 / 1.50 | — | fast | identical to PCHIP (same monotone-cubic bump cap) — no gain |
+| **Unlimited parabolic** (PPM, limiter off) | 0.84 / 1.25 | bounded | fast | fully continuous but overshoots 1.25× — dominated by PPM |
+| **van Leer / MC / superbee** linear | 1.00 / 1.00 | 0 | fast | gradient & jumps sit between minmod and PPM — dominated by PPM |
+
+Takeaways: (1) MSS's `F′≥0` test-point constraint does not bind at knots, so it overshoots and flips sign like PIQS — the in-tree “alternative” is not a fix. (2) A different monotone-cubic slope rule (Steffen 1990, A&A 239:443) yields the *same* 1.5× cap as Fritsch-Carlson — PCHIP's bump is intrinsic to monotone-cubic-on-cumulative, not a quirk of the FC rule. (3) PPM's limiter does real work: it removes the 1.25× overshoot the unlimited parabolic still shows.
+
 ---
 
 ## 5. The case for retiring PIQS
@@ -372,6 +384,7 @@ to the default; the cores are unit-tested (`tests/test_{pchip,ppm,linmm,mss}_fit
 | Smoothness, spurious-extrema, NRT-locality | `jobs/metrics_extra.r` |
 | Full-year 2020 product comparison (budget, aliasing) | `jobs/analyze_2020.r` |
 | Fidelity vs MiCASA daily | `jobs/fidelity_daily.r` |
+| Other methods (MSS, Steffen, unlimited parabolic) | `jobs/other_methods.r` |
 | Fitter cores + tests | `lib/{pchip,ppm,linmm,mss}_fit.r`, `tests/test_*_fit.r` |
 
 ---
