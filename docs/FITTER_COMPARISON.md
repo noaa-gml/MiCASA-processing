@@ -44,7 +44,7 @@ so **any method that produces `(a,b,c)` per month is a drop-in swap** via
 ### The constraint trilemma
 
 For a reconstruction of interval-mean data there is a well-known impossibility
-(see Bartlein's `mp-interp` notes; JULES temporal-interpolation docs):
+(see [Bartlein's `mp-interp` notes](https://github.com/pjbartlein/mp-interp); the [JULES temporal-interpolation docs](https://jules-lsm.github.io/latest/input/temporal-interpolation.html)):
 
 > **Exact mass-conservation + boundedness/positivity + global smoothness cannot
 > all hold simultaneously.** Any mean-preserving *smooth* fit must overshoot
@@ -225,8 +225,7 @@ points (far smaller than minmod's).
   Mean-preserving with explicit lower bounds (clip-then-redistribute). Worth
   knowing as the "force positivity into the fit" family; heavier than PPM and
   not needed once overshoot is gone.
-- **Histospline foundations**: Boneva, Kendall & Stefanov (1971), JRSS-B
-  33(1):1–70. **Conservative remapping analogue**: Jones (1999), MWR
+- **Histospline foundations**: [Boneva, Kendall & Stefanov (1971)](https://academic.oup.com/jrsssb/article/33/1/1/7027042), JRSS-B 33(1):1–70. **Conservative remapping analogue**: Jones (1999), MWR
   127(9):2204–2210, doi:[10.1175/1520-0493(1999)127<2204:FASOCR>2.0.CO;2](https://doi.org/10.1175/1520-0493(1999)127<2204:FASOCR>2.0.CO;2).
 
 ---
@@ -306,7 +305,7 @@ Four further candidates were scored on the same record so the field is complete;
 | **Unlimited parabolic** (PPM, limiter off) | 0.84 / 1.25 | bounded | fast | fully continuous but overshoots 1.25× — dominated by PPM |
 | **van Leer / MC / superbee** linear | 1.00 / 1.00 | 0 | fast | gradient & jumps sit between minmod and PPM — dominated by PPM |
 
-Takeaways: (1) MSS's `F′≥0` test-point constraint does not bind at knots, so it overshoots and flips sign like PIQS — the in-tree “alternative” is not a fix. (2) A different monotone-cubic slope rule (Steffen 1990, A&A 239:443) yields the *same* 1.5× cap as Fritsch-Carlson — PCHIP's bump is intrinsic to monotone-cubic-on-cumulative, not a quirk of the FC rule. (3) PPM's limiter does real work: it removes the 1.25× overshoot the unlimited parabolic still shows.
+Takeaways: (1) MSS's `F′≥0` test-point constraint does not bind at knots, so it overshoots and flips sign like PIQS — the in-tree “alternative” is not a fix. (2) A different monotone-cubic slope rule ([Steffen 1990, A&A 239:443](https://ui.adsabs.harvard.edu/abs/1990A%26A...239..443S)) yields the *same* 1.5× cap as Fritsch-Carlson — PCHIP's bump is intrinsic to monotone-cubic-on-cumulative, not a quirk of the FC rule. (3) PPM's limiter does real work: it removes the 1.25× overshoot the unlimited parabolic still shows.
 
 ---
 
@@ -391,18 +390,20 @@ to the default; the cores are unit-tested (`tests/test_{pchip,ppm,linmm,mss}_fit
 
 ## 8. References
 
-- Boneva, Kendall & Stefanov (1971), *Spline transformations*, JRSS-B 33(1):1–70.
+- Bartlein, P. J., *mp-interp* — mean-preserving interpolation reference code (Epstein 1991 / Harzallah 1995 / Killworth 1996 / Rymes & Myers 2001 methods + a bounded `enforce_mean`): https://github.com/pjbartlein/mp-interp.
+- Boneva, Kendall & Stefanov (1971), *Spline transformations*, [JRSS-B 33(1):1–70](https://academic.oup.com/jrsssb/article/33/1/1/7027042).
 - Colella & Woodward (1984), *The Piecewise Parabolic Method*, JCP 54(1):174–201, doi:10.1016/0021-9991(84)90143-8.
 - Denning, Fung & Randall (1995), *Nature* 376:240–243, doi:10.1038/376240a0.
 - Fritsch & Carlson (1980), *Monotone Piecewise Cubic Interpolation*, SIAM JNA 17(2):238–246, doi:10.1137/0717021.
 - Gourdji et al. (2010), *ACP* 10:6151–6167, doi:10.5194/acp-10-6151-2010.
 - Harten (1983), *High resolution schemes...*, JCP 49(3):357–393, doi:10.1016/0021-9991(83)90136-5.
 - Jones (1999), *Conservative remapping...*, MWR 127(9):2204–2210, doi:10.1175/1520-0493(1999)127<2204:FASOCR>2.0.CO;2.
+- JULES land-surface model, *Temporal interpolation* (conservative Sheng & Zwiers 1998 option; documents curve-fitting overshoot at turning points): https://jules-lsm.github.io/latest/input/temporal-interpolation.html.
 - Munassar et al. (2025), *ACP* 25:639, doi:10.5194/acp-25-639-2025.
 - Olsen & Randerson (2004), *Differences between surface and column atmospheric CO2...*, JGR 109:D02301, doi:10.1029/2003JD003968.
 - Rasmussen (1991), *Piecewise integral splines of low degree*, Computers & Geosciences 17(9):1255–1263, doi:10.1016/0098-3004(91)90027-B.
 - Rymes & Myers (2001), *Mean preserving algorithm...*, Solar Energy 71(4):225–231, doi:10.1016/S0038-092X(01)00052-4.
-- Steffen (1990), *A simple method for monotonic interpolation...*, A&A 239:443.
+- Steffen (1990), *A simple method for monotonic interpolation...*, A&A 239:443, ADS:[1990A&A...239..443S](https://ui.adsabs.harvard.edu/abs/1990A%26A...239..443S).
 - van Leer (1979), *Towards the ultimate conservative difference scheme V*, JCP 32(1):101–136, doi:10.1016/0021-9991(79)90145-1.
 - Wang & Bartlein (2022), *A Fast Mean-Preserving Spline...*, JTECH 39(4):503–512, doi:10.1175/JTECH-D-21-0154.1.
 - Weir et al. (2021), *Bias-correcting carbon fluxes...*, *ACP* 21:9609–9628, doi:10.5194/acp-21-9609-2021.
