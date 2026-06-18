@@ -12,14 +12,15 @@ monthly means by construction. Several fitters live in the tree, all
 producing the same on-disk format (`fit.piqs.rda` with three
 coefficients per piece per cell); see [`FITTER_COMPARISON.md`](FITTER_COMPARISON.md) for the full comparison:
 
-- **`write_ppm.r`** — **production default since 2026-06-18** (PPM limited
-  piecewise-parabolic; integral-preserving, no overshoot, no sign-flips, local)
-- **`write_pchip.r`** — previous default (Fritsch-Carlson monotone cubic;
-  bounded 1.5x bump, ~0.1-0.7% residual sign-flips)
-- **`write_linmm.r`** — minmod/MUSCL integral-preserving linear (selectable)
+- **`write_pchip.r`** — **production default** (Fritsch-Carlson monotone cubic;
+  local + sign-definite by construction; a bounded ~1.5x within-piece bump)
+- **`write_ppm.r`** — selectable alternative (PPM limited parabolic; zero
+  overshoot but reintroduces small month-edge discontinuities; daily fidelity
+  statistically tied with PCHIP — see (17))
+- **`write_linmm.r`** — selectable (minmod/MUSCL integral-preserving linear)
 - **`write_piqs.r`** — legacy; CT2022-documented but overshoots and its global
-  solve rewrites the whole record on any NRT revision (retired, see (17))
-- **`write_mss.r`** — drop-in alternative; slow and overshoots (see (17))
+  solve rewrites the whole record on any NRT revision (unsuitable for NRT; (17))
+- **`write_mss.r`** — alternative; slow and overshoots (see (17))
 
 `diurnalize-ERA5.r` consumes whichever wrote `fit.piqs.rda` last (the
 fitter records itself in `piqsfit.meta$fitter`).

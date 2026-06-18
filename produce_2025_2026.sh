@@ -10,7 +10,7 @@
 #   5. link_daily_clim 2025 to fill 2025-12-22..31 from day-of-year clim
 #   6. ncra 2025-12 dailies (21 real + 10 clim) into monthly file w/ provenance
 #   7. cat_monthly (multi-year concat now spans 2001-01..2026-03)
-#   8. write_ppm (refit, PPM limited piecewise-parabolic; integral-preserving, no overshoot)
+#   8. write_pchip (refit, Fritsch-Carlson monotone-cubic Hermite)
 #   9. submit diurnalize driver for 2025 (12-month fan-out)
 #  10. submit diurnalize driver for 2026 (12-month fan-out)
 #
@@ -100,8 +100,8 @@ print('  patched time to 2025-12-16 11:59:59.5 UTC')
 step 7/10 "cat_monthly (multi-year concat, 2001-01..2026-03)"
 ./cat_monthly.sh || echo "WARN: cat_monthly returned non-zero (likely check_bounds), continuing"
 
-step 8/10 "write_ppm (PPM limited piecewise-parabolic)"
-Rscript write_ppm.r
+step 8/10 "write_pchip (Fritsch-Carlson monotone-cubic Hermite)"
+Rscript write_pchip.r
 
 # diurnalize driver submission. SBATCH knobs shared by both years.
 submit_diurn() {

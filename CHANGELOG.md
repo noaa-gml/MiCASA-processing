@@ -4,6 +4,26 @@ Dated engineering entries for the active (`main`) branch. Conceptual /
 methodological reasoning lives in [`docs/PROPOSALS.md`](docs/PROPOSALS.md);
 this file is for "what landed when, and what numbers it moved."
 
+## 2026-06-18 — revert to PCHIP default; make scorecard reproducible
+
+- **Reverted the PPM-default switch; PCHIP remains the V2 default.** A paired,
+  same-cell daily-fidelity test (`fitter_diagnostics/uncertainty_fidelity.r`)
+  showed PCHIP vs PPM is a statistical tie (PPM better in 54% of cell-months,
+  49% in boreal; paired-Δ IQR straddles zero) — the earlier 0.149-vs-0.151 mean
+  gap was within noise. PPM also reintroduces small flux discontinuities at ~70%
+  of month edges (the steps the smoother exists to remove); PCHIP is the only
+  zero-jump method. `run_year.sh`/`produce_2025_2026.sh` call `write_pchip.r`
+  again and `fit.piqs.rda` is the PCHIP fit. PPM/minmod stay selectable via
+  `MICASA_FIT_RDA`.
+- **Diagnostic scripts moved (gitignored) `jobs/` → tracked `fitter_diagnostics/`**
+  so the FITTER_COMPARISON.md scorecard is reproducible.
+- **`FITTER_COMPARISON.md` rewritten** to fix the review findings: PIQS scored
+  apples-to-apples on the 2020 record (~11% GPP cell-hours wrong-sign);
+  uncertainty/IQR + paired + per-biome added; the trilemma↔method tradeoff made
+  explicit; PPM continuity claim corrected (jumps at ~70% of edges); the 0.2%
+  budget gap attributed to diurnalize discretization (not the fit); §3 reframed
+  as context; citations fixed. METHODOLOGY.md + PROPOSALS #17 updated to match.
+
 ## 2026-06-18 — switch V2 default fitter to PPM
 
 - **PPM is now the production default.** `run_year.sh` (stage 4) and
