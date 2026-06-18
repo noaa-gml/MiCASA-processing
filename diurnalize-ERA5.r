@@ -116,14 +116,16 @@ if (nchar(.diurn.out.override) > 0) {
 
 ct.setup()
 
-## Load PIQS coefficients to smooth month-month variability.
-load(file.path(work.dir, "fit.piqs.rda"))
+## Load PIQS coefficients to smooth month-month variability. The fit file
+## defaults to fit.piqs.rda; MICASA_FIT_RDA overrides it (e.g. fit.linmm.rda)
+## to A/B an alternative fitter without clobbering the production fit.
+fit.rda.path <- file.path(work.dir, Sys.getenv("MICASA_FIT_RDA", "fit.piqs.rda"))
+load(fit.rda.path)
 piqsfit.time <- epoch.seconds.to.POSIX(piqsfit.time)
 piqsfit.lts  <- as.POSIXlt(piqsfit.time)
 
 ## Provenance of the coefficient fit: path + SHA-256 (hashed once here, not
 ## once per month -- fit.piqs.rda is ~190 MB) and the fitter that wrote it.
-fit.rda.path   <- file.path(work.dir, "fit.piqs.rda")
 fit.rda.sha256 <- prov.file.sha256(fit.rda.path)
 fit.method     <- if (exists("piqsfit.meta") && !is.null(piqsfit.meta$fitter))
                      piqsfit.meta$fitter else "unknown"

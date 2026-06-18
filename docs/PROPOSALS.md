@@ -515,3 +515,31 @@ Verified: shell and R round-trips, 15 unit checks
 (`tests/test_manifest.r`), and the Section 24 / 22.1 parse logic on a
 synthetic manifest.
 
+
+## (17) [INVESTIGATED 2026-06-18] PPM + integral-preserving-linear fitters; retire PIQS
+
+Prompted by a request to reconsider the V1→V2 (PIQS→PCHIP) switch and adopt an
+"integral-preserving linear" smoother to avoid overshoot. Full method survey,
+equations, citations, and an empirical scorecard on the 2001–2026 record live in
+[`docs/FITTER_COMPARISON.md`](FITTER_COMPARISON.md). Summary of what was added
+and concluded:
+
+- **New selectable fitters** (drop-in via `MICASA_FIT_RDA`, `(a,b,c)` storage,
+  no default change): `write_ppm.r` (PPM, Colella & Woodward 1984, limited
+  piecewise-parabolic) and `write_linmm.r` (minmod/MUSCL integral-preserving
+  linear). Cores in `lib/ppm_fit.r`, `lib/linmm_fit.r`, vectorized grid path,
+  unit-tested (`tests/test_ppm_fit.r`, `tests/test_linmm_fit.r`).
+- **`diurnalize-ERA5.r`** now reads the fit from `MICASA_FIT_RDA` (default
+  `fit.piqs.rda`), so fitters can be A/B'd without clobbering the production fit.
+- **Findings.** Mean-preservation is exact for all candidates (annual 2020 budget
+  PCHIP −2.617 vs PPM −2.612 PgC, 0.2%). Overshoot: PCHIP bounded 1.5×, PPM and
+  linear 1.0× (none). 2020 product GPP sign-flips: PCHIP 0.1–0.7%, PPM 0%.
+  Daily-fidelity vs MiCASA's own daily product: PPM < PCHIP < minmod < flat.
+  NRT-revision footprint: PCHIP 0 / minmod ≤1 / PPM ≤2 months, **PIQS all 302**.
+- **Continuous integral-preserving linear is unstable** (trapezoidal recursion
+  `y_{i+1}=2m_i−y_i`, pole at Nyquist) — confirms PROPOSAL #9.
+- **Recommendation:** retire PIQS for this NRT product (overshoot → sign flips;
+  global solve rewrites the whole record on any revision). PPM is the preferred
+  fitter (zero overshoot + smooth + local + best fidelity); PCHIP is an
+  acceptable status quo. The requested minmod-linear works but is dominated by
+  PPM.

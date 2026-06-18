@@ -4,6 +4,23 @@ Dated engineering entries for the active (`main`) branch. Conceptual /
 methodological reasoning lives in [`docs/PROPOSALS.md`](docs/PROPOSALS.md);
 this file is for "what landed when, and what numbers it moved."
 
+## 2026-06-18 — fitter investigation: PPM + integral-preserving-linear; retire PIQS
+
+- **New selectable sub-monthly fitters** alongside `write_pchip.r`/`write_piqs.r`:
+  `write_ppm.r` (PPM limited piecewise-parabolic, Colella & Woodward 1984) and
+  `write_linmm.r` (minmod/MUSCL integral-preserving linear). Cores in
+  `lib/ppm_fit.r` and `lib/linmm_fit.r` with vectorized grid paths (~6x faster
+  than a per-cell loop; grid==cell verified to FP) and unit tests
+  (`tests/test_ppm_fit.r`, `tests/test_linmm_fit.r`, 24 checks, green).
+- **`diurnalize-ERA5.r`** reads the fit from `MICASA_FIT_RDA` (default
+  `fit.piqs.rda`), enabling fitter A/B without clobbering the production fit.
+  `run_year.sh` was already single-year so the default is unchanged.
+- **`docs/FITTER_COMPARISON.md`** — full method survey (equations, citations),
+  empirical scorecard on 2001–2026 + a full-year 2020 diurnalize, and the case
+  for retiring PIQS (overshoot→sign-flips; its global solve rewrites all 302
+  historical months on any NRT revision). PPM recommended; PCHIP acceptable.
+  See PROPOSALS #17.
+
 ## 2026-06-17 — NRT download verify scoped to the downloaded year
 
 - **`download.sh` SHA-256 verify no longer re-hashes the whole archive.**
