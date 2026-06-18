@@ -516,7 +516,7 @@ Verified: shell and R round-trips, 15 unit checks
 synthetic manifest.
 
 
-## (17) [INVESTIGATED 2026-06-18] PPM + integral-preserving-linear fitters; retire PIQS
+## (17) [LANDED 2026-06-18] PPM is the V2 default; PIQS retired
 
 Prompted by a request to reconsider the V1→V2 (PIQS→PCHIP) switch and adopt an
 "integral-preserving linear" smoother to avoid overshoot. Full method survey,
@@ -538,8 +538,10 @@ and concluded:
   NRT-revision footprint: PCHIP 0 / minmod ≤1 / PPM ≤2 months, **PIQS all 302**.
 - **Continuous integral-preserving linear is unstable** (trapezoidal recursion
   `y_{i+1}=2m_i−y_i`, pole at Nyquist) — confirms PROPOSAL #9.
-- **Recommendation:** retire PIQS for this NRT product (overshoot → sign flips;
-  global solve rewrites the whole record on any revision). PPM is the preferred
-  fitter (zero overshoot + smooth + local + best fidelity); PCHIP is an
-  acceptable status quo. The requested minmod-linear works but is dominated by
-  PPM.
+- **Decision (LANDED 2026-06-18):** PPM is now the V2 production default —
+  `run_year.sh` and `produce_2025_2026.sh` call `write_ppm.r`, and the deployed
+  `fit.piqs.rda` was regenerated with PPM (`piqsfit.meta$fitter == "ppm"`).
+  PCHIP (former default) kept as a fallback (`fit.pchip.rda`). PIQS retired:
+  measuring a regenerated PIQS fit confirmed 28% wrong-sign GPP cell-months and
+  a daily-fidelity mean wrecked by ~10^18 overshoot-tail cells, on top of its
+  global-solve NRT non-locality. minmod-linear works but is dominated by PPM.

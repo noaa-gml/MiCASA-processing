@@ -166,9 +166,9 @@ fi
 # ---- Stage 4: PIQS fit ------------------------------------------------------
 
 if [ "$skip_piqs" -eq 0 ]; then
-    run Rscript write_pchip.r
+    run Rscript write_ppm.r
 else
-    echo "==> [skip] pchip stage"
+    echo "==> [skip] ppm fit stage"
 fi
 
 # ---- Stage 5: Diurnalize (ERA5 hourly) -------------------------------------

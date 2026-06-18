@@ -1,6 +1,6 @@
 # Sub-monthly flux reconstruction: method comparison and the case for retiring PIQS
 
-**Status:** decision document · **Date:** 2026-06-18 · **Scope:** the monthly→sub-monthly
+**Status:** decision document — **PPM adopted as the V2 default 2026-06-18** · **Scope:** the monthly→sub-monthly
 flux smoother in `diurnalize-ERA5.r` (the `fit.piqs.rda` coefficients).
 
 This document explains every reconstruction method in (and adjacent to) the
@@ -257,14 +257,14 @@ Measured on the production fit and a full-year 2020 diurnalize (PCHIP vs PPM vs
 minmod), 1° global grid, ~4.4 M land cell-months. Reproducible from the scripts
 in `jobs/` (see §6).
 
-| Metric | PIQS (V1) | PCHIP (V2, current) | **PPM (proposed)** | minmod-linear | flat |
+| Metric | PIQS (V1) | PCHIP (former default) | **PPM (default 2026-06-18)** | minmod-linear | flat |
 |---|---|---|---|---|---|
 | Mass-conserving | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Overshoot, max peak/envelope | large | 1.50 | **1.00** | 1.00 | 1.00 |
-| % pieces overshooting envelope | high | ~19% | **0%** | 0% | 0% |
-| GPP sign-flips, 2020 product (cell-hours) | ~6.5% mean, ≤30% cells¹ | 0.1–0.7% | **0%** | 0% | 0% |
-| Daily-fidelity RMSE/env, GPP (mean)² | — | 0.151 | **0.149** | 0.159 | 0.181 |
-| Daily-fidelity RMSE/env, RESP (mean)² | — | 0.128 | **0.125** | 0.130 | 0.145 |
+| Overshoot, max peak/envelope | 0.93 med / **~10¹⁸ tail** | 1.50 | **1.00** | 1.00 | 1.00 |
+| % pieces overshooting envelope | tail blow-up | ~19% | **0%** | 0% | 0% |
+| GPP sign-flips (PIQS: fit cell-months; others: 2020 cell-hours) | **28% cell-months**¹ | 0.1–0.7% | **0%** | 0% | 0% |
+| Daily-fidelity RMSE/env, GPP (mean)² | 0.09 med / **18.6 mean** (overshoot tail) | 0.151 | **0.149** | 0.159 | 0.181 |
+| Daily-fidelity RMSE/env, RESP (mean)² | 0.09 med / 0.128 mean | 0.128 | **0.125** | 0.130 | 0.145 |
 | Within-month structure (gradient/env, med) | high | 0.111 | 0.060 | 0.031 | 0 |
 | Flux value-continuity (jump/env, med) | 0 | **0** | 0.018 | 0.10 | 0.24 |
 | Interior extrema (% of months)³ | high | 54–71% | 5–7% | 0% | 0% |
@@ -274,8 +274,7 @@ in `jobs/` (see §6).
 | Fit cost | fast (global solve) | fast | fast | fast | trivial |
 | Citable lineage | CT2022 / Rasmussen 1991 | Fritsch-Carlson 1980 | Colella-Woodward 1984 | van Leer 1979 | — |
 
-¹ PIQS sign-flip rates from `verify_v2` Check 3.1 / METHODOLOGY.md and the
-original `bakeoff_pchip.py` (AK Tundra 30.9%).
+¹ PIQS measured 2026-06-18 from a regenerated PIQS fit (`fit.piqs_v1.rda`, `jobs/piqs_score.r`): 28.2% of GPP cell-months carry a wrong-sign knot, and its overshoot/fidelity MEAN is wrecked by a tail of cells where the global solve diverges to ~10¹⁸× the envelope (median is fine). Consistent with `verify_v2` Check 3.1 / `bakeoff_pchip.py` (AK Tundra 30.9%).
 ² Reconstruction sampled at day-midpoints vs MiCASA's **own** daily 1° product,
 2020, RMS normalised by the local monthly-mean envelope; lower = more faithful.
 ³ Fraction of cell-months in which the reconstructed flux has a within-month
@@ -354,12 +353,12 @@ and §5.1–5.2 are disqualifying in that setting.
 ## 6. Recommendation
 
 1. **Do not use PIQS** for this product (overshoot + global non-locality).
-2. **PPM is the recommended fitter.** It is the only option that is
+2. **PPM is the production default (adopted 2026-06-18).** It is the only option that is
    simultaneously mass-conserving, zero-overshoot, zero-sign-flip, smooth,
    local (≤2-month NRT footprint), best-on-daily-fidelity, and in the
    conservative finite-volume lineage the literature endorses. It fits the
    existing `(a,b,c)` storage, so `diurnalize-ERA5.r` consumes it unchanged.
-3. **PCHIP (current V2) is an acceptable status quo.** Its only blemishes are a
+3. **PCHIP (former default) is an acceptable fallback.** Its only blemishes are a
    bounded 1.5× bump (shown to be physically plausible against the daily data)
    and a ~0.1–0.7% residual sign-flip rate. Switching PCHIP→PPM is a refinement,
    not a fix; switching PIQS→anything-local is a fix.

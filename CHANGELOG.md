@@ -4,6 +4,19 @@ Dated engineering entries for the active (`main`) branch. Conceptual /
 methodological reasoning lives in [`docs/PROPOSALS.md`](docs/PROPOSALS.md);
 this file is for "what landed when, and what numbers it moved."
 
+## 2026-06-18 — switch V2 default fitter to PPM
+
+- **PPM is now the production default.** `run_year.sh` (stage 4) and
+  `produce_2025_2026.sh` (step 8) call `write_ppm.r` instead of `write_pchip.r`,
+  and the deployed `fit.piqs.rda` was regenerated with PPM
+  (`piqsfit.meta$fitter == "ppm"`); PCHIP fit preserved as `fit.pchip.rda`.
+- **`write_piqs.r`** now records `fitter="piqs"` and honors `MICASA_FIT_OUT`
+  (consistent with the other writers). A regenerated PIQS fit was scored
+  (`jobs/piqs_score.r`): 28% wrong-sign GPP cell-months, daily-fidelity mean
+  blown out by ~10^18 overshoot-tail cells — filling the last gap in the
+  `FITTER_COMPARISON.md` scorecard. METHODOLOGY.md default list + PROPOSALS #17
+  updated to reflect the switch.
+
 ## 2026-06-18 — fitter investigation: PPM + integral-preserving-linear; retire PIQS
 
 - **New selectable sub-monthly fitters** alongside `write_pchip.r`/`write_piqs.r`:

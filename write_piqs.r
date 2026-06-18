@@ -219,10 +219,14 @@ piqsfit.time <- x.time[1:(length(x.time)-1)]
 # Metadata so downstream consumers (diurnalize-ERA5.r and any future readers)
 # can tell what padding was applied. Older .rda files without this object
 # should be treated as pad.left = pad.right = 0.
-piqsfit.meta <- list(pad.left  = pad.left,
+piqsfit.meta <- list(fitter    = "piqs",
+                     pad.left  = pad.left,
                      pad.right = pad.right,
                      fit.range = range(x.time.ext),
                      saved.range = range(piqsfit.time),
                      written.at = format(Sys.time(), tz="UTC", usetz=TRUE))
 
-save(file='fit.piqs.rda',piqsfit.gpp,piqsfit.resp,piqsfit.time,piqsfit.meta)
+out <- Sys.getenv('MICASA_FIT_OUT','fit.piqs.rda')
+save(file=out,piqsfit.gpp,piqsfit.resp,piqsfit.time,piqsfit.meta)
+cat(sprintf('Wrote %s (PIQS quadratic)
+', out))

@@ -8,13 +8,18 @@ each month using ERA5 hourly meteo.
 
 For each grid cell we fit a smooth function through the multi-year
 monthly time series of GPP and total respiration (Rh), preserving the
-monthly means by construction. Three fitters live in the tree, all
+monthly means by construction. Several fitters live in the tree, all
 producing the same on-disk format (`fit.piqs.rda` with three
-coefficients per piece per cell):
+coefficients per piece per cell); see [`FITTER_COMPARISON.md`](FITTER_COMPARISON.md) for the full comparison:
 
-- **`write_pchip.r`** — production default since 2026-05-04
-- **`write_piqs.r`** — legacy alternative
-- **`write_mss.r`** — drop-in alternative
+- **`write_ppm.r`** — **production default since 2026-06-18** (PPM limited
+  piecewise-parabolic; integral-preserving, no overshoot, no sign-flips, local)
+- **`write_pchip.r`** — previous default (Fritsch-Carlson monotone cubic;
+  bounded 1.5x bump, ~0.1-0.7% residual sign-flips)
+- **`write_linmm.r`** — minmod/MUSCL integral-preserving linear (selectable)
+- **`write_piqs.r`** — legacy; CT2022-documented but overshoots and its global
+  solve rewrites the whole record on any NRT revision (retired, see (17))
+- **`write_mss.r`** — drop-in alternative; slow and overshoots (see (17))
 
 `diurnalize-ERA5.r` consumes whichever wrote `fit.piqs.rda` last (the
 fitter records itself in `piqsfit.meta$fitter`).
