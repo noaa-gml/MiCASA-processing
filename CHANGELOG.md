@@ -4,6 +4,23 @@ Dated engineering entries for the active (`main`) branch. Conceptual /
 methodological reasoning lives in [`docs/PROPOSALS.md`](docs/PROPOSALS.md);
 this file is for "what landed when, and what numbers it moved."
 
+## 2026-06-18 — area-to-point kriging fitter with prior-uncertainty (`write_atpk.r`)
+
+- **New selectable fitter `write_atpk.r` + `lib/atpk_fit.r`**: 1-D temporal
+  area-to-point kriging (Kyriakidis 2004). Same `(a,b,c)` on-disk layout as the
+  other fitters PLUS per-piece kriging **variance** arrays (`piqsfit.gpp$var`,
+  `piqsfit.resp$var`) — a principled prior-uncertainty the splines lack. Exact
+  coherence (mass) to ~1e-16, sign-safe (selective flat fallback), dormant-cell
+  handling; windowed with precomputed data-independent weights (NRT-local,
+  footprint ≤ W). Unit-tested (`tests/test_atpk_fit.r`, 14 checks, green).
+- **`diurnalize-ERA5.r`**: guarded hook — with an ATP fit (`$var`) and
+  `MICASA_WRITE_FLUX_SD` set, emits an `NEE_sd` prior-uncertainty field; default
+  off, no effect on the PCHIP/PPM/PIQS path.
+- Point estimate ≈ PCHIP (prototype RMS/env 0.003–0.035), so the added value is
+  the uncertainty, not the central flux; PCHIP remains the deterministic default.
+  Select via `MICASA_FIT_RDA=fit.atpk.rda`. Core unit-tested; driver + hook
+  parse-clean, pending an Orion end-to-end run. See PROPOSALS #18.
+
 ## 2026-06-18 — revert to PCHIP default; make scorecard reproducible
 
 - **Reverted the PPM-default switch; PCHIP remains the V2 default.** A paired,

@@ -124,6 +124,14 @@ load(fit.rda.path)
 piqsfit.time <- epoch.seconds.to.POSIX(piqsfit.time)
 piqsfit.lts  <- as.POSIXlt(piqsfit.time)
 
+## Optional prior-uncertainty output: when the fit carries per-piece kriging
+## variance ($var, written by write_atpk.r) AND MICASA_WRITE_FLUX_SD is set,
+## diurnalize emits an NEE_sd field (1-sigma prior uncertainty on the smoothed
+## sub-monthly NEE flux, constant within a month). Default off; no effect on the
+## PCHIP/PPM/PIQS path (those fits have no $var).
+write.flux.sd <- (!is.null(piqsfit.gpp$var)) && nchar(Sys.getenv("MICASA_WRITE_FLUX_SD")) > 0
+if (write.flux.sd) cat("MICASA_WRITE_FLUX_SD: emitting NEE_sd prior-uncertainty (ATP kriging variance)\n")
+
 ## Provenance of the coefficient fit: path + SHA-256 (hashed once here, not
 ## once per month -- fit.piqs.rda is ~190 MB) and the fitter that wrote it.
 fit.rda.sha256 <- prov.file.sha256(fit.rda.path)
@@ -298,6 +306,7 @@ for (mon in mon.range) {
     imon <- which(piqsfit.time == current.time)
     gpp.a  <- piqsfit.gpp$a[, , imon];  gpp.b  <- piqsfit.gpp$b[, , imon];  gpp.c  <- piqsfit.gpp$c[, , imon]
     resp.a <- piqsfit.resp$a[, , imon]; resp.b <- piqsfit.resp$b[, , imon]; resp.c <- piqsfit.resp$c[, , imon]
+    nee.sd.mn <- if (write.flux.sd) sqrt(piqsfit.gpp$var[, , imon] + piqsfit.resp$var[, , imon]) / 12 else NULL
   } else {
     monseq <- which((piqsfit.lts$mon + 1) == mon)
     gpp.a  <- apply(piqsfit.gpp$a[, , monseq],  c(1, 2), mean)
@@ -306,6 +315,9 @@ for (mon in mon.range) {
     resp.a <- apply(piqsfit.resp$a[, , monseq], c(1, 2), mean)
     resp.b <- apply(piqsfit.resp$b[, , monseq], c(1, 2), mean)
     resp.c <- apply(piqsfit.resp$c[, , monseq], c(1, 2), mean)
+    nee.sd.mn <- if (write.flux.sd)
+      sqrt(apply(piqsfit.gpp$var[, , monseq], c(1,2), mean) +
+           apply(piqsfit.resp$var[, , monseq], c(1,2), mean)) / 12 else NULL
   }
   ## Sign-flip diagnostics (proposal #4 in README.ash). GPP is negative-for-
   ## uptake here (gpp = -2*NPP), so a positive qmod.gpp at sub-monthly
@@ -394,6 +406,8 @@ for (mon in mon.range) {
   vars$t2m   <- ncvar("t2m",   "K",           "ERA5 2-meter air temperature")
   vars$stl1  <- ncvar("stl1",  "K",           "ERA5 soil level 1 temperature (0-7 cm)")
   vars$swvl1 <- ncvar("swvl1", "m3/m3",       "ERA5 soil level 1 volumetric moisture content (0-7 cm)")
+  if (write.flux.sd)
+    vars$nee_sd <- ncvar("NEE_sd", "mol m-2 s-1", "prior 1-sigma uncertainty on the smoothed sub-monthly NEE flux (ATP kriging variance, sqrt(var_GPP+var_RESP); constant within a month)")
 
   if (file.exists(ncname.out)) {
     cat(sprintf("Removing existing output file \"%s\"\n", ncname.out))
@@ -462,6 +476,8 @@ for (mon in mon.range) {
   ncvar_put(ncf, vars$t2m,   vals = mets$t2m)
   ncvar_put(ncf, vars$stl1,  vals = mets$stl1)
   ncvar_put(ncf, vars$swvl1, vals = mets$swvl1)
+  if (write.flux.sd)                                    # per-month sd broadcast to all hour slots
+    ncvar_put(ncf, vars$nee_sd, vals = array(nee.sd.mn, dim = dim(nee)))
   nc_close(ncf)
   n.written <- n.written + 1L
   cat("\n")

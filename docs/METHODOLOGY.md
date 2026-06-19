@@ -18,6 +18,8 @@ coefficients per piece per cell); see [`FITTER_COMPARISON.md`](FITTER_COMPARISON
   overshoot but reintroduces small month-edge discontinuities; daily fidelity
   statistically tied with PCHIP — see (17))
 - **`write_linmm.r`** — selectable (minmod/MUSCL integral-preserving linear)
+- **`write_atpk.r`** — selectable; area-to-point kriging — exact coherence + a
+  kriging-variance **prior-uncertainty** (`$var`); point estimate ≈ PCHIP (see (18))
 - **`write_piqs.r`** — legacy; CT2022-documented but overshoots and its global
   solve rewrites the whole record on any NRT revision (unsuitable for NRT; (17))
 - **`write_mss.r`** — alternative; slow and overshoots (see (17))

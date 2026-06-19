@@ -548,3 +548,42 @@ and concluded:
   `write_linmm.r` are selectable via `MICASA_FIT_RDA`. PIQS is unsuitable for an
   NRT product (28% wrong-sign GPP cell-months; global-solve non-locality); MSS
   likewise (overshoots + ~300x slower).
+
+## (18) [IMPLEMENTED 2026-06-18] Area-to-point kriging fitter (with uncertainty)
+
+Implements the one out-of-domain method (survey, FITTER_COMPARISON.md (4.3))
+that adds what every spline lacks — a principled prior-uncertainty — while
+keeping exact mass conservation. Globality is acceptable for most use cases, so
+the global-solve concern that gated the probabilistic methods does not bind.
+
+- **`lib/atpk_fit.r`** — 1-D temporal area-to-point kriging (Kyriakidis 2004; Yoo
+  & Kyriakidis 2006). Block data = monthly means; each month's sub-points are
+  kriged from a +-W-month window with an exponential covariance, then represented
+  as a mass-preserving quadratic so the on-disk `(a,b,c)` layout is unchanged,
+  PLUS a per-piece kriging **variance**. Properties (unit-tested,
+  `tests/test_atpk_fit.r`, 14 checks): coherence/mass exact to ~1e-16; variance
+  >= 0 and scales with flux magnitude; **sign-safe** via a selective per-piece
+  flat fallback (0 wrong-sign); dormant (~0-variance) cells handled. Two scaling
+  fixes vs a naive build: solve on the UNIT covariance (real flux variance ~1e-13
+  otherwise wrecks system scaling) and fit the per-piece quadratic in the
+  normalized fraction u in [0,1]. Kriging weights are data-independent, so
+  `atpk.window.weights` precomputes them once per window geometry and
+  `atpk.apply.series` applies them as a fast filter (windowed result matches the
+  full-series solve to ~6e-5; +-6-month window is effectively exact and makes the
+  method NRT-local, footprint <= W).
+- **`write_atpk.r`** — driver; outputs `fit.piqs.rda` format with `$var` arrays.
+  Knobs MICASA_ATPK_{W,NS,RANGE}. NOTE: fitting the covariance range from monthly
+  autocorrelation is INAPPROPRIATE (that is the seasonal cycle, ~9 mo => singular
+  + over-smooth); a fixed short range (1.5 mo default) is used.
+- **`diurnalize-ERA5.r`** — guarded hook: when the fit carries `$var` AND
+  MICASA_WRITE_FLUX_SD is set, emits an `NEE_sd` field (1-sigma prior uncertainty
+  on the smoothed sub-monthly NEE flux, sqrt(var_GPP+var_RESP), constant within a
+  month). Default off; no effect on the PCHIP/PPM/PIQS path.
+
+**Status:** core + driver + hook implemented and unit-tested; the point estimate
+matches PCHIP (prototype RMS/env 0.003-0.035), so the value over the default is
+the uncertainty, not the central flux. PCHIP remains the deterministic default;
+ATP kriging is selected via `MICASA_FIT_RDA=fit.atpk.rda` (+ MICASA_WRITE_FLUX_SD
+for the band). Pending Orion e2e run (needs ct + monthly cat). Open refinements:
+per-biome variogram/range, and a true selective-QP positivity (quadprog) instead
+of the flat fallback in pieces where it triggers.

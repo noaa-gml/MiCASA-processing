@@ -353,6 +353,19 @@ fit the variogram per biome, add the selective-QP positivity step, and regulariz
 dormant cells. Open refinements: per-cell/per-biome variogram fitting (the 1.5-mo
 range was assumed here) and the QP positivity enforcement.
 
+**Implemented (2026-06-18, PROPOSALS #18).** A production module now exists:
+`lib/atpk_fit.r` (core, 14 unit tests), `write_atpk.r` (driver → `fit.piqs.rda`
+format + `$var` arrays; knobs `MICASA_ATPK_{W,NS,RANGE}`), and a guarded
+`diurnalize-ERA5.r` hook (`MICASA_WRITE_FLUX_SD` → an `NEE_sd` prior-uncertainty
+field; default off). Windowed kriging with precomputed data-independent weights
+makes it tractable and NRT-local (footprint ≤ W; the windowed result matches the
+full-series solve to ~6e-5). Coherence is exact to ~1e-16 and the reconstruction
+is sign-safe via a selective per-piece flat fallback. The flat fallback stands in
+for a true selective-QP positivity (a follow-up), and the covariance range is a
+fixed 1.5 mo (per-biome variogram fitting is a follow-up — fitting it from the
+monthly autocorrelation is *wrong*, as that is the seasonal cycle). Select via
+`MICASA_FIT_RDA=fit.atpk.rda`; PCHIP remains the deterministic default.
+
 ---
 
 ## 5. Why PIQS is unsuitable for this product (and why that fix already happened)
