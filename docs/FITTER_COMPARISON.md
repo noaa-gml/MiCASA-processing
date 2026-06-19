@@ -145,7 +145,15 @@ local envelope; §4). PPM is *approximately* continuous (small jumps), not C⁰.
   minimising `∫(F″)²` s.t. `F′≥0` at interior test points, per-cell QP. **Measured:
   overshoots** (peak/env median 1.35, max 1.57) and ~24% of land cells carry a
   wrong-sign GPP knot (the constraint binds at test points, not knots); ~180–370
-  ms/cell (~100–300× PPM/PCHIP). Banded QP ⇒ NRT-local (≤1 mo). Rejected.
+  ms/cell (~100–300× PPM/PCHIP). Banded QP ⇒ NRT-local (≤1 mo). Rejected. **Note:** MSS *is* "PIQS with
+positivity enforcement" (PROPOSAL #11). It cannot do better, by a
+degrees-of-freedom argument: a quadratic piece has 3 DOF, and fixing its
+integral + both C0 endpoint values leaves **zero** freedom to enforce
+non-negativity — so positivity must be bought by moving knots (the QP), which
+at a near-zero-flanked month is over-constrained/infeasible (a non-negative
+quadratic cannot integrate to ~0 between positive endpoints). PCHIP/PPM are
+positivity-enforcement done correctly — via a representation (monotone cubic
+on the cumulative / limited parabola) where f>=0 is automatic, not constrained.
 - **Steffen (1990)** monotone cubic, ADS:[1990A&A...239..443S](https://ui.adsabs.harvard.edu/abs/1990A%26A...239..443S):
   overshoot **identical to PCHIP (1.50)** — the bump is intrinsic to
   monotone-cubic-on-cumulative, not the FC rule. No gain.
@@ -242,6 +250,26 @@ the product's monthly mean ~0.1–0.7%/month. Same effect for all fitters.
   **49%** in boreal/polar (PCHIP better there). The 0.149-vs-0.151 mean gap is
   within noise. PPM does **not** measurably beat PCHIP on fidelity.
 
+### 4.2 Order of operations: fit-at-0.1deg then aggregate (evaluated, no benefit)
+
+Tested whether fitting at native 0.1deg and area-averaging the `(a,b,c)`
+coefficients to the target grid beats aggregating to the target grid first then
+fitting (the fit is nonlinear, so they differ). Both derived from the same
+0.1deg blocks (`fitter_diagnostics/refine_then_average{,_4x6}.r`):
+
+| target | fit-coarse overshoot (med/90/max) | fit-0.1-then-avg | fine lower in |
+|---|---|---|---|
+| 1deg (10x10 subcells) | 1.07 / 1.24 / 1.50 | 1.07 / 1.29 / 1.50 | 26% of cells |
+| 4x6 (2400 subcells) | 1.07 / 1.18 / 1.38 | 1.07 / 1.18 / 1.36 | 7% of cells |
+
+**No overshoot reduction at either scale.** The hoped-for bump-cancellation
+(heterogeneous sub-pixel phenology averaging the 1.5x bump down) does not
+materialise: for smooth monthly seasonal cycles the fitter is *nearly linear*,
+so fit-then-average and average-then-fit nearly commute. Fit-0.1-then-average
+does preserve sign-definiteness, but PCHIP-at-1deg already guarantees that. Not
+worth the 100x-2400x fit cost + a 0.1deg monthly cat. (Could still matter for a
+flux field that is genuinely sub-cell heterogeneous in *shape*, not just level.)
+
 ---
 
 ## 5. Why PIQS is unsuitable for this product (and why that fix already happened)
@@ -317,6 +345,8 @@ diurn_year=2020 MICASA_MONTH_START=1 MICASA_MONTH_END=12 MICASA_VERSION=v1 \
 | MSS / Steffen / unlimited-parabolic | `fitter_diagnostics/other_methods.r` |
 | Unconstrained histospline | `fitter_diagnostics/histospline_check.r` |
 | PIQS apples-to-apples score | `fitter_diagnostics/piqs_score.r` |
+| Bounded iterative (Rymes-Myers) | `fitter_diagnostics/bounded_iterative.r` |
+| Fit-then-aggregate order test (1deg / 4x6) | `fitter_diagnostics/refine_then_average{,_4x6}.r` |
 | Fitter cores + tests | `lib/{pchip,ppm,linmm,mss}_fit.r`, `tests/test_*_fit.r` |
 
 ---
