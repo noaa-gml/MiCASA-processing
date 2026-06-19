@@ -272,6 +272,58 @@ flux field that is genuinely sub-cell heterogeneous in *shape*, not just level.)
 
 ---
 
+### 4.3 Out-of-domain methods & uncertainty quantification
+
+A broad cross-domain survey (verified deep-research, 2026-06-18) asked whether
+any field outside climate/numerics beats PCHIP/PPM on the five requirements,
+especially by adding the **uncertainty estimate** the deterministic splines lack.
+
+| Family (field) | mass-exact | positivity | NRT-local | smooth | uncertainty |
+|---|---|---|---|---|---|
+| Temporal disaggregation — Denton/Denton-Cholette, Chow-Lin, Fernández, Litterman, Proietti state-space (econometrics; R `tempdisagg`) | ✅ sum/avg/first/last | ✗ | ✗ global (GLS/Kalman) | ✅ | ◑ regression SEs |
+| **Area-to-point kriging** — Kyriakidis 2004; Yoo & Kyriakidis 2006 (geostatistics) | ✅ coherent/pycnophylactic | ✅ selective QP | ❓ untested (neighborhood) | ✅ | ✅ kriging variance |
+| GP w/ integral + inequality constraints — Da Veiga & Marrel 2012; Maatouk & Bay 2017 | ✅ (linear constraint) | ◑→✅ (M&B exact) | ✗ global | ✅ | ✅ posterior variance |
+| Penalized composite link / ungrouping — Rizzi, Gampe & Eilers 2015 (R `ungroup`) | ◑ ~0.1% only | ✅ exp-param | ✗ global | ✅ | ◑ SEs (lower bound) |
+| SCOP-splines — Pya & Wood 2015 (R `scam`); mboost — Hofner et al. 2016 | ✗ regression | ✅ / ◑ soft | ✗ global | ✅ | ✅ approx-Bayes / bootstrap CIs |
+
+**Findings.** (1) The genuine gain over the splines is **uncertainty
+quantification** — the probabilistic methods all add a variance/CI. (2)
+**Locality is the binding constraint**: every probabilistic method is a *global*
+solve, so a revised recent month perturbs the historical reconstruction — the
+NRT property PCHIP has trivially (footprint 0). **No surveyed method is
+simultaneously exact-mass + hard-positive + local + smooth + uncertainty-bearing.**
+(3) The standout is **area-to-point kriging** (exact mass + QP positivity + native
+variance), but its locality is untested (global system unless forced local). (4)
+Refuted (3-0): the PCLM "exactly re-aggregates" claim — it conserves mass only to
+~0.1%. (5) Gap: hydrology (method-of-fragments, random cascades) and ML-downscaling
+angles yielded no surviving verified claims (they produce stochastic realizations,
+not a smooth mean-preserving curve).
+
+**A cheap LOCAL uncertainty band (prototype, `fitter_diagnostics/uncertainty_bands.r`).**
+Rather than adopt a global method, the uncertainty PCHIP lacks can be added while
+*keeping* locality, two ways (measured on the real record / 2020 daily):
+
+- **Structural** — spread across the mass-preserving fitters {PCHIP, PPM, minmod}
+  at each sub-monthly point: **median 3% of the local flux envelope, 90th 11%,
+  99th 28%** (roughly uniform across biomes). The "which-smoother" ambiguity
+  moves the prior only a few %.
+- **Bootstrap-PCHIP** — resample days within each month → bootstrap monthly means
+  → refit PCHIP → 5–95% band: **median ~1% (tropics) to ~6% (boreal), tails
+  12–25%** at sharp-transition months.
+
+Both bands are per-cell + windowed, so they **preserve NRT locality** (unlike the
+global probabilistic methods), and they are modest — a few % in the bulk, 10–28%
+at sharp seasonal transitions (largest in boreal spring/fall) — which itself shows
+the sub-monthly prior is fairly well-constrained.
+
+**Recommendation.** Keep PCHIP; if a prior-uncertainty is wanted, use the **local
+bootstrap/structural band** above (cheap, keeps locality). Pursue a global
+probabilistic method (area-to-point kriging is the best candidate) only if a
+*principled posterior variance* is required AND a local-neighborhood variant can
+be shown to retain the NRT property — an open test.
+
+---
+
 ## 5. Why PIQS is unsuitable for this product (and why that fix already happened)
 
 PIQS is the citable CT2022 standard and is genuinely smooth, so the argument is
@@ -347,6 +399,7 @@ diurn_year=2020 MICASA_MONTH_START=1 MICASA_MONTH_END=12 MICASA_VERSION=v1 \
 | PIQS apples-to-apples score | `fitter_diagnostics/piqs_score.r` |
 | Bounded iterative (Rymes-Myers) | `fitter_diagnostics/bounded_iterative.r` |
 | Fit-then-aggregate order test (1deg / 4x6) | `fitter_diagnostics/refine_then_average{,_4x6}.r` |
+| Out-of-domain survey + local uncertainty bands | `fitter_diagnostics/uncertainty_bands.r` |
 | Fitter cores + tests | `lib/{pchip,ppm,linmm,mss}_fit.r`, `tests/test_*_fit.r` |
 
 ---
@@ -377,3 +430,12 @@ diurn_year=2020 MICASA_MONTH_START=1 MICASA_MONTH_END=12 MICASA_VERSION=v1 \
 - Weir et al. (2021), *Bias-correcting carbon fluxes...* (LoFI; the inversion
   context these fluxes feed, motivating requirement (3)), *ACP* 21:9609–9628,
   doi:10.5194/acp-21-9609-2021.
+- Sax & Steiner (2013), *Temporal Disaggregation of Time Series*, R Journal 5(2):80–88, doi:10.32614/RJ-2013-028.
+- Proietti (2006), *Temporal disaggregation by state space methods*, Econometrics J. 9(3):357–372, doi:10.1111/j.1368-423X.2006.00189.x.
+- Kyriakidis (2004), *A geostatistical framework for area-to-point spatial interpolation*, Geographical Analysis 36(3):259–289, doi:10.1111/j.1538-4632.2004.tb01135.x.
+- Yoo & Kyriakidis (2006), *Area-to-point kriging*, J. Geographical Systems, doi:10.1007/s10109-006-0036-7.
+- Da Veiga & Marrel (2012), *Gaussian process modeling with inequality constraints*, Ann. Fac. Sci. Toulouse 21(3):529–555, doi:10.5802/afst.1344.
+- Maatouk & Bay (2017), *Gaussian process emulators ... with inequality constraints*, Math. Geosci. 49:557–582, doi:10.1007/s11004-017-9673-2.
+- Rizzi, Gampe & Eilers (2015), *Efficient estimation of smooth distributions from coarsely grouped data*, Am. J. Epidemiol. 182(2):138–147, doi:10.1093/aje/kwv020.
+- Pya & Wood (2015), *Shape constrained additive models*, Statistics and Computing 25(3):543–559, doi:10.1007/s11222-013-9448-7.
+- Hofner, Kneib & Hothorn (2016), *A unified framework of constrained regression*, Statistics and Computing 26, doi:10.1007/s11222-014-9520-y.
