@@ -160,8 +160,17 @@ local envelope; §4). PPM is *approximately* continuous (small jumps), not C⁰.
   doi:[10.1016/S0038-092X(01)00052-4](https://doi.org/10.1016/S0038-092X(01)00052-4);
   Wang & Bartlein 2022,
   doi:[10.1175/JTECH-D-21-0154.1](https://doi.org/10.1175/JTECH-D-21-0154.1)):
-  the "force bounds into a smooth fit" family. **Not yet measured here** — a
-  genuine open item (its iterative smoothing may be less NRT-local); see §6.
+  iterated 3-point moving average + per-interval mean-restoration + bound clip.
+  **Measured 2026-06-18** (`fitter_diagnostics/bounded_iterative.r`, Rymes-Myers,
+  daily sub-resolution): mass-preserving, **0 sign-flips** (bound clip), smooth,
+  continuous, and — contrary to the a-priori worry — **NRT-local** (footprint
+  ≤2 months even at 300 iterations; the per-interval mean-restoration confines a
+  revision). It does carry a bounded overshoot that grows with iterations
+  (peak/env ~1.24 → 1.45 for 30 → 300 iters), i.e. **PCHIP-like overshoot plus
+  guaranteed sign-definiteness**. Genuinely competitive — *not* dominated — but
+  not clearly better than PCHIP either, and it is iterative (niter tuning, no
+  closed form) and produces point values rather than the native `(a,b,c)`
+  quadratic, so adopting it would need a fit/convert step in `diurnalize`.
 
 ---
 
@@ -276,10 +285,12 @@ All fitters are selectable via `MICASA_FIT_RDA` (`write_pchip.r`, `write_ppm.r`,
 `write_linmm.r`, `write_piqs.r`) with no change to the default; cores are
 unit-tested (`tests/test_{pchip,ppm,linmm,mss}_fit.r`).
 
-**Open item:** the bounded iterative mean-preserving family (§2.6) is not yet
-measured; it is the one untested candidate that could, in principle, be smoother
-than PPM while bounded. Worth scoring on the same five yardsticks before the
-field is called closed.
+**Field closed (2026-06-18):** the last untested candidate, bounded iterative
+mean-preserving (Rymes-Myers), was measured (§2.6) — it is bounded, sign-definite,
+smooth, continuous, and NRT-local (≤2 mo), i.e. competitive with PCHIP but not
+clearly superior, and costs an iterative solve + a point-value→`(a,b,c)` convert.
+No evaluated method dominates PCHIP for this product; PCHIP stays the default,
+PPM/minmod/Rymes-Myers are documented selectable alternatives, PIQS/MSS rejected.
 
 ---
 
