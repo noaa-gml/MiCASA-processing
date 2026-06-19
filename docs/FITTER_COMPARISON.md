@@ -320,7 +320,38 @@ the sub-monthly prior is fairly well-constrained.
 bootstrap/structural band** above (cheap, keeps locality). Pursue a global
 probabilistic method (area-to-point kriging is the best candidate) only if a
 *principled posterior variance* is required AND a local-neighborhood variant can
-be shown to retain the NRT property — an open test.
+be shown to retain the NRT property. Globality is acceptable for most of our
+use cases, so this candidate was prototyped — see §4.4.
+
+---
+
+### 4.4 Area-to-point kriging — prototyped (globality accepted)
+
+Because globality is acceptable for most use cases, the standout candidate —
+area-to-point (ATP) kriging — was prototyped in 1-D time
+(`fitter_diagnostics/atp_kriging.r`): block data = monthly means; predict
+sub-monthly points by ordinary kriging with an exponential covariance (range
+1.5 mo), 6 points/month over a 36-month window. Results across biomes:
+
+| property | result |
+|---|---|
+| **Mass (coherence)** | **exact to ~1e-16** — block-average of point predictions = monthly mean (pycnophylactic, verified) |
+| **Point estimate** | **≈ PCHIP**: RMS(kriging − PCHIP)/env = 0.003–0.035 — the central curve is essentially identical |
+| **Uncertainty** | **native kriging variance**: ±1.96σ ≈ **9–52% of the flux envelope** (median ~0.4), wider than the bootstrap band (1–6%) because it quantifies true sub-monthly *indeterminacy*, not just monthly-mean sampling. Width is set by the covariance range (a modeling choice). |
+| **Positivity** | **not automatic**: 0% (tropics) → 5% (temperate) → **30–37% (boreal dormant)** wrong-sign → needs the selective QP of Yoo & Kyriakidis for one-signed quantities |
+| **Robustness** | the ordinary-kriging system is **ill-conditioned for near-dormant (≈0-variance) cells** → needs a ridge/nugget or a skip |
+
+**Verdict.** ATP kriging delivers what no spline does — exact mass **plus a
+principled posterior variance** — with a point estimate that *matches PCHIP*, so
+adopting it does not change the central flux; the value is purely the
+uncertainty. Costs: a covariance/variogram model (range → band width), a QP
+positivity step (material in boreal), regularization for dormant cells, and a
+per-cell windowed linear solve. **Recommendation:** keep PCHIP as the
+deterministic point estimate; if a principled prior-uncertainty is required
+(globality OK), ATP kriging is the route — wrap it around the same monthly means,
+fit the variogram per biome, add the selective-QP positivity step, and regularize
+dormant cells. Open refinements: per-cell/per-biome variogram fitting (the 1.5-mo
+range was assumed here) and the QP positivity enforcement.
 
 ---
 
@@ -400,6 +431,7 @@ diurn_year=2020 MICASA_MONTH_START=1 MICASA_MONTH_END=12 MICASA_VERSION=v1 \
 | Bounded iterative (Rymes-Myers) | `fitter_diagnostics/bounded_iterative.r` |
 | Fit-then-aggregate order test (1deg / 4x6) | `fitter_diagnostics/refine_then_average{,_4x6}.r` |
 | Out-of-domain survey + local uncertainty bands | `fitter_diagnostics/uncertainty_bands.r` |
+| Area-to-point kriging prototype (1-D temporal) | `fitter_diagnostics/atp_kriging.r` |
 | Fitter cores + tests | `lib/{pchip,ppm,linmm,mss}_fit.r`, `tests/test_*_fit.r` |
 
 ---
