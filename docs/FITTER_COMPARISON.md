@@ -12,6 +12,49 @@ off PIQS to a *local, sign-definite* fitter — which already happened at V2
 (PCHIP). Among the local methods the differences are second-order; PCHIP and PPM
 are a **statistical tie** on fidelity, and PCHIP wins on continuity.
 
+## Executive summary
+
+This document records a full investigation of the monthly→sub-monthly flux
+smoother, prompted by a concern about the V1→V2 (PIQS→PCHIP) switch and a
+proposal to use an integral-preserving *linear* fit to avoid overshoot. Every
+candidate was benchmarked on the real 2001–2026 record and a full-year 2020
+diurnalize; a cross-domain literature survey and four uncertainty analyses were
+added. The findings:
+
+1. **The consequential fix already happened at V2.** What matters is moving off
+   PIQS to a *local, sign-definite* fitter — done at V2 (PCHIP). PIQS is
+   unsuitable for an NRT product on two measured grounds: overshoot → ~11% of
+   GPP cell-hours wrong-sign (2020), and its **global solve rewrites all 302
+   historical months** on any revision (§5).
+2. **Among local methods the differences are second-order.** PCHIP vs PPM is a
+   **statistical tie** on daily fidelity (paired, same-cell; §4); PCHIP is kept
+   as default because it is the only method with **zero flux jumps** (continuity
+   is the smoother's purpose). PPM and minmod are selectable, not improvements.
+   Steffen ≡ PCHIP (same 1.5× cap); MSS overshoots (24% wrong-sign) + ~300×
+   slower; the bare/continuous integral-preserving *linear* either explodes
+   (continuous, §2.4a) or is dominated by PPM (minmod).
+3. **"PIQS + positivity" is exactly MSS** and is over-constrained by a
+   degrees-of-freedom argument (§2.6); PCHIP/PPM are positivity done right (a
+   representation where f≥0 is automatic, not a constraint).
+4. **Fitting at native 0.1° then averaging gives no benefit** (1° or 4°×6°, §4.2)
+   — for smooth seasonal data the fitter is nearly linear, so fit-then-average
+   and average-then-fit nearly commute.
+5. **Uncertainty.** The splines are point estimates. A cross-domain survey (§4.3:
+   econometric temporal disaggregation, area-to-point kriging, GP-with-integral-
+   constraints, penalized composite link, SCOP-splines) found the principled-
+   variance methods are all *global*; **area-to-point kriging** is the standout
+   (exact mass + QP positivity + native variance) and is now **implemented and
+   verified** (§4.4, PROPOSALS #18). The prior-uncertainty hierarchy: ATP
+   *temporal* sub-monthly indeterminacy (~9–52%, **dominant**) ≫ 0.1° sub-grid
+   *spatial* heterogeneity (~3.5%, model-free) ≈ across-fitter structural (~3%)
+   ≈ monthly-mean bootstrap (~1–6%); roughly independent.
+
+**Decision.** PCHIP stays the deterministic default. `write_ppm.r`,
+`write_linmm.r`, `write_piqs.r`, and `write_atpk.r` are selectable via
+`MICASA_FIT_RDA` (no change to the default). For a principled prior-uncertainty,
+use `write_atpk.r` (+ `MICASA_WRITE_FLUX_SD` for the `NEE_sd` field). PIQS and MSS
+are rejected.
+
 ---
 
 ## 1. The problem and where the fit sits
@@ -346,11 +389,11 @@ bootstrap/structural band** above (cheap, keeps locality). Pursue a global
 probabilistic method (area-to-point kriging is the best candidate) only if a
 *principled posterior variance* is required AND a local-neighborhood variant can
 be shown to retain the NRT property. Globality is acceptable for most of our
-use cases, so this candidate was prototyped — see §4.4.
+use cases, so this candidate was implemented & verified — see §4.4.
 
 ---
 
-### 4.4 Area-to-point kriging — prototyped (globality accepted)
+### 4.4 Area-to-point kriging — implemented & verified (globality accepted)
 
 Because globality is acceptable for most use cases, the standout candidate —
 area-to-point (ATP) kriging — was prototyped in 1-D time
@@ -389,7 +432,7 @@ is sign-safe via a selective per-piece flat fallback. The flat fallback stands i
 for a true selective-QP positivity (a follow-up), and the covariance range is a
 fixed 1.5 mo (per-biome variogram fitting is a follow-up — fitting it from the
 monthly autocorrelation is *wrong*, as that is the seasonal cycle). Select via
-`MICASA_FIT_RDA=fit.atpk.rda`; PCHIP remains the deterministic default.
+`MICASA_FIT_RDA=fit.atpk.rda`; PCHIP remains the deterministic default. **Verified e2e on Orion (2026-06-20):** `write_atpk.r` produced `fit.atpk.rda` (mass 1.7e-15 vs PCHIP, `$var` on 100% of land months, 0 wrong-sign, point estimate RMS/env 0.04–0.06), and a diurnalize with `MICASA_WRITE_FLUX_SD=1` emitted `NEE_sd` (0 GPP sign-flips, sd 0–2.8e-6 mol m⁻² s⁻¹).
 
 ---
 
