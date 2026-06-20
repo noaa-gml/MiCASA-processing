@@ -584,6 +584,10 @@ the global-solve concern that gated the probabilistic methods does not bind.
 matches PCHIP (prototype RMS/env 0.003-0.035), so the value over the default is
 the uncertainty, not the central flux. PCHIP remains the deterministic default;
 ATP kriging is selected via `MICASA_FIT_RDA=fit.atpk.rda` (+ MICASA_WRITE_FLUX_SD
-for the band). Pending Orion e2e run (needs ct + monthly cat). Open refinements:
+for the band). **Verified e2e on Orion 2026-06-20**: write_atpk.r produced fit.atpk.rda
+(mass/coherence 1.7e-15, $var populated on 100% of land months, 0 wrong-sign,
+point estimate ~PCHIP RMS/env 0.04-0.06); a diurnalize with MICASA_FIT_RDA=
+fit.atpk.rda + MICASA_WRITE_FLUX_SD=1 emitted the NEE_sd field (0 GPP sign-flips,
+sd 0-2.8e-6 mol m-2 s-1). Open refinements:
 per-biome variogram/range, and a true selective-QP positivity (quadprog) instead
 of the flat fallback in pieces where it triggers.

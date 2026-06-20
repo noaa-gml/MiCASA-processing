@@ -471,6 +471,7 @@ diurn_year=2020 MICASA_MONTH_START=1 MICASA_MONTH_END=12 MICASA_VERSION=v1 \
 | Out-of-domain survey + local uncertainty bands | `fitter_diagnostics/uncertainty_bands.r` |
 | Area-to-point kriging prototype (1-D temporal) | `fitter_diagnostics/atp_kriging.r` |
 | Sub-grid (0.1deg) heterogeneity uncertainty | `fitter_diagnostics/subgrid_uncertainty.r` |
+| ATP production-fit verification | `fitter_diagnostics/verify_atpk.r` |
 | Fitter cores + tests | `lib/{pchip,ppm,linmm,mss}_fit.r`, `tests/test_*_fit.r` |
 
 ---
