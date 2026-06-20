@@ -316,6 +316,31 @@ global probabilistic methods), and they are modest — a few % in the bulk, 10�
 at sharp seasonal transitions (largest in boreal spring/fall) — which itself shows
 the sub-monthly prior is fairly well-constrained.
 
+**Sub-grid spatial heterogeneity (0.1° within 1°; `fitter_diagnostics/subgrid_uncertainty.r`).**
+A model-free, data-driven uncertainty: a 1° cell averages ~100 0.1° pixels, and
+the spread across them measures how representative the 1° value is of its actual
+landscape. Measured: **median ~3.5% of the flux envelope**, strongly biome-
+dependent — **temperate ~10%** (mixed crop/forest/urban), tropics ~6%, **boreal
+~1%** (uniform tundra/taiga). Same magnitude for the sub-monthly spread (~3%).
+
+**Uncertainty hierarchy (the useful summary).** The four quantified prior-
+uncertainty sources are roughly independent and span an order of magnitude:
+
+| source | magnitude (/envelope) | assumption |
+|---|---|---|
+| **ATP kriging variance** (sub-monthly *temporal* indeterminacy) | **~9–52%** (dominant) | covariance model (range) |
+| sub-grid spatial heterogeneity (0.1°) | ~3.5% (1% boreal → 10% temperate) | **none — data-driven** |
+| structural (across mass-preserving fitters) | ~3% | none |
+| bootstrap-PCHIP (monthly-mean sampling) | ~1–6% | resampling model |
+
+So the prior-uncertainty is **dominated by the temporal sub-monthly
+indeterminacy** (what the trajectory could be given only the monthly mean — the
+ATP variance), not by spatial sub-grid heterogeneity or smoother choice (each a
+few %). The 0.1° spread is the most *defensible* component (no model), but it is
+secondary; a complete prior σ would combine them in quadrature, dominated by the
+ATP term. Largest spatial term is temperate (heterogeneous landscapes), largest
+temporal term is boreal sharp transitions — they peak in different biomes.
+
 **Recommendation.** Keep PCHIP; if a prior-uncertainty is wanted, use the **local
 bootstrap/structural band** above (cheap, keeps locality). Pursue a global
 probabilistic method (area-to-point kriging is the best candidate) only if a
@@ -445,6 +470,7 @@ diurn_year=2020 MICASA_MONTH_START=1 MICASA_MONTH_END=12 MICASA_VERSION=v1 \
 | Fit-then-aggregate order test (1deg / 4x6) | `fitter_diagnostics/refine_then_average{,_4x6}.r` |
 | Out-of-domain survey + local uncertainty bands | `fitter_diagnostics/uncertainty_bands.r` |
 | Area-to-point kriging prototype (1-D temporal) | `fitter_diagnostics/atp_kriging.r` |
+| Sub-grid (0.1deg) heterogeneity uncertainty | `fitter_diagnostics/subgrid_uncertainty.r` |
 | Fitter cores + tests | `lib/{pchip,ppm,linmm,mss}_fit.r`, `tests/test_*_fit.r` |
 
 ---
