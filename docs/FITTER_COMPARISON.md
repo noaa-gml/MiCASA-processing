@@ -436,6 +436,30 @@ monthly autocorrelation is *wrong*, as that is the seasonal cycle). Select via
 
 ---
 
+### 4.5 PIQS-with-linear-fallback-on-overshoot (evaluated, not adopted)
+
+Tested whether PIQS's superior *global* smoothness could be salvaged by keeping
+its quadratic where sign-safe and patching the overshooting pieces with a
+sign-safe minmod-linear (`fitter_diagnostics/piqs_hybrid.r`):
+
+| property | result |
+|---|---|
+| PIQS overshoot rate | **29.3%** of land cell-months need patching |
+| smoothness (knot deriv-jump·D/env) | **PIQS 0.000 vs PCHIP 0.290** — PIQS's global solve is near-C¹ in the flux (the genuine motivation) |
+| sign-safety after fallback | **0.000% wrong-sign** |
+| fidelity (2020 daily RMSE/env) | hybrid 0.079 med / 0.139 mean ≈ PCHIP 0.081 / 0.141 (fixes PIQS's 15.7 mean blow-up; tied) |
+| **discontinuity at patched edges** | **median ~5× the envelope** — PIQS overshoots by *large* amounts, so the patch sits far from its neighbour values → severe jumps at the ~30% patched edges |
+| NRT locality | **inherits PIQS's global solve** — a revised month rewrites the whole record |
+
+**Verdict: not adopted.** It is sign-safe and recovers PIQS's smoothness in the
+easy ~70% of pieces, but injects *large* discontinuities (median ~5× envelope)
+at exactly the hard transition pieces — far worse than PPM's small edge jumps —
+and still inherits PIQS's global non-locality, while only tying PCHIP on fidelity.
+Dominated by PCHIP. The PIQS smoothness advantage is real but cannot be captured
+without either the overshoot (PIQS) or the patch discontinuities (this hybrid).
+
+---
+
 ## 5. Why PIQS is unsuitable for this product (and why that fix already happened)
 
 PIQS is the citable CT2022 standard and is genuinely smooth, so the argument is
@@ -515,6 +539,7 @@ diurn_year=2020 MICASA_MONTH_START=1 MICASA_MONTH_END=12 MICASA_VERSION=v1 \
 | Area-to-point kriging prototype (1-D temporal) | `fitter_diagnostics/atp_kriging.r` |
 | Sub-grid (0.1deg) heterogeneity uncertainty | `fitter_diagnostics/subgrid_uncertainty.r` |
 | ATP production-fit verification | `fitter_diagnostics/verify_atpk.r` |
+| PIQS-with-linear-fallback hybrid | `fitter_diagnostics/piqs_hybrid.r` |
 | Fitter cores + tests | `lib/{pchip,ppm,linmm,mss}_fit.r`, `tests/test_*_fit.r` |
 
 ---
