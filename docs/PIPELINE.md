@@ -234,9 +234,10 @@ run_year.sh
 - **`write_pchip.r`** — *Production default since 2026-05-04.* Per grid
   cell, fit GPP and rtot with PCHIP-on-cumulative (Fritsch-Carlson
   monotone-cubic Hermite, R's `splinefun(method="monoH.FC")`), save to
-  `fit.piqs.rda`. Provably non-negative everywhere by Fritsch-Carlson
-  construction. Confirmed reduction in sub-monthly sign flips:
-  GPP cell-hour mean 6.55% → 0.12%, max 14.70% → 0.94%.
+  `fit.piqs.rda`. Sign-definite at the knots by Fritsch-Carlson
+  construction (not everywhere — the derivative quadratic can dip
+  mid-segment, ≤0.94% of cell-hours). Confirmed reduction in sub-monthly
+  sign flips: GPP cell-hour mean 6.55% → 0.12%, max 14.70% → 0.94%.
   The per-cell fitter core `pchip.fit.cell` lives in `lib/pchip_fit.r`,
   unit-tested by `tests/test_pchip_fit.r`.
   See [`docs/METHODOLOGY.md`](METHODOLOGY.md) and
@@ -309,7 +310,7 @@ run_year.sh
 
 - **`build_verify_v2.py`** — Source-of-truth for the verify_v2 notebook;
   `python3 build_verify_v2.py` regenerates `verify_v2.ipynb` from this
-  file. 24 sections, 60+ checks (Section 23 confirms output provenance;
+  file. 24 sections, 60 distinct checks (Section 23 confirms output provenance;
   Section 24 reads the run manifest).
 - **`stamp_provenance.py`** — CLI to write CF/ACDD provenance global
   attributes onto a netCDF; backs `cat_monthly.sh` and, with

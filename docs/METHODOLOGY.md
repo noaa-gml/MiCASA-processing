@@ -13,7 +13,8 @@ producing the same on-disk format (`fit.piqs.rda` with three
 coefficients per piece per cell); see [`FITTER_COMPARISON.md`](FITTER_COMPARISON.md) for the full comparison:
 
 - **`write_pchip.r`** — **production default** (Fritsch-Carlson monotone cubic;
-  local + sign-definite by construction; a bounded ~1.5x within-piece bump)
+  local; sign-definite at knots — 16–57× fewer sub-monthly sign flips than PIQS,
+  not zero; a bounded ~1.5x within-piece bump)
 - **`write_ppm.r`** — selectable alternative (PPM limited parabolic; zero
   overshoot but reintroduces small month-edge discontinuities; daily fidelity
   statistically tied with PCHIP — see (17))
@@ -36,10 +37,16 @@ analytically to get the flux f = F′ as a piecewise quadratic.
 Properties:
 
 - F is monotone non-decreasing (Rh) or non-increasing (negated GPP) by
-  Fritsch-Carlson construction.
-- The flux f = F′ is therefore non-negative (or non-positive)
-  **everywhere** — knots and within pieces alike. No sign flips by
-  construction, not by clipping.
+  Fritsch-Carlson construction — at the **knots**.
+- The flux f = F′ is therefore sign-definite **at the knots** and
+  overwhelmingly so in the interiors, but **not everywhere by
+  construction**: the derivative quadratic can dip the wrong way
+  mid-segment even on strictly single-signed input (reproduced — worst
+  interior flux −0.042 on positive data; see
+  `fitter_diagnostics/pchip_sign_definiteness.r`). In practice this is a
+  **16–57× reduction** in sub-monthly sign flips vs PIQS, not an
+  elimination — the small residual (≤0.94% of GPP cell-hours) is cleared
+  by the polar-night clip / is negligible elsewhere.
 - f is a piecewise quadratic (derivative of a piecewise cubic Hermite),
   so the storage layout matches PIQS — three coefficients per piece
   per cell.

@@ -189,8 +189,8 @@ partial-polar-night latitudes; verify Check 2.2 threshold relaxed
 1% → 5% to acknowledge this.
 
 After the PCHIP switch ([#10](#10-landed-2026-05-04-pchip-on-cumulative-as-the-production-fitter))
-this clip is technically redundant (PCHIP gives 0 by construction at
-ssrd=0 cells), but kept as a defensive belt-and-suspenders.
+this clip is largely redundant (PCHIP's residual sub-monthly leak is small —
+≤0.94% of GPP cell-hours, not zero), but kept as a defensive belt-and-suspenders.
 
 ## (9) [CONSIDERED, NOT PURSUED] Linear PIQS as a sign-flip remedy
 
@@ -242,10 +242,13 @@ Python bake-off), then differentiate analytically.
 Properties:
 
 - F is monotone non-decreasing (Rh) or non-increasing (negated GPP) by
-  Fritsch-Carlson construction.
-- The flux f = F′ is therefore non-negative (or non-positive)
-  **everywhere** — knots and within pieces alike. No sign flips by
-  construction, not by clipping.
+  Fritsch-Carlson construction — at the **knots**.
+- The flux f = F′ is therefore sign-definite **at the knots** and
+  overwhelmingly so in the interiors, but **not everywhere by
+  construction**: the derivative quadratic can dip mid-segment even on
+  single-signed input (reproduced — `fitter_diagnostics/pchip_sign_definiteness.r`).
+  Net effect: a 16–57× reduction in sub-monthly sign flips vs PIQS
+  (≤0.94% of GPP cell-hours remain), not an elimination.
 - f is a piecewise quadratic (derivative of a piecewise cubic Hermite),
   so the storage layout is identical to PIQS — three coefficients per
   piece. `diurnalize-ERA5.r` needs no change.

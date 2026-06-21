@@ -148,11 +148,15 @@ is monotone (`dₖ=0` at sign changes; else `|dₖ|≤3·min(|mₖ₋₁|,|mₖ|
 ```
 f(s) = (6s−6s²)·uₖ + (3s²−4s+1)·dₖ + (3s²−2s)·dₖ₊₁
 ```
-`f` keeps one sign by construction; the slope rule is **local**. **Pro:**
-mass-conserving, sign-definite, **C⁰-continuous (zero flux jumps)**, local,
-smooth. **Con:** a bounded ≤1.5× within-piece bump (the `6u·s(1−s)` Hermite term
-peaks at `1.5u` when both knot slopes vanish — a month flanked by near-zero
-neighbours) and a small residual sign-flip rate in near-zero cells (§4).
+`f` is sign-definite **at the knots** by construction (and overwhelmingly so in
+the interiors) — a 16–57× reduction in sign flips vs PIQS, **not zero by
+construction**: the derivative quadratic can still dip mid-segment (reproduced,
+worst −0.042 on single-signed input; `fitter_diagnostics/pchip_sign_definiteness.r`).
+The slope rule is **local**. **Pro:** mass-conserving, strongly (not perfectly)
+sign-preserving, **C⁰-continuous (zero flux jumps)**, local, smooth. **Con:** a
+bounded ≤1.5× within-piece bump (the `6u·s(1−s)` Hermite term peaks at `1.5u` when
+both knot slopes vanish — a month flanked by near-zero neighbours) and a small
+residual sign-flip rate (≤0.94% GPP cell-hours) in near-zero cells (§4).
 
 ### 2.4 Integral-preserving linear (MUSCL / slope-limited)
 **van Leer (1979)**, *JCP* 32(1):101–136,
@@ -312,7 +316,8 @@ fitting (the fit is nonlinear, so they differ). Both derived from the same
 (heterogeneous sub-pixel phenology averaging the 1.5x bump down) does not
 materialise: for smooth monthly seasonal cycles the fitter is *nearly linear*,
 so fit-then-average and average-then-fit nearly commute. Fit-0.1-then-average
-does preserve sign-definiteness, but PCHIP-at-1deg already guarantees that. Not
+does preserve sign-definiteness, but PCHIP-at-1deg already achieves that to
+≤0.94% residual (§4). Not
 worth the 100x-2400x fit cost + a 0.1deg monthly cat. (Could still matter for a
 flux field that is genuinely sub-cell heterogeneous in *shape*, not just level.)
 

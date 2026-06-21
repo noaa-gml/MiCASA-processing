@@ -29,19 +29,34 @@ Every change is exactly one of:
 tree is **integral-preserving by construction**: each month's per-piece integral
 equals that month's MiCASA mean. Therefore *the monthly-and-longer carbon budget
 — annual totals, the long-term trend, interannual variability, the ENSO and
-COVID signals — is identical across any two fitters.* The fitter can only change
-the **sub-monthly shape**. This is not asserted; it is verified two ways:
-verify_v2 Check 2.1 (integral preservation to max-abs < 1e-9, max-rel < 1e-6),
-and the Section-15 climate-signal checks being **unchanged** PIQS↔PCHIP (trend
-+0.0447 PgC/yr/yr, 2015-16 El Niño +0.643, 2020 COVID −0.346; CHANGELOG
-2026-05-04). So the change Andy flagged provably does not touch the science
-signal — it only removes an unphysical sub-monthly artifact.
+COVID signals — is identical across any two fitters* **at the fit level**. Two
+scope caveats, stated up front rather than in fine print:
+- This is a property of the *fitter*. The **shipped** hourly NEE additionally
+  applies a polar-night clip (§3.2) that zeros GPP in dark hours and so opens a
+  **≤1.5% high-latitude mass gap** in the product — a property of the clip, not
+  the fitter, and identical PIQS↔PCHIP. So "mass-preserving" is exact for the
+  fit and ≤1.5%-approximate for the delivered product at high latitudes.
+- Mass-preservation is exact; **sign-preservation is not** (see §1, claim 2) —
+  the two are independent.
 
-**Standing evidence base.** Two independent harnesses back every claim below:
-- `verify_v2` — 80 production checks across 24 sections (full list in §6); last
-  full run 0 FAIL / 2 WARN (both pre-existing, non-blocking).
-- `tests/` — 153 R checks (10 files) + 4 Python suites, **all green** on Orion
-  (R 4.4.0, 2026-06-21). Per-change → guarding-test mapping in §6.
+The fitter can only change the **sub-monthly shape**. This is verified two ways:
+verify_v2 Check 2.1 (per-piece integral preservation to max-abs < 1e-9, max-rel
+< 1e-6), and the Section-15 climate-signal checks being **unchanged** PIQS↔PCHIP
+(trend +0.0447 PgC/yr/yr, 2015-16 El Niño +0.643, 2020 COVID −0.346; from the
+2026-05-04 verify_v2 run — these numbers are sourced from that dated run, not
+re-derived in this document, see §6/M-note). So the change Andy flagged does not
+move the science signal — it changes the sub-monthly shape, removing most of an
+unphysical artifact.
+
+**Standing evidence base.** Two independent harnesses back the claims below:
+- `verify_v2` — **60 distinct checks across 24 sections** (enumerated in §6); the
+  last full run reported 0 FAIL / 2 WARN (both pre-existing, non-blocking). The
+  science *numbers* it reports (sign-flip rates, trend, globals) come from that
+  run, not from this document — flagged per-item in §6.
+- `tests/` — **143 R checks run on any host (10 files) + 10 `quadprog`-gated
+  (`test_mss_fit.r`, Orion only) = 153**, plus 4 Python suites; **all green** on
+  Orion (R 4.4.0, 2026-06-21). The 143 non-gated R checks were reproduced green
+  locally (R 4.6.0) for this revision. Per-change → test map in §6.
 
 ---
 
@@ -67,24 +82,38 @@ integral, C⁰ at knots. Two disqualifying problems for an NRT product:
 cumulative integral F(t), differentiated analytically to the flux f = F′ as a
 piecewise quadratic (same `(a,b,c)` storage as PIQS).
 
-**Bulletproof claims:**
-1. **Budget-invariant** — monthly+ means identical by construction (mass
-   preserving); the climate signal is therefore fitter-invariant (master
-   invariant above; Check 2.1, Section 15). Globals unchanged: GPP ∈
-   [−126.2, −119.8], resp ∈ [117.0, 123.9] PgC/yr (Check 5; CHANGELOG 2026-05-04).
-2. **Strict sub-monthly improvement, by construction not clipping** — F monotone
-   (Fritsch-Carlson) ⇒ f = F′ is sign-definite *everywhere*, knots and interiors
-   alike. Sign-flip rates collapse: GPP **6.55% → 0.12%** mean (57×), 14.70% →
-   0.94% max (16×); Rh **0.122% → 0.0000%** mean, 0.444% → 0.002% max (222×)
-   (Check 3.1). The remaining residual is structural, not clipped — Check 18.1
-   confirms per-segment analytic sign, Check 18.2 confirms C¹ continuity
-   (|jump| ≤ 1e-12).
-3. **Guaranteed, not tuned** — sign-definiteness is the Fritsch-Carlson
-   monotonicity theorem, not a fitted parameter.
+**Claims, stated to their exact scope:**
+1. **Budget-invariant at the fit level** — monthly+ means identical by
+   construction (each piece's integral = the monthly mean; mass-preserving). The
+   climate signal is therefore fitter-invariant (master invariant above; Check
+   2.1, Section 15). Globals unchanged: GPP ∈ [−126.2, −119.8], resp ∈
+   [117.0, 123.9] PgC/yr (Check 5.1; from the 2026-05-04 verify_v2 run).
+2. **A large sub-monthly improvement — a ~16–57× reduction in sign flips, *not*
+   elimination by construction.** PCHIP fits a Fritsch-Carlson *monotone* cubic to
+   the cumulative integral, so the flux f = F′ is sign-definite **at the knots**
+   and overwhelmingly so in the interiors. It is **not** sign-definite *everywhere*
+   by construction: Fritsch-Carlson constrains the cubic's *knot* slopes, and the
+   derivative quadratic can still dip mid-segment even on strictly single-signed
+   input. We reproduced this — worst interior flux **−0.042 on strictly positive
+   monthly means** (≈2% of the median), see
+   [`fitter_diagnostics/pchip_sign_definiteness.r`](../fitter_diagnostics/pchip_sign_definiteness.r).
+   What PCHIP buys is a 1–2 order-of-magnitude *reduction* vs PIQS, leaving a small
+   bounded residual: GPP **6.55% → 0.12%** mean (57×), 14.70% → **0.94%** max
+   (16×); Rh 0.122% → 0.0000% mean, 0.444% → 0.002% max (Check 3.1, from the dated
+   run). Check 18.2 confirms C¹ continuity (|jump| ≤ 1e-12); Check 18.1 is
+   **INFO-only** (it tolerates a <5% interior-dip rate precisely because
+   mixed-sign cells exist), so it is corroboration, not a guarantee.
+3. **Reduction is rule-based, not tuned** — the knot-level sign-definiteness and
+   the interior reduction come from the Fritsch-Carlson monotonicity rule, not a
+   fitted parameter; the small residual interior dips (and any dark-hour GPP) are
+   then removed by the polar-night clip (§3.2). PIQS's overshoot, by contrast, was
+   an order of magnitude larger and *not* removable without a clip that would
+   distort the bulk flux.
 4. **NRT-local** — Fritsch-Carlson slopes use only neighbouring monthly means, so
-   a revision's footprint is ~1 month, vs PIQS rewriting the whole record. This
-   is a correctness requirement for a published NRT product, independent of the
-   physics.
+   a revision's footprint is ~1 month, vs PIQS rewriting the whole record. This is
+   a correctness requirement for a published NRT product, independent of the
+   physics. (Locality follows from the slope formula; it is argued, not separately
+   diff-tested.)
 
 **Verification:** Checks 2.1, 3.1, 6.1, 18.1, 18.2; `tests/test_pchip_fit.r`
 (12 checks, green); `bakeoff_pchip.py` (6 biome cells, 0% flips vs PIQS up to
@@ -106,8 +135,11 @@ change to the default diurnal cycle**, so nothing here needs defending against V
 The soil-temperature driver and Lloyd-Taylor response documented in
 [DIURNALIZATION_ALTERNATIVES.md](DIURNALIZATION_ALTERNATIVES.md) are **default-off,
 opt-in** (`MICASA_RESP_DRIVER`, `MICASA_RESP_TEMPFUN`) and **byte-identical to
-legacy when off** — verified by `ncdiff` (max |Δ| = 0 for GPP/resp/NEE, July
-2020), not argued from source. They are evidence-backed *candidates*, not shipped
+the canonical product when off** — verified by a committed `ncdiff` run
+([`fitter_diagnostics/bytecheck_resp_driver_default.txt`](../fitter_diagnostics/bytecheck_resp_driver_default.txt):
+max |Δ| = 0 for GPP/resp/NEE, new default-path code vs the canonical
+`ERA5_2020_pchip/fluxes_202007.nc`), run-and-diffed, not argued from source. They
+are evidence-backed *candidates*, not shipped
 changes; defaults will not move until validated against eddy-covariance diurnal
 amplitudes. So they impose zero risk on the current product while making the next
 step defensible. (Measured effect when enabled: soil-temp NEE diurnal amplitude
@@ -135,9 +167,11 @@ Physical: no incoming shortwave ⇒ no photosynthesis. The clip zeros GPP wherev
 `ssrd == 0`, removing the small residual the sub-monthly quadratic otherwise
 leaks into dark hours (~2.6% of cells in `fluxes_202512.nc`, max |GPP| =
 9.4e-9 mol m⁻² s⁻¹). Cost: a ~1.5% mass-conservation gap at partial-polar-night
-latitudes (Check 2.2 threshold relaxed 1% → 5% to acknowledge it). Under PCHIP
-this clip is now **redundant** (sign-definite fit leaks nothing) but kept as
-defense-in-depth. **Verification:** Checks 12.2, 17.1.
+latitudes (Check 2.2 threshold relaxed 1% → 5% to acknowledge it) — this gap is
+the reason the shipped product is not exactly mass-preserving (§0). Under PCHIP
+this clip is now **largely redundant** — the fit's residual interior dips are
+small (≤0.94% of GPP cell-hours, §1), so the clip's remaining effect is minor —
+but kept as defense-in-depth. **Verification:** Checks 12.2, 17.1.
 
 ### 3.3 ERA5 dual-tree FastTrack fallback
 Only affects NRT trailing months the primary ERA5 tree has not yet populated;
@@ -171,7 +205,7 @@ Each item below changes *no flux value*; the proof is in the right column.
 | `compute_clim` PyFerret → xarray | Algorithm exact to 1e-12 vs hand-computed mean; `tests/test_compute_clim.py` |
 | `check_bounds` NCO `ncwa` → xarray | Pure `flux_to_tgc_per_year`; `tests/test_check_bounds.py` (7). NCO version never actually ran (guarded by `|| true`). |
 | Ingest skip-existing + read-only-needed | `ncdiff` 4 days × 4 tracers max \|Δ\| = 0; `lib/test_ingest_bitident.r`; 610→504→4 s |
-| Compression deflate 9 → 4 | Lossless codec ⇒ data bit-identical; only size +0.3% / time −39% (`lib/bench_compression_diurnal.r`) |
+| Compression deflate 9 → 4 (**diurnalize output only**; ingest stays at 9, `lib/ingest_common.r:149`) | Lossless codec ⇒ data bit-identical; only size +0.3% / time −39% (`lib/bench_compression_diurnal.r`). Codec argument, not ncdiff-run. |
 | Provenance CF/ACDD attributes | Additive global attributes only; `tests/test_provenance.{r,py}` (26 ea); Checks 23.1–23.3 |
 | Per-step run manifest | Additive `jobs/run_manifest.tsv`; never aborts caller; `tests/test_manifest.r` (15); Checks 22.1, 24.1–24.2 |
 | Sub-monthly sign-flip logging | Log lines only; drives Check 3.1; no flux touched |
@@ -188,12 +222,16 @@ these refactors cannot silently regress.
 
 ## 5. Considered and rejected (diligence, not changes)
 
-Documenting what was *not* changed, and why, is part of being bulletproof:
+Documenting what was *not* changed, and why, is part of the justification:
 
 - **ATMC budget closure** — tried 2026-04-29, reverted same day. Subtracting the
   LoFI ATMC sink double-dips: it is tuned to the atmospheric CO₂ growth rate, the
   very signal the downstream inversion assimilates (METHODOLOGY.md; PROPOSALS #7).
-  Trend impact had it stayed: +0.0413 → −0.0067 PgC/yr/yr.
+  Trend impact had it stayed: +0.0413 → −0.0067 PgC/yr/yr. (Note: this **+0.0413**
+  is the *PIQS-era* CASA-only trend from the 2026-04-29 ATMC-comparison table; the
+  **+0.0447** quoted in §0/§1 is the later *PCHIP* Section-15 value from the
+  2026-05-04 run, and **+0.04** in §7/METHODOLOGY is the same figure rounded. They
+  are consistent — different runs of the same ~+0.04 PgC/yr/yr CASA-only trend.)
 - **PPM as default** — briefly defaulted 2026-06-18, reverted: daily fidelity is a
   statistical tie with PCHIP (PPM better in 54% of cell-months) but PPM
   reintroduces month-edge discontinuities at ~70% of edges (CHANGELOG 2026-06-18).
@@ -206,7 +244,7 @@ Documenting what was *not* changed, and why, is part of being bulletproof:
 
 ## 6. Evidence matrix
 
-**Validation harness — `verify_v2` (80 checks / 24 sections).** Phase 1
+**Validation harness — `verify_v2` (60 distinct checks / 24 sections).** Phase 1
 structural (1.1–1.4); Phase 2 transformation + sanity (2.1–2.4 mass/integral,
 5.1–5.3 global/YoY/seasonal); Phase 3 cross-boundary + spatial-vs-v1 + provenance
 (4.1, 6.1–6.2, 7.1–7.4, 8.1–8.3, 9.1–9.2, 10.1, 11.1–11.2); Phase 4 edge cases +
@@ -215,20 +253,23 @@ biome cells + trends (12.1–12.2, 13.1–13.2, 14.1–14.3, 15.1–15.3 trend/E
 additional biomes, 20 cross-product, 21 robustness, 22 performance, 23 provenance,
 24 manifest.
 
-**Unit tests — all green (Orion R 4.4.0 / Python, 2026-06-21):**
+**Unit tests — all green on Orion (R 4.4.0 / Python, 2026-06-21); the 143
+non-`quadprog` R checks reproduced green locally (R 4.6.0) for this revision:**
 
 | Suite | Checks | Guards |
 |---|---|---|
-| test_pchip_fit.r | 12 | PCHIP mass/C¹/sign-definiteness |
+| test_pchip_fit.r | 12 | PCHIP mass / C¹ / sign-flip-rate (not sign-definiteness — see §1) |
 | test_diurnal.r | 21 | diurnalize transform + q10/lt factors |
 | test_atpk_fit.r | 14 | ATP coherence/variance/sign |
 | test_ppm_fit.r / test_linmm_fit.r | 13 / 11 | PPM & minmod mass/limiter |
-| test_mss_fit.r | 10 | MSS QP fit |
+| test_mss_fit.r | 10 | MSS QP fit — **requires `quadprog`; runs on Orion, SKIPs without it** |
 | test_ingest_geometry.r | 20 | spherical area weights |
 | test_era5_meteo.r | 11 | FastTrack resolver |
 | test_manifest.r | 15 | manifest format / no-abort |
 | test_provenance.r / .py | 26 / 26 | CF/ACDD attributes |
-| test_check_hashes.py / test_check_bounds.py / test_compute_clim.py | 12 / 7 / — | hashing / unit conv / clim mean |
+| test_check_hashes.py / test_check_bounds.py / test_compute_clim.py | 12 / 7 / 10 | hashing / unit conv / clim mean |
+
+R total: 143 host-portable + 10 `quadprog`-gated (MSS) = 153.
 
 **Per-change → guard map** (numbers-changing items): fitter → 2.1, 3.1, 18.1,
 18.2 + test_pchip_fit; polar-night → 12.2, 17.1; aggregation fix → test_aggregate
@@ -243,7 +284,12 @@ behavior-preserving item maps to a proof in the §4 table.
   feature of the prior — by design the inversion corrects it (we do *not*
   pre-close it with ATMC; §5, METHODOLOGY.md).
 - **Polar-night clip** leaves a ~1.5% mass gap at partial-polar-night latitudes
-  (Check 2.2 at 5%). Redundant under PCHIP; kept defensively.
+  (Check 2.2 at 5%) — so the *shipped* product is not exactly mass-preserving
+  there (§0/§3.2). Largely (not fully) redundant under PCHIP; kept defensively.
+- **PCHIP is not sign-definite everywhere** — it cuts sub-monthly sign flips
+  16–57× vs PIQS but leaves a small bounded residual (≤0.94% of GPP cell-hours;
+  reproduced in `fitter_diagnostics/pchip_sign_definiteness.r`), mopped up by the
+  clip. "Eliminated by construction" would be an overstatement (§1).
 - **Diurnal respiration refinements** (soil-temp, Lloyd-Taylor) are implemented
   and opt-in but **not yet validated against eddy-covariance** diurnal amplitudes
   — the gate before any default flip (DIURNALIZATION_ALTERNATIVES.md §5.3).
