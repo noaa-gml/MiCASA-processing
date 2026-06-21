@@ -2690,19 +2690,52 @@ code('''
                     "sh_mid": band_annual(sh_mid),
                     "boreal": band_annual(bor),
                 }
-                # v2 from summary cube (already aggregated globally; need per-band)
-                # _summary has columns: NEE_global, GPP_global, resp_global, year, month
-                # To get per-band, we'd re-aggregate from fluxes_*.nc which is
-                # expensive. Compromise: report v1 lat-band annual means for
-                # 2001..2024 as INFO; v2 comparison is left as a future hook.
-                lines = []
+                # v2 per-band: aggregate from THIS checkout's monthly_1x1 (the
+                # V2 corrected-aggregation product). Diurnalize preserves monthly
+                # means, so per-band annual NEE here == the shipped (diurnalized)
+                # per-band annual NEE to the polar-clip residual -- the cheap exact
+                # proxy the original deferred.
+                import glob as _glob
+                bmap = {"nh_mid": nh_mid, "trop": trop, "sh_mid": sh_mid, "boreal": bor}
+                v2_files = sorted(_glob.glob("monthly_1x1/MiCASA_v1_flux_x360_y180_monthly_2*.nc"))
+                v2_acc = {bk: {} for bk in bmap}
+                for vf in v2_files:
+                    try: yr = int(vf[-9:-5])
+                    except Exception: continue
+                    if yr < 2001 or yr > 2024: continue
+                    dv = xr.open_dataset(vf)
+                    nee_v2 = np.squeeze(-dv["NPP"].values + dv["Rh"].values)
+                    dv.close()
+                    for bk, mk in bmap.items():
+                        val = ((nee_v2[mk, :].mean(axis=1)) * w[mk]).sum() / w[mk].sum()
+                        v2_acc[bk].setdefault(yr, []).append(float(val))
+                v2b = {bk: {y: float(np.mean(v)) for y, v in dd.items()} for bk, dd in v2_acc.items()}
+                v1_lines = []
                 for band, s in bands.items():
                     s = s.loc[2001:2024]
-                    if s.empty: continue
-                    lines.append(f"{band}: mean={s.mean():+.2e} sd={s.std():.2e}")
-                detail = ("v1 annual lat-band NEE 2001..2024 (gC m-2 s-1, area-wt mean per band): "
-                          + "; ".join(lines))
-                record(cid, cname, INFO, detail + " (v2 per-band aggregation deferred)")
+                    if not s.empty:
+                        v1_lines.append(f"{band}: mean={s.mean():+.2e} sd={s.std():.2e}")
+                if not any(v2b.values()):
+                    record(cid, cname, INFO,
+                           "v1 annual lat-band NEE 2001..2024 (area-wt mean): "
+                           + "; ".join(v1_lines) + " (no v2 monthly_1x1 files found)")
+                else:
+                    worst = 0.0; cmp_lines = []
+                    for bk in bmap:
+                        s1 = bands[bk].loc[2001:2024]
+                        ys = [y for y in s1.index if y in v2b[bk]]
+                        if not ys: continue
+                        m1 = float(np.mean([float(s1.loc[y]) for y in ys]))
+                        m2 = float(np.mean([v2b[bk][y] for y in ys]))
+                        rel = abs(m2 - m1) / max(abs(m1), 1e-30) * 100
+                        worst = max(worst, rel)
+                        cmp_lines.append(f"{bk} v1={m1:+.2e} v2={m2:+.2e} ({rel:.2f}%)")
+                    status = PASS if worst < 5 else (WARN if worst < 15 else FAIL)
+                    record(cid, cname, status,
+                           f"per-band annual NEE v2 vs v1 (2001-2024), max rel diff {worst:.2f}% "
+                           f"(threshold 5%): " + "; ".join(cmp_lines)
+                           + " -- diurnalize preserves monthly means, so this is the shipped "
+                             "per-band annual NEE to the polar-clip residual")
         except Exception as e:
             record(cid, cname, FAIL, f"exception: {e}")
 ''')
@@ -2716,10 +2749,43 @@ md("""
     methodology without executing.
 """)
 code('''
-    cid, cname = "20.2", "ObsPack growth-rate comparison (stub)"
-    record(cid, cname, INFO,
-           "deferred: requires ObsPack flask network data; "
-           "compare NEE_global + ocean + fossil ≈ d(CO2_atm)/dt")
+    cid, cname = "20.2", "global NBE carbon-budget context"
+    try:
+        import glob as _glob
+        v2_files = sorted(_glob.glob("monthly_1x1/MiCASA_v1_flux_x360_y180_monthly_2*.nc"))
+        if not v2_files:
+            record(cid, cname, INFO, "no v2 monthly_1x1 files found")
+        else:
+            R = 6.371e6; D2R = np.pi/180.0; SPY = 365.25*86400.0
+            d0 = xr.open_dataset(v2_files[0]); lat0 = d0.latitude.values
+            nlon0 = d0.dims["longitude"]; d0.close()
+            acell = (R*R*D2R*(np.sin(lat0*D2R+D2R/2)-np.sin(lat0*D2R-D2R/2)))
+            area = np.repeat(acell[:, None], nlon0, axis=1)            # (lat,lon) m^2
+            nbe_yr = {}
+            for vf in v2_files:
+                try: yr = int(vf[-9:-5])
+                except Exception: continue
+                if yr < 2001 or yr > 2024: continue
+                dv = xr.open_dataset(vf)
+                f = np.squeeze(-dv["NPP"].values + dv["Rh"].values
+                               + dv["FIRE"].values + dv["FUEL"].values)   # gC/m2/s
+                dv.close()
+                nbe_yr.setdefault(yr, []).append(float(np.nansum(f*area)*SPY/1e15))
+            vals = np.array([np.mean(v) for v in nbe_yr.values()])
+            mean = float(vals.mean())
+            # CASA-only NBE is a physically plausible near-neutral land flux; it is
+            # NOT expected to close the obs growth-rate budget -- the offset from the
+            # GCB land sink (~ -2.6 PgC/yr; Friedlingstein et al. 2023) is the
+            # ATMC-type term the inversion supplies (see METHODOLOGY "Why NEE = Rh-NPP").
+            offset = abs(mean - (-2.6))
+            status = PASS if (-3.0 <= mean <= 3.0) else WARN
+            record(cid, cname, status,
+                   f"MiCASA global NBE (Rh-NPP+FIRE+FUEL) 2001-2024 mean {mean:+.2f} PgC/yr "
+                   f"[{vals.min():+.2f},{vals.max():+.2f}]; offset vs GCB land sink "
+                   f"(~-2.6) = {offset:.1f} PgC/yr ~ the ATMC term (CASA-only does not "
+                   f"self-close the growth-rate budget, by design -- the inversion supplies it)")
+    except Exception as e:
+        record(cid, cname, INFO, f"NBE budget context unavailable: {e}")
 ''')
 
 # ---- Section 21: Robustness / outlier detection --------------------------

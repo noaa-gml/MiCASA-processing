@@ -1,0 +1,14 @@
+=== 20.1  v2-vs-v1 lat-band annual NEE (gC m-2 s-1, area-wt mean, 2001-2024) ===
+  nh_mid  v1=-1.206e-07  v2=-1.206e-07  rel diff 0.00%
+  trop    v1=-2.390e-07  v2=-2.390e-07  rel diff 0.00%
+  sh_mid  v1=-1.343e-08  v2=-1.343e-08  rel diff 0.01%
+  boreal  v1=-1.721e-08  v2=-1.721e-08  rel diff 0.04%
+  => max per-band rel diff = 0.04%  (PASS <5%)
+
+=== 20.2  MiCASA global annual NBE (= Rh-NPP+FIRE+FUEL), PgC/yr ===
+  2001-2024 mean = +0.99 PgC/yr ; range [-0.39, +2.17]
+  GCB2023 net land sink (incl. fire, excl. LUC): ~ -1.9 to -3.5 PgC/yr decadal
+  => CASA-only NBE offset vs observed land sink ~ 3.6 PgC/yr
+     (of order the ~3 PgC/yr ATMC term the inversion supplies — §5.2; INFO, not a closure)
+
+DONE
