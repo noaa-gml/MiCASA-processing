@@ -69,3 +69,24 @@ polar.night.clip <- function(gpp, driver) {
   gpp[driver == 0] <- 0
   gpp
 }
+
+## Mass-conserving alternative to the plain polar-night clip. After dark-hour GPP
+## has been zeroed (per-slot, above), redistribute the clipped uptake onto each
+## cell's remaining LIT hours so the monthly mean is restored to gpp.mn -- a uniform
+## per-cell rescale, which preserves the ssrd-proportional diurnal shape. Cells with
+## no lit hours all month (full polar night) have nothing to redistribute onto and
+## stay zeroed; their monthly-mean GPP should be ~0 there anyway, so the residual
+## removed is the fit's spurious dark-hour leak. Opt-in via MICASA_POLAR_CLIP=conserve;
+## the default zero-clip (polar.night.clip) is byte-identical.
+##   gpp    [lat, lon, nslot] hourly GPP, already dark-clipped
+##   gpp.mn [lat, lon]        target monthly-mean GPP
+polar.night.renorm <- function(gpp, gpp.mn) {
+  nslot         <- dim(gpp)[3]
+  clipped.total <- rowSums(gpp, dims = 2)        # per-cell sum over slots (lit only)
+  target.total  <- gpp.mn * nslot                # intended per-cell total
+  scale         <- target.total / clipped.total
+  ## rescale only where there is lit-hour mass of the matching sign; else no-op
+  scale[!is.finite(scale) | clipped.total == 0 |
+        sign(clipped.total) != sign(target.total)] <- 1
+  sweep(gpp, c(1, 2), scale, "*")
+}
