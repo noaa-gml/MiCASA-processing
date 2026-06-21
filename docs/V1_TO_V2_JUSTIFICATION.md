@@ -45,9 +45,10 @@ dated logs but are not needed to follow the argument below.
   is already loaded). The one outstanding gate is eddy-covariance amplitude
   validation. Lloyd-Taylor stays opt-in. **Awaiting your sign-off** (§2).
 - **Standing verification base:** `verify_v2` (60 checks, 2026-06-21: §§1–23 all
-  **PASS or INFO**; the one WARN (11.1) is unrelated atpk-experiment logs, the §24
-  FAIL is a manifest logging artifact, and the §20 cross-product checks are
-  **deferred/not-yet-run** — §6) + `tests/` (153 on Orion; 143 reproduced green
+  **PASS or INFO**; the one WARN (11.1) was stale diagnostic crash-logs, since
+  **root-fixed + archived** (§6); the §24 FAIL is a manifest logging artifact; and
+  the §20 cross-product checks are **deferred/not-yet-run** — §6) + `tests/` (153 on
+  Orion; 143 reproduced green
   locally, 10 `quadprog`-gated) + committed diagnostic scripts and figures (§6).
 
 ## 0. How to read this — two categories and one invariant
@@ -614,6 +615,20 @@ same run). The log was then **losslessly recovered** (0 malformed rows remain �
 Check 24.1's exact criterion). All §§1–23 product / science / provenance checks
 pass. (We don't post a fresh re-run: this session's separate isolated PIQS-release
 builds have since written to the shared `jobs/` logs §3.1/§24 read — see §0.)
+
+The run's single **WARN (Check 11.1, job-log error scan)** was likewise a
+logging-hygiene item, now resolved. It flagged 10 recent `jobs/*.o*` logs containing
+"Execution halted": superseded one-off **diagnostic** crashes — the ATP-kriging
+fitter (`write_atpk.r`, a *non-default selectable* option) hitting a singular
+kriging system on dormant / near-zero-variance cells (e.g. boreal +71.5). **The
+production fitter already guards this** — `lib/atpk_fit.r` does `solve` → ridge-
+regularized `solve` → a flat **dormant** fallback, never halting — and that path is
+unit-tested (`tests/test_atpk_fit.r` dormant-cell checks) and live-verified (a
+singular-inducing cell returns `dormant=TRUE`, no error). Those stale crash logs
+plus a few self-referential verify-run logs (whose names slipped past the scan's
+`verify*` self-exclusion) were archived to `jobs/archive/`, and the exclusion was
+widened to match "verify" anywhere in the log name (commit `f6439ba`); the scan now
+reads **0 flagged** (Check 11.1 → PASS).
 
 **Unit tests — all green on Orion (R 4.4.0 / Python, 2026-06-21); the 143
 non-`quadprog` R checks reproduced green locally (R 4.6.0) for this revision:**
