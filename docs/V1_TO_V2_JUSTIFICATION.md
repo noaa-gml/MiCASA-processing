@@ -42,17 +42,20 @@ scope caveats, stated up front rather than in fine print:
 The fitter can only change the **sub-monthly shape**. This is verified two ways:
 verify_v2 Check 2.1 (per-piece integral preservation to max-abs < 1e-9, max-rel
 < 1e-6), and the Section-15 climate-signal checks being **unchanged** PIQS↔PCHIP
-(trend +0.0447 PgC/yr/yr, 2015-16 El Niño +0.643, 2020 COVID −0.346; from the
-2026-05-04 verify_v2 run — these numbers are sourced from that dated run, not
-re-derived in this document, see §6/M-note). So the change Andy flagged does not
+(trend +0.0447 PgC/yr/yr, 2015-16 El Niño +0.643, 2020 COVID −0.346; **reproduced** by the
+2026-06-21 verify_v2 re-run, identical to the original 2026-05-04 values, see §6). So the change Andy flagged does not
 move the science signal — it changes the sub-monthly shape, removing most of an
 unphysical artifact.
 
 **Standing evidence base.** Two independent harnesses back the claims below:
 - `verify_v2` — **60 distinct checks across 24 sections** (enumerated in §6); the
-  last full run reported 0 FAIL / 2 WARN (both pre-existing, non-blocking). The
-  science *numbers* it reports (sign-flip rates, trend, globals) come from that
-  run, not from this document — flagged per-item in §6.
+  harness was **re-run for this revision on 2026-06-21** (job 23239358;
+  `fitter_diagnostics/verify_v2_summary_20260621.txt`): 51 PASS / 1 WARN / 9 INFO,
+  plus one FAIL on Check 24.1 (run-manifest integrity) caused by concurrent-append
+  corruption of the shared TSV log by *this session's* parallel diagnostic jobs (a
+  logging artifact — Check 24.2 "no failed steps" passed; the malformed rows were
+  cleaned). Every science/product check passes and **reproduces** the numbers used
+  below.
 - `tests/` — **143 R checks run on any host (10 files) + 10 `quadprog`-gated
   (`test_mss_fit.r`, Orion only) = 153**, plus 4 Python suites; **all green** on
   Orion (R 4.4.0, 2026-06-21). The 143 non-gated R checks were reproduced green
@@ -87,7 +90,7 @@ piecewise quadratic (same `(a,b,c)` storage as PIQS).
    construction (each piece's integral = the monthly mean; mass-preserving). The
    climate signal is therefore fitter-invariant (master invariant above; Check
    2.1, Section 15). Globals unchanged: GPP ∈ [−126.2, −119.8], resp ∈
-   [117.0, 123.9] PgC/yr (Check 5.1; from the 2026-05-04 verify_v2 run).
+   [117.0, 123.9] PgC/yr (Check 5.1; reproduced 2026-06-21).
 2. **A large sub-monthly improvement — a ~16–57× reduction in sign flips, *not*
    elimination by construction.** PCHIP fits a Fritsch-Carlson *monotone* cubic to
    the cumulative integral, so the flux f = F′ is sign-definite **at the knots**
@@ -98,11 +101,12 @@ piecewise quadratic (same `(a,b,c)` storage as PIQS).
    monthly means** (≈2% of the median), see
    [`fitter_diagnostics/pchip_sign_definiteness.r`](../fitter_diagnostics/pchip_sign_definiteness.r).
    What PCHIP buys is a 1–2 order-of-magnitude *reduction* vs PIQS, leaving a small
-   bounded residual: GPP **6.55% → 0.12%** mean (57×), 14.70% → **0.94%** max
-   (16×); Rh 0.122% → 0.0000% mean, 0.444% → 0.002% max (Check 3.1, from the dated
-   run). Check 18.2 confirms C¹ continuity (|jump| ≤ 1e-12); Check 18.1 is
-   **INFO-only** (it tolerates a <5% interior-dip rate precisely because
-   mixed-sign cells exist), so it is corroboration, not a guarantee.
+   bounded residual: GPP **6.55% → 0.11%** mean (~60×), 14.70% → **0.94%** max
+   (16×); Rh 0.122% → 0.0000% mean, 0.444% → 0.002% max (Check 3.1, 2026-06-21
+   re-run). Check 18.2 confirms C¹ continuity (|jump| ≤ 1e-12). Check 18.1 (INFO)
+   independently finds **0.646% of GPP *segments*** carry a wrong-sign interior
+   point (max 1.24e-6) — fresh confirmation the residual is real and that
+   "sign-definite everywhere" would be false.
 3. **Reduction is rule-based, not tuned** — the knot-level sign-definiteness and
    the interior reduction come from the Fritsch-Carlson monotonicity rule, not a
    fitted parameter; the small residual interior dips (and any dark-hour GPP) are
@@ -251,7 +255,9 @@ structural (1.1–1.4); Phase 2 transformation + sanity (2.1–2.4 mass/integral
 biome cells + trends (12.1–12.2, 13.1–13.2, 14.1–14.3, 15.1–15.3 trend/ENSO/COVID,
 16.x diagnostics); Sections 17 diurnal integrity, 18 PCHIP invariants, 19
 additional biomes, 20 cross-product, 21 robustness, 22 performance, 23 provenance,
-24 manifest.
+24 manifest. The **2026-06-21 re-run** summary is committed at
+`fitter_diagnostics/verify_v2_summary_20260621.txt` (51 PASS / 1 WARN / 9 INFO;
+the lone 24.1 manifest FAIL was a concurrent-append log artifact, since cleaned).
 
 **Unit tests — all green on Orion (R 4.4.0 / Python, 2026-06-21); the 143
 non-`quadprog` R checks reproduced green locally (R 4.6.0) for this revision:**
