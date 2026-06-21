@@ -71,7 +71,9 @@ The `verify_v2.ipynb` notebook runs 60 checks across the pipeline output:
 schema, mass conservation across re-aggregation, sign-flip rates,
 polar-night clipping, biome-cell sanity, climate-signal consistency
 (NEE trend, El Niño anomaly, COVID impact), PCHIP fit invariants,
-diurnalize timing, and output-provenance attributes.
+diurnalize timing, v2-vs-v1 cross-product comparison (per-band annual NEE +
+global NBE carbon-budget context), output-provenance attributes, and a
+run-manifest / job-log audit.
 
 ```sh
 # Build the notebook from source-of-truth

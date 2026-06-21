@@ -4,6 +4,41 @@ Dated engineering entries for the active (`main`) branch. Conceptual /
 methodological reasoning lives in [`docs/PROPOSALS.md`](docs/PROPOSALS.md);
 this file is for "what landed when, and what numbers it moved."
 
+## 2026-06-21 — V1→V2 justification hardening; verify_v2 §20 + 11.1; block-bootstrap CIs
+
+- **Spatial block-bootstrap diurnalization CIs** (`fitter_diagnostics/resp_driver_blockboot.py`
+  + committed `resp_driver_blockboot_2019.txt`). Replaced the i.i.d.-cell resample
+  (mislabeled "block bootstrap", ~16× too tight given lag-1 spatial autocorrelation
+  r≈0.92, verify_v2 Check 13.2) with a genuine 5/10/20° spatial block bootstrap over
+  the full-year-2019 matched PCHIP air-vs-soil pair. Soil-temp NEE diurnal-amplitude
+  ratio **1.023, 95% CI [1.021, 1.024]** (block-10°); survives block-20° [1.020,1.025];
+  all 12 months exclude 1. Resp amplitude ratio 0.80 [0.78,0.83] (boreal 0.61). The 3
+  resp-driver figures regenerated on full-year 2019.
+- **verify_v2 §20 cross-product checks implemented** (were INFO/deferred stubs;
+  `fitter_diagnostics/check_20_crossproduct.py`). **20.1** v2-vs-v1 lat-band annual NEE:
+  max per-band rel diff **0.04%** → PASS (the §3.1 aggregation fix shifts no band-level
+  mass; boreal 0.04%, the largest, matches its poleward-growing prediction). **20.2**
+  global NBE budget context: MiCASA NBE (Rh−NPP+FIRE+FUEL) = **+0.99 PgC/yr** (2001–2024),
+  **~3.6 PgC/yr** offset from the GCB land sink ≈ the ATMC term — confirms CASA-only does
+  not self-close the growth-rate budget (by design).
+- **verify_v2 Check 11.1 fix**: widened the self-referential verify-log exclusion from a
+  `verify`-prefix test to a substring match (runs named e.g. `v2-reverify` were flagging
+  themselves). Archived superseded one-off diagnostic crash logs (atpk singular-matrix on
+  dormant cells — the production `lib/atpk_fit.r` already guards this via solve→ridge→
+  dormant fallback, unit-tested in `tests/test_atpk_fit.r`). Check 11.1 → PASS.
+- **Committed diagnostic outputs** backing the justification numbers:
+  `resp_driver_blockboot_2019.txt`, `linear_fallback_quantify_20260621.txt`,
+  `pchip_sign_definiteness_20260621.txt`, `uncertainty_fidelity_20260621.txt`,
+  `check_20_crossproduct_20260621.txt`.
+- **`docs/V1_TO_V2_JUSTIFICATION.md` hardened** through two adversarial reviews + a clarity
+  pass: scorecard daily-fidelity reported as the robust **median** (PCHIP 0.081; means
+  0.151/0.149/0.159 are tail-sensitive); ATMC stakes state both the **mean** (−2.45→−5.99
+  PgC/yr) and trend (+0.0413→−0.0067); Check 18.2 relabeled **C⁰ flux continuity** (= C¹
+  of the cumulative; PCHIP is not C¹ in the flux); 302→303 months; trilemma demoted to an
+  empirical tendency + Rymes–Myers row; uncertainty bound scoped (1–10% sub-grid + ~3%
+  structural, not summed); "Decision requested" surfaced at the top. METHODOLOGY /
+  FITTER_COMPARISON / PROPOSALS reconciled to match.
+
 ## 2026-06-18 — area-to-point kriging fitter with prior-uncertainty (`write_atpk.r`)
 
 - **New selectable fitter `write_atpk.r` + `lib/atpk_fit.r`**: 1-D temporal
