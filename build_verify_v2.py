@@ -1492,9 +1492,10 @@ code('''
         cutoff = time.time() - max_age_days * 86400.0
         # Exclude verify_v2's own logs: a verify log quotes "Execution
         # halted" / "[FAIL]" strings from the logs IT scanned, so
-        # scanning verify logs is self-referential and always flags.
+        # scanning verify logs is self-referential. Match "verify" ANYWHERE in
+        # the name (e.g. v2-reverify, verify-v2-prod), not just as a prefix.
         all_logs = [L for L in sorted(JOBS_DIR.glob("*.o*"))
-                    if not L.name.startswith("verify")]
+                    if "verify" not in L.name.lower()]
         logs = [L for L in all_logs if L.stat().st_mtime >= cutoff]
         n_skipped_old = len(all_logs) - len(logs)
         # Patterns to flag, and known-OK lines to skip
