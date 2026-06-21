@@ -4,7 +4,7 @@
 ## real sub-monthly structure (daily exceeds the monthly-mean envelope) or an
 ## artifact (daily stays bounded -> PPM/linear faithful).
 suppressWarnings(suppressMessages(library(ncdf4)))
-P<-new.env(); load("fit.piqs.rda",envir=P)
+P<-new.env(); load("fit.pchip.rda",envir=P)
 M<-new.env(); load("fit.ppm.rda",envir=M)
 L<-new.env(); load("fit.linmm.rda",envir=L)
 t0<-as.POSIXct("2001-01-01",tz="UTC")

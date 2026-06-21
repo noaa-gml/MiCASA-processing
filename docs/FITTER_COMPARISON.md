@@ -10,7 +10,7 @@ and cons, and the empirical scorecard measured on the real 2001–2026 record an
 a full-year 2020 diurnalize. **Headline:** the consequential decision was moving
 off PIQS to a *local, sign-definite* fitter — which already happened at V2
 (PCHIP). Among the local methods the differences are second-order; PCHIP and PPM
-are a **statistical tie** on fidelity, and PCHIP wins on continuity.
+are near-identical on fidelity (PCHIP significantly but **negligibly** better — see §4.6); the decision rests on PCHIP being local, sign-definite, and closed-form.
 
 ## Executive summary
 
@@ -27,10 +27,12 @@ added. The findings:
    GPP cell-hours wrong-sign (2020), and its **global solve rewrites all 302
    historical months** on any revision (§5).
 2. **Among local methods the differences are second-order.** PCHIP vs PPM is a
-   **statistical tie** on daily fidelity (paired, same-cell; §4); PCHIP is kept
-   as default because it is the only method with **zero flux jumps** (continuity
-   is the smoother's purpose). PPM and minmod are selectable, not improvements.
-   Steffen ≡ PCHIP (same 1.5× cap); MSS overshoots (24% wrong-sign) + ~300×
+   near-identical on product fidelity — a by-cell bootstrap finds PCHIP
+   significantly but **negligibly** better (Δ≈0.3%, 95% CI excludes 0; §4.6).
+   PCHIP is kept as default for the *sound* reasons (local, sign-definite,
+   closed-form, native `(a,b,c)`), not the fidelity margin. PPM and minmod are
+   selectable, not improvements.
+   Steffen matches PCHIP on max overshoot (1.5×); MSS overshoots (24% wrong-sign) + ~300×
    slower; the bare/continuous integral-preserving *linear* either explodes
    (continuous, §2.4a) or is dominated by PPM (minmod).
 3. **"PIQS + positivity" is exactly MSS** and is over-constrained by a
@@ -44,10 +46,11 @@ added. The findings:
    constraints, penalized composite link, SCOP-splines) found the principled-
    variance methods are all *global*; **area-to-point kriging** is the standout
    (exact mass + QP positivity + native variance) and is now **implemented and
-   verified** (§4.4, PROPOSALS #18). The prior-uncertainty hierarchy: ATP
-   *temporal* sub-monthly indeterminacy (~9–52%, **dominant**) ≫ 0.1° sub-grid
-   *spatial* heterogeneity (~3.5%, model-free) ≈ across-fitter structural (~3%)
-   ≈ monthly-mean bootstrap (~1–6%); roughly independent.
+   verified** (§4.4, PROPOSALS #18). The defensible *model-free* uncertainties
+   are 0.1° sub-grid spatial heterogeneity (~3.5%) and across-fitter structural
+   spread (~3%); the ATP kriging "band" (9–52%) is an assumption-driven prior
+   whose magnitude is set by a hand-chosen covariance range (a 3× swing; §4.6),
+   not a measured indeterminacy.
 
 **Decision.** PCHIP stays the deterministic default. `write_ppm.r`,
 `write_linmm.r`, `write_piqs.r`, and `write_atpk.r` are selectable via
@@ -287,11 +290,11 @@ the product's monthly mean ~0.1–0.7%/month. Same effect for all fitters.
   magnitude** bump (PCHIP's ≤1.5×) is *not* an artifact — MiCASA's own daily data
   exceeds the monthly-mean envelope routinely (daily-max/env median ≈ 1.0, 90th ≈
   1.3–1.4), so a sub-monthly peak above the envelope is physically real.
-- **PCHIP vs PPM fidelity is a statistical tie.** Paired, same-cell test
-  (`uncertainty_fidelity.r`): median Δ(PCHIP−PPM) = **0.0006**, IQR **[−0.006,
-  +0.009]** (straddles zero), PPM better in **54%** of cell-months — and only
-  **49%** in boreal/polar (PCHIP better there). The 0.149-vs-0.151 mean gap is
-  within noise. PPM does **not** measurably beat PCHIP on fidelity.
+- **PCHIP vs PPM fidelity is near-identical (superseded — see §4.6).** The pooled
+  cell-month numbers here (median Δ 0.0006, IQR straddling 0) conflated population
+  spread with inferential uncertainty; the proper by-cell bootstrap on the real
+  *product* (§4.6) gives a CI that **excludes 0** with PCHIP significantly but
+  negligibly better (~0.3%). Either way PPM does not meaningfully beat PCHIP.
 
 ### 4.2 Order of operations: fit-at-0.1deg then aggregate (evaluated, no benefit)
 
@@ -371,17 +374,16 @@ uncertainty sources are roughly independent and span an order of magnitude:
 
 | source | magnitude (/envelope) | assumption |
 |---|---|---|
-| **ATP kriging variance** (sub-monthly *temporal* indeterminacy) | **~9–52%** (dominant) | covariance model (range) |
+| ATP kriging variance (sub-monthly *temporal* indeterminacy) | ~9–52% **but range-set** (0.62→0.20 across range 0.5→6 mo; §4.6) | covariance model — a *chosen* range |
 | sub-grid spatial heterogeneity (0.1°) | ~3.5% (1% boreal → 10% temperate) | **none — data-driven** |
 | structural (across mass-preserving fitters) | ~3% | none |
 | bootstrap-PCHIP (monthly-mean sampling) | ~1–6% | resampling model |
 
-So the prior-uncertainty is **dominated by the temporal sub-monthly
-indeterminacy** (what the trajectory could be given only the monthly mean — the
-ATP variance), not by spatial sub-grid heterogeneity or smoother choice (each a
-few %). The 0.1° spread is the most *defensible* component (no model), but it is
-secondary; a complete prior σ would combine them in quadrature, dominated by the
-ATP term. Largest spatial term is temperate (heterogeneous landscapes), largest
+So the *defensible* (model-free) prior-uncertainty is the 0.1° sub-grid spatial
+term (~3.5%) and the across-fitter structural term (~3%). The ATP "band" can be
+made larger or smaller than these at will by changing the covariance range
+(§4.6), so it should be read as a *chosen prior assumption*, not a measured
+"dominant" uncertainty. Largest spatial term is temperate (heterogeneous landscapes), largest
 temporal term is boreal sharp transitions — they peak in different biomes.
 
 **Recommendation.** Keep PCHIP; if a prior-uncertainty is wanted, use the **local
@@ -406,7 +408,7 @@ sub-monthly points by ordinary kriging with an exponential covariance (range
 | **Mass (coherence)** | **exact to ~1e-16** — block-average of point predictions = monthly mean (pycnophylactic, verified) |
 | **Point estimate** | **≈ PCHIP**: RMS(kriging − PCHIP)/env = 0.003–0.035 — the central curve is essentially identical |
 | **Uncertainty** | **native kriging variance**: ±1.96σ ≈ **9–52% of the flux envelope** (median ~0.4), wider than the bootstrap band (1–6%) because it quantifies true sub-monthly *indeterminacy*, not just monthly-mean sampling. Width is set by the covariance range (a modeling choice). |
-| **Positivity** | **not automatic**: 0% (tropics) → 5% (temperate) → **30–37% (boreal dormant)** wrong-sign → needs the selective QP of Yoo & Kyriakidis for one-signed quantities |
+| **Positivity** | **not automatic**: 0% (tropics) → 5% (temperate) → **30–37% (boreal dormant)** wrong-sign → the production code uses a selective per-piece flat fallback, which fires on 12%% of land cell-months (boreal 22%%, §4.6) |
 | **Robustness** | the ordinary-kriging system is **ill-conditioned for near-dormant (≈0-variance) cells** → needs a ridge/nugget or a skip |
 
 **Verdict.** ATP kriging delivers what no spline does — exact mass **plus a
@@ -457,6 +459,60 @@ at exactly the hard transition pieces — far worse than PPM's small edge jumps 
 and still inherits PIQS's global non-locality, while only tying PCHIP on fidelity.
 Dominated by PCHIP. The PIQS smoothness advantage is real but cannot be captured
 without either the overshoot (PIQS) or the patch discontinuities (this hybrid).
+
+---
+
+### 4.6 Second adversarial review — corrections and follow-ups (2026-06-21)
+
+A second hostile review challenged the fidelity metric, the uncertainty
+hierarchy, the statistics, and specifics. Re-analyses
+(`fitter_diagnostics/{fidelity_product, atpk_range_sweep, critique_followups}.r`)
+and the corrections they forced:
+
+- **Fidelity re-scored on the real product (C1).** §4's original daily fidelity
+  scored the *bare* fitter quadratic, omitting the ERA5 redistribution the
+  product applies. Re-scoring the **diurnalized NEE product** vs MiCASA daily NEE
+  (2020): PCHIP 1.186, PPM 1.190, PIQS 1.184 (RMSE / per-cell RMS scale) —
+  near-identical. The fitter's `qmod` controls **~95%** of daily-mean NEE
+  variance (the seasonal cycle), but all fitters reproduce that 95% identically
+  (shared monthly means); the fitter *choice* affects only the sub-monthly shape
+  — a sliver — so no daily metric separates them.
+- **"Statistical tie" withdrawn; replaced by a CI (M1).** A by-**cell** block
+  bootstrap (N=15,724 cells, B=2000) of PCHIP−PPM product fidelity gives
+  Δ = **−0.004, 95% CI [−0.0043, −0.0037] — excludes zero**: PCHIP is
+  *significantly but negligibly* better (~0.3% of RMSE). The earlier pooled-
+  cell-month "tie" (which conflated population spread with median uncertainty)
+  is corrected.
+- **ATP variance demoted — a chosen prior, not a measurement (C2).** The band is
+  set by the covariance range, a hand-set knob: median band/env = **0.62 / 0.53 /
+  0.38 / 0.27 / 0.20** for range = 0.5 / 0.75 / 1.5 / 3.0 / 6.0 mo (a 3× swing),
+  and the variance is **geometry×sill** (two cells with 60× different sill have
+  identical √var/√sill = 0.374). So the "9–52%" is √sill/env re-expressed, not an
+  independently measured indeterminacy. **Corrected ranking:** the *model-free*
+  terms — 0.1° sub-grid (~3.5%) and structural (~3%) — are the defensible ones;
+  the ATP band is an assumption-driven prior whose size is a free parameter.
+- **ATP flat-fallback rate (M2):** the selective fallback flattens 12% of land
+  cell-months (tropics 1.4%, temperate 10%, **boreal 22%**); there the point
+  estimate is flat and `$var` is the kriging spread (legitimate uncertainty,
+  punted point estimate) — documented in §4.4.
+- **Envelope-drop transparency (M3):** ~11% of land cell-months have a near-zero
+  envelope and are excluded from the strict overshoot medians; with a *floored*
+  envelope the PIQS overshoot median is 0.41 vs 0.89 strict — the dropped cells
+  have *lower* relative overshoot, so the strict medians do not understate.
+- **Locality robust but synthetic (M4):** re-checking the NRT footprint on the
+  **full flux (a,b,c)**: PCHIP ≤1, PPM ≤2, minmod ≤1 prior months move >1% under
+  a +10% last-month perturbation — locality holds, but this is a *synthetic*
+  perturbation; no diff of two real consecutive vNRT releases was done.
+- **Minor:** "Steffen ≡ PCHIP" → "matches on max overshoot"; the production ATP
+  point-estimate RMS/env is 0.04–0.06 (the flat fallback regressed it from the
+  0.003–0.035 prototype); fidelity scripts pin explicit `fit.<method>.rda`.
+
+**Net effect.** The decision is unchanged and better-grounded: PCHIP is local,
+sign-definite, closed-form, `(a,b,c)`-native, and *significantly* (if negligibly)
+the best on product fidelity; ATP is a *legitimate but assumption-parameterized*
+uncertainty option, not a measured one. The overstatements the review flagged —
+"statistical tie," "dominant uncertainty," "principled variance" — are corrected
+above.
 
 ---
 
@@ -540,7 +596,11 @@ diurn_year=2020 MICASA_MONTH_START=1 MICASA_MONTH_END=12 MICASA_VERSION=v1 \
 | Sub-grid (0.1deg) heterogeneity uncertainty | `fitter_diagnostics/subgrid_uncertainty.r` |
 | ATP production-fit verification | `fitter_diagnostics/verify_atpk.r` |
 | PIQS-with-linear-fallback hybrid | `fitter_diagnostics/piqs_hybrid.r` |
-| Fitter cores + tests | `lib/{pchip,ppm,linmm,mss}_fit.r`, `tests/test_*_fit.r` |
+| Product-level fidelity + by-cell bootstrap (C1/M1) | `fitter_diagnostics/fidelity_product.r` |
+| ATP variance range-sensitivity (C2) | `fitter_diagnostics/atpk_range_sweep.r` |
+| Review follow-ups: fallback rate / env-drop / footprint (M2–M4) | `fitter_diagnostics/critique_followups.r` |
+| **Production fitter drivers** | `write_{pchip,ppm,linmm,piqs,mss,atpk}.r` (repo root) |
+| Fitter cores + tests | `lib/{pchip,ppm,linmm,mss,atpk}_fit.r`, `tests/test_*_fit.r` |
 
 ---
 
