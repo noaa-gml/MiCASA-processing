@@ -55,7 +55,7 @@ Work on `main`. Use `legacy` only to reproduce a v1-vintage product.
 
 | Document | Contents |
 |---|---|
-| [`docs/V1_TO_V2_JUSTIFICATION.md`](docs/V1_TO_V2_JUSTIFICATION.md) | **Change register: an evidence-backed justification for every change from V1 -> V2**, classified behavior-preserving vs intentional improvement, with the verification (and its scope/limits) for each |
+| [`docs/V1_TO_V2_JUSTIFICATION.md`](docs/V1_TO_V2_JUSTIFICATION.md) | **The case for switching from V1 to V2** — why V2 is worth adopting despite V1's long verified history (what you keep / gain / risk), backed by an auditable register of every change (behavior-preserving vs intentional improvement) with its verification |
 | [`docs/PIPELINE.md`](docs/PIPELINE.md) | Versions (v1 vs vNRT), configuration env vars, flowchart, every program in the tree, data-layout reference, output provenance metadata, NetCDF input schema |
 | [`docs/METHODOLOGY.md`](docs/METHODOLOGY.md) | PIQS / PCHIP / MSS fitter theory; diurnalization with ERA5; why NEE = Rh − NPP and not Rh − NPP − ATMC |
 | [`docs/FITTER_COMPARISON.md`](docs/FITTER_COMPARISON.md) | Full sub-monthly-fitter bake-off (PIQS/PCHIP/PPM/minmod/MSS/ATP), equations, scorecard, uncertainty; why PCHIP is the default |

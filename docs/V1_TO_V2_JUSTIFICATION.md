@@ -1,14 +1,18 @@
-# V1 → V2: a justification for every change
+# Switching MiCASA V1 → V2: the case for adopting V2
 
-**Status:** decision / review document · **Date:** 2026-06-21 · **Purpose:** a
-single auditable register that defends *every* change from the V1 (legacy)
-processing pipeline to V2 (`main`, tagged `v2.0.0`). For any change a reviewer
-questions, this document gives the rationale, the quantified impact, and the
-verification that backs it.
+**Status:** decision / review document · **Date:** 2026-06-21 · **Purpose:** make the
+case that it is worth switching the MiCASA pipeline feeding CarbonTracker from **V1**
+— the long-running, verified production line — to **V2** (`main`, tagged `v2.0.0`),
+and to show the switch is low-risk. The default position is "stay on V1": it works
+and has years of track record, so the burden is on V2 to earn the change. Every
+change from V1 is justified below with its rationale, quantified impact, and
+verification, so the case can be audited change by change.
 
-> **Decision requested:** sign-off to make **soil temperature the default
-> respiration driver** (§2). Everything else here is already shipped and verified —
-> it is backup for any change you want to audit, not an open question.
+> **Decision requested:** adopt **V2** as the MiCASA pipeline feeding CarbonTracker,
+> replacing V1. V2 is built, tagged (`v2.0.0`), and verified; everything below is the
+> case that the switch is worth it and low-risk. *(One sub-decision lives inside V2:
+> whether to also flip the respiration driver to soil temperature, §2 — that one can
+> be deferred without holding up the switch.)*
 
 **This document is self-contained** — the
 load-bearing scorecard, equations, figures, and references are inlined here; the
@@ -18,7 +22,27 @@ dated logs but are not needed to follow the argument below.
 
 ## Executive summary
 
-*(This summary follows the document's structure — one bullet per section, in order.)*
+**The case in brief — V1 is proven; here is why V2 is worth the switch and low-risk:**
+
+- **What you keep.** V2's monthly-and-longer budget matches V1's to **0.04% per
+  latitude band** (§20.1): every fitter is integral-preserving (§0) and the
+  non-fitter changes are proven no-ops (§4), so V1's verified climate-signal history
+  — long-term trend, ENSO/COVID, annual budgets — transfers essentially unchanged.
+- **What you gain.** V2 fixes three genuine V1 defects — PIQS's unphysical wrong-sign
+  sub-monthly fluxes (§1), PIQS's global solve that **rewrites V1's published record
+  on every NRT update** (§1), and a latitude-weight **bug** in V1's 0.1°→1°
+  aggregation (§3.1) — plus operational hardening (provenance, run manifest, ERA5
+  FastTrack) and a 60-check + 153-test verification base V1 never had (§4, §6).
+- **What it risks.** Essentially only revalidation effort — mitigated by the evidence
+  this document is built on: bit-identical proofs for the no-ops (§4), the
+  budget-invariance guarantee (§0), and the verification base (§6). The one place V2
+  truly *departs* from V1's history is in **correcting** its aggregation bug (<0.01%
+  typical), not adding risk.
+
+**Bottom line: V2 preserves everything V1 got right and corrects the little it got
+wrong — at low, quantified risk.**
+
+The rest of this summary follows the document's structure, one bullet per section:
 
 - **Framing (§0).** Every V1→V2 change is either a **proven no-op (B)** —
   bit-identical / exact-equivalent — or a **quantified improvement (A)** carrying a
