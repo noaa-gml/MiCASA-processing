@@ -18,43 +18,45 @@ dated logs but are not needed to follow the argument below.
 
 ## Executive summary
 
-- **Every V1→V2 change is either a proven no-op or a quantified improvement.**
-  Behaviour-preserving changes are verified bit-identical / exact-equivalent; the
-  few that move numbers each carry a measured impact + a physical or statistical
-  justification + a guarding check (§0, §4).
-- **The fitter switch (PIQS → PCHIP) cannot move the science signal.** Every
-  fitter is integral-preserving, so for a *pure fitter swap* the monthly-and-longer
-  budget — annual totals, trend, interannual variability, ENSO/COVID — is
-  **identical by construction** (the deductive guarantee, with the measured PCHIP
-  values, is in §0). PCHIP only changes the **sub-monthly shape**, and there it
+*(This summary follows the document's structure — one bullet per section, in order.)*
+
+- **Framing (§0).** Every V1→V2 change is either a **proven no-op (B)** —
+  bit-identical / exact-equivalent — or a **quantified improvement (A)** carrying a
+  measured impact + a physical or statistical justification + a guarding check. The
+  change register above lists them all.
+- **§1 — Fitter PIQS → PCHIP cannot move the science signal.** Every fitter is
+  integral-preserving, so for a *pure fitter swap* the monthly-and-longer budget —
+  annual totals, trend, interannual variability, ENSO/COVID — is **identical by
+  construction** (§0). PCHIP only changes the **sub-monthly shape**, and there it
   fixes PIQS's two disqualifiers: wrong-sign overshoot (**~11% → ≤0.9%** of GPP
   cell-hours) and a global solve that **rewrites the entire ~303-month record on
-  every near-real-time (NRT) revision (→ 0 for PCHIP)** (§1, scorecard).
-- **"PIQS-then-revert-to-linear" was evaluated and is dominated** — despite a real
-  motivation (PIQS's near-C¹ flux — continuous *slope* — which PCHIP gives up; PCHIP
-  keeps only C⁰, continuous *value*). It does *not* fix the
-  non-locality (still rewrites the record), injects a genuine discontinuity (**0.97
-  mol m⁻² s⁻¹** absolute budget vs PCHIP's exact **0**), and only *ties* PCHIP on
-  daily fidelity — and PIQS's smoothness edge never reaches the ERA5-redistributed
-  hourly prior anyway (§5.1).
-- **The diurnalization is V1's, unchanged — but we recommend one flip.** Drive
-  respiration off **soil** temperature rather than 2-m air: physically correct
-  (soil decomposition responds to soil T, not air), small and sign-correct at the
-  NEE level (full-year 2019 diurnal-amplitude ratio **+2.3%, 95% CI [1.021, 1.024]**
-  by spatial block bootstrap — all 12 months exclude 1), and free (the soil field
-  is already loaded). The one outstanding gate is eddy-covariance amplitude
-  validation. Lloyd-Taylor stays opt-in. **Awaiting your sign-off** (§2).
-- **Standing verification base:** `verify_v2` — 60 checks across 24 sections, **all
-  product / science / provenance checks PASS or INFO**. The committed
-  `verify_v2_summary_20260621.txt` reproduces every number used below; the two
-  cross-product checks (§20.1 v2↔v1 per-band NEE agrees to **0.04%**; §20.2 global NBE
-  budget context) and the job-log scan (§11.1) pass on current code
-  (`fitter_diagnostics/check_20_crossproduct.py`; commits `f6439ba`, `b3b9d72`). The
-  only non-PASS is the §24 run-manifest meta-check, which flags *this session's
-  separate PIQS-release builds* (they share the working-directory log) — not the
-  shipped pipeline; the manifest was losslessly recovered (§6). Plus `tests/` (153 on
-  Orion; 143 reproduced green locally, 10 `quadprog`-gated) and committed diagnostic
-  scripts + figures (§6).
+  every near-real-time (NRT) revision (→ 0 for PCHIP)**.
+- **§2 — Diurnalization is V1's, unchanged — but we recommend one flip (the one
+  decision requested).** Drive respiration off **soil** temperature rather than 2-m
+  air: physically correct, small and sign-correct at the NEE level (full-year 2019
+  diurnal-amplitude ratio **+2.3%, 95% CI [1.021, 1.024]**, all 12 months exclude 1),
+  and free (`stl1` already loaded). The one open gate is eddy-covariance amplitude
+  validation; Lloyd-Taylor stays opt-in. **Awaiting your sign-off.**
+- **§3 — The other number-moving changes are small and correct:** the 0.1°→1°
+  aggregation latitude-weight bug fix (V1 mis-weighted; <0.01% typical, larger toward
+  poles), the polar-night GPP = 0 clip (~0.16% median high-latitude GPP gap;
+  mass-conserving variant available opt-in), the ERA5 FastTrack fallback (NRT
+  trailing months only), and per-month climatology auto-detect.
+- **§4 — Everything else is a proven no-op:** 15 library / refactor / compression /
+  provenance / manifest / packaging changes, each verified bit-identical or
+  exact-equivalent and CI-guarded.
+- **§5 — Considered and rejected:** subtracting MiCASA's **ATMC** correction (it
+  would double-dip the inversion's own atmospheric constraint — data leakage; and it
+  shifts the prior's mean sink −2.45→−5.99 PgC/yr and flips its trend), and
+  **"PIQS-then-revert-to-linear"** (the stakeholder-preferred alternative — dominated:
+  doesn't fix non-locality, injects a **0.97 mol m⁻² s⁻¹** discontinuity vs PCHIP's
+  exact **0**, only *ties* on daily fidelity).
+- **§6 — Standing verification base:** `verify_v2` — 60 checks, **all product /
+  science / provenance checks PASS or INFO** (committed `verify_v2_summary_20260621.txt`
+  reproduces every number below); the §20 cross-product checks and the §11.1 job-log
+  scan pass on current code. The only non-PASS is the §24 run-manifest meta-check,
+  flagging *this session's separate PIQS-release builds* — not the shipped pipeline.
+  Plus `tests/` (153 on Orion; 143 reproduced green locally, 10 `quadprog`-gated).
 
 ## Change register — the whole scope at a glance
 
