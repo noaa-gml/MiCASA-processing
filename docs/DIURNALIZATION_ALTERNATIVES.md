@@ -256,55 +256,66 @@ moves NEE only ~2% (in the right direction). Keep Lloyd-Taylor implemented and
 nowhere except boreal winter, and its steep low-T sensitivity is the most
 uncertain piece. The test that would actually discriminate Q10=1.5 from
 Lloyd-Taylor is the **observed diurnal amplitude of ecosystem respiration**
-(eddy covariance) — a validation, not another model run — and is the natural next
-step before flipping any default.
+(eddy covariance) — a validation, not another model run — and is the remaining
+confirmatory step for the soil-temp recommendation (§5.4).
 
 ## 5.4 Decision: recommend soil-temp as the default driver
 
-With bootstrap confidence intervals and a forcing-level validation added, the
-case for flipping the default from air to soil temperature is solid. The
-recommendation: **make `MICASA_RESP_DRIVER=soiltemp` the default; keep
-Lloyd-Taylor opt-in.** (`fitter_diagnostics/resp_driver_ci_plots.py`.)
+With a full-year-2019 spatial-block-bootstrap analysis (all 12 months, matched
+PCHIP air-vs-soil pair), the case for flipping the default from air to soil
+temperature is solid — with **one validation gate still open** (eddy covariance,
+(4)). Recommendation: **make `MICASA_RESP_DRIVER=soiltemp` the default; keep
+Lloyd-Taylor opt-in**, pending sign-off.
+(`fitter_diagnostics/resp_driver_blockboot.py`.)
 
-**(1) The effect is real, tightly bounded, sign-correct** (by-cell bootstrap,
-B=2000, 95% CI, July 2020):
+**(1) The effect is real, sign-correct, and robust across seasons** — *spatial*
+block bootstrap (resampling unit = 10° block, so the CI respects the field's
+spatial autocorrelation; B=2000; full-year 2019):
 
-| Quantity | soil/air ratio | 95% CI |
+| Quantity | soil/air ratio | 95% CI (spatial block, 10°) |
 |---|---|---|
-| Respiration diurnal amplitude | 0.862 | [0.858, 0.866] |
-| NEE diurnal amplitude | 1.022 | [1.022, 1.023] |
-| Respiration phase shift | +1.0 h | — |
+| Respiration diurnal amplitude | 0.80 | [0.78, 0.83] |
+| NEE diurnal amplitude | 1.023 | [1.021, 1.024] |
 
-The NEE CI excludes 1 but the change is ~2% — significant *and* small, the
-profile of a defensible refinement. By band (resp amplitude ratio): boreal
-0.830 [0.824, 0.835], NH-temp 0.959 [0.951, 0.969], tropics 0.846 [0.839, 0.853],
-SH-temp 0.787 [0.775, 0.800].
+The NEE CI excludes 1 — and **every one of the 12 months excludes 1 individually**
+(1.016–1.027), surviving a conservative 20°-block CI [1.020, 1.025] — but the change
+is ~2.3%: significant *and* small, the profile of a defensible refinement. By band
+(resp amplitude ratio, annual, 10° block): boreal **0.61 [0.58, 0.63]**, NH-temp
+0.81 [0.78, 0.85], tropics 0.85 [0.81, 0.90], SH-temp 0.94 [0.86, 1.07]. *(An
+earlier i.i.d.-cell resample gave [1.022, 1.023] for the NEE ratio — width 0.0002 —
+which treated ~15.6k autocorrelated land cells as independent and was ~16× too
+tight. The block-bootstrap CIs above are the correct ones; the conclusion is
+unchanged.)*
 
-**(2) Forcing validation — the decisive new evidence.** The respiration damping
-is not a modelling choice; it is **inherited cell-by-cell from the ERA5 soil-vs-air
-temperature difference itself.** The per-cell diurnal amplitude ratio of the
-*driver* (`stl1`/`t2m`) is **0.860 (July) / 0.752 (Jan)** — matching the resulting
-respiration amplitude ratio (0.862 / 0.751) to within 0.002 — with the same +1 h
-phase lag. Switching the driver simply lets respiration follow the temperature the
-soil actually experiences; it is using the correct forcing variable, not a tuning.
+**(2) Forcing consistency — confirms the implementation, not the physics.** The
+per-cell diurnal amplitude ratio of the *driver* (`stl1`/`t2m`, annual 2019) is
+**0.80**, matching the resulting respiration amplitude ratio (0.80) — but this match
+is **near-tautological**: respiration is a monotone function of its temperature
+driver, so its diurnal amplitude *must* track the driver's. It confirms the code
+genuinely uses soil temperature (not a tuning); it is **not** independent evidence
+that soil temperature is the *correct* driver. That rests on the physics
+(decomposition responds to soil, not air, temperature) and on (4).
 
-![ERA5 forcing: 0-7cm soil temp lags 2-m air](figures/resp_forcing_t2m_vs_stl1.png)
+![ERA5 forcing: 0-7cm soil temp damps & lags 2-m air](figures/resp_forcing_t2m_vs_stl1.png)
 
 ![Respiration diurnal cycle, air vs soil driver](figures/resp_diurnal_air_vs_soil.png)
 
 ![Per-cell respiration amplitude ratio distribution](figures/resp_amplitude_ratio_hist.png)
 
-**(3) Largest, most defensible where air-temp is least physical.** In boreal
-January the soil-driven respiration amplitude is **0.354 [0.339, 0.366]** of the
-air-driven one (snow-insulated/frozen soil decoupled from swinging air); since
-GPP≈0 there, the boreal-January NEE amplitude is **0.506 [0.481, 0.525]**.
+**(3) Largest, most defensible where air-temp is least physical.** The damping is
+strongest in the boreal band (resp amplitude 0.61 of air, annual; lower still in
+deep winter, when snow-insulated or frozen soil is most decoupled from swinging
+air) — exactly where the air-temp proxy is least appropriate. Since GPP ≈ 0 there,
+the NEE amplitude is correspondingly reduced.
 
 **(4) Cost and risk.** Zero new inputs (`stl1` already loaded), every monthly
 total conserved exactly, default-off byte-identical to the current product
-(`fitter_diagnostics/bytecheck_resp_driver_default.txt`, max |Δ| = 0). The one
-remaining gap — an eddy-covariance amplitude validation — is desirable but no
-longer a blocker: the forcing-level validation (2) plus settled soil-respiration
-physics already establish soil temperature as the correct driver.
+(`fitter_diagnostics/bytecheck_resp_driver_default.txt`, max |Δ| = 0). **The one
+remaining validation gate is an eddy-covariance amplitude check** (the only
+independent test that soil temperature is the *correct* driver — (2) cannot supply
+it). Given the all-season robustness (1) and settled soil-respiration physics we
+consider it confirmatory rather than strictly blocking, but the default is **not**
+flipped without sign-off — consistent with §5.3.
 
 **Lloyd-Taylor stays opt-in:** it swings respiration amplitude 1.5–3.7× but NEE
 only ~1% (§5.3), and its steep low-T sensitivity is the uncertain piece — flip it

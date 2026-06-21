@@ -149,7 +149,7 @@ is monotone (`dₖ=0` at sign changes; else `|dₖ|≤3·min(|mₖ₋₁|,|mₖ|
 f(s) = (6s−6s²)·uₖ + (3s²−4s+1)·dₖ + (3s²−2s)·dₖ₊₁
 ```
 `f` is sign-definite **at the knots** by construction (and overwhelmingly so in
-the interiors) — a 16–57× reduction in sign flips vs PIQS, **not zero by
+the interiors) — a 16–60× reduction in sign flips vs PIQS, **not zero by
 construction**: the derivative quadratic can still dip mid-segment (reproduced,
 worst −0.042 on single-signed input; `fitter_diagnostics/pchip_sign_definiteness.r`).
 The slope rule is **local**. **Pro:** mass-conserving, strongly (not perfectly)

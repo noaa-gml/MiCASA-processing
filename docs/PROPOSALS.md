@@ -247,7 +247,7 @@ Properties:
   overwhelmingly so in the interiors, but **not everywhere by
   construction**: the derivative quadratic can dip mid-segment even on
   single-signed input (reproduced — `fitter_diagnostics/pchip_sign_definiteness.r`).
-  Net effect: a 16–57× reduction in sub-monthly sign flips vs PIQS
+  Net effect: a 16–60× reduction in sub-monthly sign flips vs PIQS
   (≤0.94% of GPP cell-hours remain), not an elimination.
 - f is a piecewise quadratic (derivative of a piecewise cubic Hermite),
   so the storage layout is identical to PIQS — three coefficients per

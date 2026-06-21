@@ -18,23 +18,27 @@ dated logs but are not needed to follow the argument below.
   justification + a guarding check (§0, §4).
 - **The fitter switch (PIQS → PCHIP) cannot move the science signal.** Every
   fitter is integral-preserving, so the monthly-and-longer budget — annual totals,
-  trend, interannual variability, ENSO/COVID — is *identical* (verified unchanged:
-  trend +0.0447 PgC/yr/yr, 2015-16 El Niño +0.643, 2020 COVID −0.346). PCHIP only
+  trend, interannual variability, ENSO/COVID — is *identical by construction* (the
+  shipped PCHIP product gives trend +0.0447 PgC/yr/yr, 2015-16 El Niño +0.643, 2020
+  COVID −0.346; PIQS matches these to floating point by the integral-preserving
+  invariant, §0 — a deductive guarantee, not a separate run-and-diff). PCHIP only
   changes the **sub-monthly shape**, and there it fixes PIQS's two disqualifiers:
   wrong-sign overshoot (**~11% → ≤0.9%** of GPP cell-hours) and a global solve that
-  **rewrites all 302 historical months on every NRT revision (→ 0 for PCHIP)**
+  **rewrites all 303 historical months on every NRT revision (→ 0 for PCHIP)**
   (§1, scorecard).
-- **"PIQS-then-revert-to-linear" was evaluated and is dominated.** It does *not*
-  fix the non-locality (still rewrites the record) and injects discontinuities
-  **> 3× the local flux at 52% of patched edges** (PCHIP: exactly 0), while only
-  *tying* PCHIP on daily fidelity. The constraint trilemma (§1) shows why: it just
-  moves the unavoidable cost onto a worse axis (§5.1).
+- **"PIQS-then-revert-to-linear" was evaluated and is dominated** — despite a real
+  motivation (PIQS's near-C¹ flux, which PCHIP gives up). It does *not* fix the
+  non-locality (still rewrites the record), injects a genuine discontinuity (**0.97
+  mol m⁻² s⁻¹** absolute budget vs PCHIP's exact **0**), and only *ties* PCHIP on
+  daily fidelity — and PIQS's smoothness edge never reaches the ERA5-redistributed
+  hourly prior anyway (§5.1).
 - **The diurnalization is V1's, unchanged — but we recommend one flip.** Drive
   respiration off **soil** temperature rather than 2-m air: physically correct
-  (soil decomposition responds to soil T), forcing-validated (the driver's own
-  damping 0.860 ≈ the respiration damping 0.862, cell-by-cell), small and
-  sign-correct at the NEE level (+2%, CI excludes 1), and free (the soil field is
-  already loaded). Lloyd-Taylor stays opt-in. **Awaiting your sign-off** (§2).
+  (soil decomposition responds to soil T, not air), small and sign-correct at the
+  NEE level (full-year 2019 diurnal-amplitude ratio **+2.3%, 95% CI [1.021, 1.024]**
+  by spatial block bootstrap — all 12 months exclude 1), and free (the soil field
+  is already loaded). The one outstanding gate is eddy-covariance amplitude
+  validation. Lloyd-Taylor stays opt-in. **Awaiting your sign-off** (§2).
 - **Standing verification base:** `verify_v2` (60 checks, re-run 2026-06-21: all
   science/product checks pass) + `tests/` (153 checks, all green) + committed
   diagnostic scripts and figures (§6).
@@ -58,7 +62,7 @@ tree is **integral-preserving by construction**: each month's per-piece integral
 equals that month's MiCASA mean. Therefore *the monthly-and-longer carbon budget
 — annual totals, the long-term trend, interannual variability, the ENSO and
 COVID signals — is identical across any two fitters* **at the fit level**. Two
-scope caveats, stated up front rather than in fine print:
+scope caveats:
 - This is a property of the *fitter*. The **shipped** hourly NEE additionally
   applies a polar-night clip (§3.2) that zeros GPP in dark hours and so opens a
   **≤1.5% high-latitude mass gap** in the product — a property of the clip, not
@@ -67,23 +71,39 @@ scope caveats, stated up front rather than in fine print:
 - Mass-preservation is exact; **sign-preservation is not** (see §1, claim 2) —
   the two are independent.
 
-The fitter can only change the **sub-monthly shape**. This is verified two ways:
-verify_v2 Check 2.1 (per-piece integral preservation to max-abs < 1e-9, max-rel
-< 1e-6), and the Section-15 climate-signal checks being **unchanged** PIQS↔PCHIP
-(trend +0.0447 PgC/yr/yr, 2015-16 El Niño +0.643, 2020 COVID −0.346; **reproduced** by the
-2026-06-21 verify_v2 re-run, identical to the original 2026-05-04 values, see §6). So the change Andy flagged does not
-move the science signal — it changes the sub-monthly shape, removing most of an
-unphysical artifact.
+The fitter can only change the **sub-monthly shape**. The budget invariance rests
+on two legs, stated to their exact epistemic status:
+- **Deductive:** verify_v2 Check 2.1 confirms each fitter preserves the per-piece
+  integral (max-abs < 1e-9, max-rel < 1e-6). Equal monthly means ⇒ equal
+  monthly-and-longer budget. The PIQS↔PCHIP equality of the Section-15 signals is
+  therefore a *consequence of this invariant*, **argued, not separately
+  diffed** — we report it as a guarantee, not a measurement.
+- **Measured (PCHIP only):** the Section-15 values — trend +0.0447 PgC/yr/yr,
+  2015-16 El Niño +0.643, 2020 COVID −0.346 — were **reproduced** by the 2026-06-21
+  verify_v2 re-run, identical to the original 2026-05-04 PCHIP values (§6). These
+  are single-product numbers; the standalone PIQS budget was not separately run
+  through Section 15 (a full-record PIQS product now exists — `MiCASA_v1_piqs` —
+  so a direct diff is possible and is the cleanest future confirmation).
+
+So the change Andy flagged does not move the science signal — it changes the
+sub-monthly shape, removing most of an unphysical artifact.
 
 **Standing evidence base.** Two independent harnesses back the claims below:
-- `verify_v2` — **60 distinct checks across 24 sections** (enumerated in §6); the
-  harness was **re-run for this revision on 2026-06-21** (job 23239358;
-  `fitter_diagnostics/verify_v2_summary_20260621.txt`): 51 PASS / 1 WARN / 9 INFO,
-  plus one FAIL on Check 24.1 (run-manifest integrity) caused by concurrent-append
-  corruption of the shared TSV log by *this session's* parallel diagnostic jobs (a
-  logging artifact — Check 24.2 "no failed steps" passed; the malformed rows were
-  cleaned). Every science/product check passes and **reproduces** the numbers used
-  below.
+- `verify_v2` — **60 distinct checks across 24 sections** (enumerated in §6). **All
+  science / product / provenance checks (§§1–23) PASS and reproduce the numbers used
+  below.** The two §24 items are **manifest / observability meta-checks on a shared
+  working-directory log — not assertions about the product**, and behave accordingly:
+  the original 2026-06-21 run reported a Check 24.1 FAIL that was **concurrent-append
+  corruption** of `jobs/run_manifest.tsv` by many parallel jobs (interleaved/partial
+  writes). We **losslessly recovered** the log (split the merged records, dropped
+  the empty lines — no records lost) and **re-ran**: **24.1 now PASSES**, confirming
+  it was a logging artifact (committed: `fitter_diagnostics/verify_v2_rerun_20260621.txt`,
+  49 PASS / 1 FAIL / 2 WARN / 10 INFO). The lone remaining FAIL is **24.2**, which —
+  once the log parsed cleanly — surfaced 182 *fail* records from **this session's
+  isolated PIQS-release re-diurnalize** (a `MICASA_FIT_RDA` path bug we diagnosed and
+  re-ran successfully). Those are transient, since-superseded job-step failures of a
+  *separate* build that shared this checkout's log; **no §§1–23 product check fails**.
+  We leave them in the log rather than prune to a cosmetic pass.
 - `tests/` — **143 R checks run on any host (10 files) + 10 `quadprog`-gated
   (`test_mss_fit.r`, Orion only) = 153**, plus 4 Python suites; **all green** on
   Orion (R 4.4.0, 2026-06-21). The 143 non-gated R checks were reproduced green
@@ -106,7 +126,7 @@ integral, C⁰ at knots. Two disqualifying problems for an NRT product:
    respiration sub-monthly. Measured rate (Check 3.1): **6.55%** of GPP
    cell-hours mean, **14.70%** max; Rh 0.122% / 0.444%.
 2. **Non-locality.** PIQS is a single global solve over the entire record, so any
-   NRT revision **rewrites all 302 historical months** — the published past
+   NRT revision **rewrites all 303 historical months** — the published past
    changes every cycle.
 
 **V2 — PCHIP-on-cumulative** (Fritsch & Carlson 1980; `splinefun(method="monoH.FC")`
@@ -163,17 +183,22 @@ identical `ȳᵢ` — hence the budget-invariance (§0).
 
 ### The constraint trilemma — why every fitter relaxes *something*
 
-For interval-mean reconstruction it is well established (Bartlein's *mp-interp*
-notes; the JULES temporal-interpolation docs; the smoothing-spline literature)
-that **exact mass + boundedness/no-overshoot + global smoothness cannot all hold
-at once**: a mean-preserving *smooth* fit must overshoot near sharp turning
-points, and forcing no-overshoot breaks smoothness/continuity there. Every method
-keeps mass and relaxes one of the others — *which* one is the whole argument:
+For interval-mean reconstruction there is a **well-established practical tension**
+— documented in Bartlein's *mp-interp* notes, the JULES temporal-interpolation
+docs, and the smoothing-spline literature, though **not as a single named
+theorem** — between **exact mass, strict no-overshoot, and global smoothness**: a
+mean-preserving *smooth* fit tends to overshoot near sharp turning points, and
+forcing strict no-overshoot tends to break smoothness or continuity there. It is a
+strong empirical regularity, not a proof, and the axis that gives is *strict*
+boundedness: tolerating a small **bounded** overshoot (no sign flip) buys back
+mass, continuity, smoothness, *and* locality together. Every method keeps mass and
+relaxes one axis — *which* one is the whole argument:
 
 | Method | mass | relaxes | keeps |
 |---|---|---|---|
 | **PIQS (V1)** | ✓ | **boundedness** — overshoots, incl. wrong-sign, *unbounded* | global smoothness, C⁰ |
 | **PCHIP (V2)** | ✓ | strict boundedness → a **bounded ≤1.5×** bump | C⁰ flux, sign-definite at knots, **local** |
+| Rymes–Myers (bounded-iterative) | ✓ | strict boundedness → bounded ≤1.45× bump (**same axis as PCHIP**) | sign-**definite**, C⁰, smooth, **local** — competitive (`FITTER_COMPARISON.md` §2.6); not default (iterative, no closed form, emits point values not native `(a,b,c)`) |
 | PPM | ✓ | **global continuity** (small jumps at ~70% of edges) | no overshoot, smooth |
 | minmod-linear | ✓ | **continuity + curvature** | no overshoot |
 | PIQS + linear-fallback | ✓ | **continuity** (large jumps where it patches) — **and keeps PIQS's non-locality** | no overshoot |
@@ -185,15 +210,25 @@ record). PIQS fails (2) and (3); the linear-fallback fails (3) and breaks
 continuity hard (§5.1); PCHIP meets all three, at the cost of only a bounded,
 physically-real sub-monthly bump (MiCASA's own daily data exceeds the monthly-mean
 envelope routinely, so a peak above it is real, not an artifact). That is the
-whole fitter case in one table.
+whole fitter case in one table. **PCHIP is not the *only* fit that reaches this
+corner:** the bounded-iterative Rymes–Myers scheme keeps mass, sign, continuity,
+smoothness *and* locality too — relaxing the same strict-boundedness axis as PCHIP
+(`FITTER_COMPARISON.md` §2.6, measured 2026-06-18). PCHIP is the default over it on **engineering** grounds, not a
+trilemma one: PCHIP is closed-form and emits the native `(a,b,c)` quadratic
+directly, whereas Rymes–Myers is iterative (no closed form, a `niter` to tune) and
+produces point values that would need a fit/convert step in `diurnalize`. So the
+table makes a *decisive* case against PIQS and the linear fallback, and an
+implementation-broken tie for PCHIP over Rymes–Myers.
 
 **Claims, stated to their exact scope:**
 1. **Budget-invariant at the fit level** — monthly+ means identical by
    construction (each piece's integral = the monthly mean; mass-preserving). The
    climate signal is therefore fitter-invariant (master invariant above; Check
    2.1, Section 15). Globals unchanged: GPP ∈ [−126.2, −119.8], resp ∈
-   [117.0, 123.9] PgC/yr (Check 5.1; reproduced 2026-06-21).
-2. **A large sub-monthly improvement — a ~16–57× reduction in sign flips, *not*
+   [117.0, 123.9] PgC/yr (Check 5.1; reproduced 2026-06-21). The PCHIP↔PIQS
+   equality of these globals is by the integral-preserving invariant (§0), argued
+   not separately diffed.
+2. **A large sub-monthly improvement — a ~16–60× reduction in sign flips, *not*
    elimination by construction.** PCHIP fits a Fritsch-Carlson *monotone* cubic to
    the cumulative integral, so the flux f = F′ is sign-definite **at the knots**
    and overwhelmingly so in the interiors. It is **not** sign-definite *everywhere*
@@ -206,9 +241,11 @@ whole fitter case in one table.
    bounded residual: GPP **6.55% → 0.11%** mean (~60×), 14.70% → **0.94%** max
    (16×); Rh 0.122% → 0.0000% mean, 0.444% → 0.002% max (Check 3.1, 2026-06-21
    re-run). Check 18.2 confirms C¹ continuity (|jump| ≤ 1e-12). Check 18.1 (INFO)
-   independently finds **0.646% of GPP *segments*** carry a wrong-sign interior
-   point (max 1.24e-6) — fresh confirmation the residual is real and that
-   "sign-definite everywhere" would be false.
+   finds **0.646% of GPP *segments*** carry a wrong-sign interior
+   point (max 1.24e-6) — a *different* denominator (segments, not cell-hours), so
+   consistent in order of magnitude rather than a strict cross-check, but it
+   likewise confirms the residual is real and that "sign-definite everywhere" would
+   be false.
 3. **Reduction is rule-based, not tuned** — the knot-level sign-definiteness and
    the interior reduction come from the Fritsch-Carlson monotonicity rule, not a
    fitted parameter; the small residual interior dips (and any dark-hour GPP) are
@@ -233,8 +270,8 @@ vs PIQS up to 30.91% — the full-grid residual is the ≤0.94% in claim 2, |Δ 
 | Overshoot peak/env (med / max) | 0.93 / **~10¹⁸** | 0.83 / **1.50** | 0.78 / 1.00 | – / 1.00 | – / 1.00 |
 | GPP wrong-sign, 2020 product (cell-hours, max mo) | **~11%** | **0.1–0.9%** | 0% | 0% | 0% |
 | Daily-fidelity RMSE/env, GPP (mean) | **18.6** ² | 0.151 | 0.149 | 0.159 | 0.139 (≈ PCHIP) |
-| Flux continuity (jump/env med ; % edges) | C⁰ | **0 ; 0%** | 0.018 ; ~70% | 0.10 ; ~93% | **~5× ; ~30%** |
-| **NRT footprint** (months rewritten, +10% revision)³ | **all 302** | **0** | ≤2 | ≤1 | **all 302** |
+| Flux continuity (jump/env med ; % edges) | C⁰ | **0 ; 0%** | 0.018 ; ~70% | 0.10 ; ~93% | **0.25⁴ ; 29%** |
+| **NRT footprint** (months rewritten, +10% revision)³ | **all 303** | **0** | ≤2 | ≤1 | **all 303** |
 | Lineage | Rasmussen 1991 | Fritsch-Carlson 1980 | Colella-Woodward 1984 | van Leer 1979 | — |
 
 ² PIQS's GPP-fidelity *median* (0.086) is fine; the *mean* (18.6) is wrecked by a
@@ -243,8 +280,14 @@ cell-months carry a wrong-sign knot). All numbers measured 2026-06-18 on a
 regenerated PIQS fit, on the **same** record/diurnalize as the others
 (`fitter_diagnostics/piqs_score.r`). ³ Perturb the latest monthly mean +10%,
 refit, count prior months moving > 1% (PIQS's global solve couples the whole
-record). **PCHIP is the only column that is sign-safe, C⁰-continuous, *and*
-NRT-local** — the good corner (see the §5.1 tradeoff scatter).
+record). ⁴ The PIQS+lin-fallback continuity entry is the **finite-envelope median**
+jump/env (0.25) over the 29% of cell-months that trigger the patch; 38% of patched
+edges fall in near-zero-envelope transition months where jump/env is undefined, so
+the honest cross-method statement is the **absolute** discontinuity budget — 0.97
+mol m⁻² s⁻¹ vs PCHIP's exact 0 (§5.1). **Among the columns shown, PCHIP is the only one that is sign-safe,
+C⁰-continuous, *and* NRT-local** — the good corner (see the §5.1 tradeoff scatter).
+(The bounded-iterative Rymes–Myers scheme, not tabulated here, also reaches that
+corner — see the trilemma note above; PCHIP wins on closed form + native format.)
 
 **Selectable alternatives** (not defaults): PPM, minmod/MUSCL, ATP-kriging, MSS,
 PIQS all remain selectable via `MICASA_FIT_RDA`; PPM was briefly defaulted then
@@ -267,31 +310,51 @@ the canonical product when off** — verified by a committed `ncdiff` run
 max |Δ| = 0 for GPP/resp/NEE, new default-path code vs the canonical
 `ERA5_2020_pchip/fluxes_202007.nc`), run-and-diffed, not argued from source. They
 are evidence-backed *candidates*, not shipped
-changes; defaults will not move until validated against eddy-covariance diurnal
-amplitudes. So they impose zero risk on the current product while making the next
-step defensible. (Measured effect when enabled: soil-temp NEE diurnal amplitude
+changes; defaults will not move without explicit sign-off (the recommendation, and
+the one validation gate still open, are below). So they impose zero risk on the
+current product while making the next step defensible. (Measured effect when enabled: soil-temp NEE diurnal amplitude
 +2% global, ×0.5 boreal winter; Lloyd-Taylor respiration ×1.5 global — see that
 doc §5.1–5.3.)
 
-**Recommendation (new, with CIs + forcing validation):** the soil-temperature
-driver is now **recommended as the default**. Its respiration damping is validated
-as a *real ERA5 forcing property* — the driver's own `stl1`/`t2m` per-cell
-amplitude ratio (0.860, July) matches the respiration ratio (0.862) to within
-0.002 — the NEE effect is small and sign-correct (amplitude ratio **1.022, 95% CI
-[1.022, 1.023]**, by-cell bootstrap), and it costs nothing (`stl1` already loaded,
-mass conserved, default-off byte-identical). The production default has **not**
-been flipped pending sign-off; Lloyd-Taylor stays opt-in.
+**Recommendation (new — full-year 2019, spatial block-bootstrap CIs):** we
+recommend soil temperature as the default respiration driver, with **one explicit
+outstanding gate** (eddy-covariance amplitude validation, below). The case has
+three legs, measured on the matched full-year-2019 PCHIP air-vs-soil pair (all 12
+months; `fitter_diagnostics/resp_driver_blockboot.py`):
 
-By latitude band (respiration amplitude ratio soil/air, July, by-cell bootstrap
-95% CI): boreal 0.830 [0.824, 0.835], NH-temperate 0.959 [0.951, 0.969], tropics
-0.846 [0.839, 0.853]. The change is **largest where the air-temp proxy is least
-physical** — boreal *winter* (snow-insulated/frozen soil decoupled from swinging
-air), where the respiration amplitude is 0.354 [0.339, 0.366] of air and, since
-GPP ≈ 0 there, the NEE amplitude is 0.506 [0.481, 0.525]. **Lloyd-Taylor** (the
-alternative temperature-response function) is kept opt-in: it swings respiration
-amplitude 1.5–3.7× but moves NEE only ~1% outside boreal winter, and its steep
-low-temperature sensitivity is the uncertain piece — flip it only after an
-eddy-covariance amplitude check.
+- **The NEE effect is small but robustly non-zero.** The global area-weighted NEE
+  diurnal-amplitude ratio soil/air is **1.023, 95% CI [1.021, 1.024]** by a
+  *spatial block bootstrap* — the resampling unit is a 10° block, so the interval
+  reflects the field's spatial autocorrelation rather than treating ~15.6k
+  correlated land cells as independent. It survives a conservative 20°-block CI
+  [1.020, 1.025], and **every one of the 12 months excludes 1 individually**
+  (range 1.016–1.027) — a consistent all-season effect, not a single-month
+  artifact. *(Honesty note: an earlier i.i.d.-cell resample reported [1.022, 1.023]
+  — width 0.0002. Treating autocorrelated cells as independent made that CI ~16×
+  too tight; the block-bootstrap interval above is the correct one. The qualitative
+  conclusion — the CI excludes 1 — is unchanged.)*
+- **Respiration is materially damped, most where air temp is least physical.** The
+  respiration amplitude ratio soil/air is **0.80, 95% CI [0.78, 0.83]** (10° block,
+  annual), pulled down by the **boreal band 0.61 [0.58, 0.63]** — snow-insulated or
+  frozen soil decoupled from swinging winter air, exactly where the air-temp proxy
+  is worst. (SH-temperate 0.94 [0.86, 1.07] is the one band whose CI spans 1.)
+- **It is physically motivated and free.** Soil decomposition responds to soil, not
+  air, temperature (Lloyd & Taylor 1994); `stl1` is already loaded; mass is
+  conserved and the default-off path is byte-identical (§2 above).
+
+**What is *not* claimed.** The respiration amplitude ratio necessarily tracks the
+driver's own `stl1`/`t2m` amplitude ratio — respiration is a monotone function of
+its temperature driver — so that self-consistency confirms the implementation uses
+soil temperature; it is **not** independent evidence that soil temperature is the
+*correct* driver. That last step is what an **eddy-covariance diurnal-amplitude
+check** settles, and it is the one gate still open. The production default is
+therefore **not** flipped: we seek sign-off either to (a) adopt soil-temp once EC
+confirms, or (b) treat the EC check as confirmatory and adopt now, given the
+physics and the all-season robustness above. **Lloyd-Taylor** (the alternative
+temperature-response *function*, orthogonal to the driver choice) stays opt-in: it
+swings respiration amplitude 1.5–3.7× but moves NEE only ~1% outside boreal winter,
+and its steep low-temperature sensitivity is the uncertain piece — flip it only
+after the same EC check.
 
 ![ERA5 forcing: 0–7 cm soil temp lags & (per-cell) damps vs 2-m air](figures/resp_forcing_t2m_vs_stl1.png)
 
@@ -378,25 +441,8 @@ these refactors cannot silently regress.
 Documenting what was *not* changed, and why, is part of the justification:
 
 - **ATMC budget closure (NEE = Rh − NPP, *not* − ATMC)** — tried 2026-04-29,
-  reverted same day. NCCS publishes an "atmospheric correction" `ATMC` field with
-  the file comment `NEE = Rh − NPP − ATMC`; per Weir et al. (2021) it is the
-  Low-order Flux Inversion (LoFI) empirical sink, `S_m = α_yr·max(T_m−T_{m-1},0)/10·HR_m`,
-  with α scaled **each year so the global biospheric total matches the observed
-  atmospheric CO₂ growth rate** (~3 PgC/yr, NH-extratropics JJA). We do **not**
-  subtract it, because these fluxes are a **prior to a CO₂ inversion that itself
-  assimilates atmospheric CO₂**: ATMC was tuned to that same observation class, so
-  pre-correcting the prior with it is **data leakage / double-dipping** — the
-  inversion could no longer independently constrain the long-term sink. The growth-
-  rate constraint belongs in the inversion's assimilation, not baked into the
-  prior; we therefore accept the +0.04 PgC/yr/yr CASA-only NEE trend as a real
-  prior feature for the inversion to correct. (If these fluxes are ever used
-  *outside* an inversion — e.g. forward site comparison — the ATMC subtraction may
-  again be appropriate.) Trend impact had it stayed: +0.0413 → −0.0067 PgC/yr/yr.
-  (Note: this **+0.0413**
-  is the *PIQS-era* CASA-only trend from the 2026-04-29 ATMC-comparison table; the
-  **+0.0447** quoted in §0/§1 is the later *PCHIP* Section-15 value from the
-  2026-05-04 run, and **+0.04** in §7/METHODOLOGY is the same figure rounded. They
-  are consistent — different runs of the same ~+0.04 PgC/yr/yr CASA-only trend.)
+  reverted same day. This is the most consequential "rejected" choice — it changes
+  the sign of the prior's long-term trend — so it gets its own treatment in **§5.2**.
 - **PPM as default** — briefly defaulted 2026-06-18, reverted: daily fidelity is a
   statistical tie with PCHIP (PPM better in 54% of cell-months) but PPM
   reintroduces month-edge discontinuities at ~70% of edges (CHANGELOG 2026-06-18).
@@ -410,38 +456,108 @@ Documenting what was *not* changed, and why, is part of the justification:
 ### 5.1 Why not "PIQS, then revert to linear on overshoot"
 
 This hybrid — keep PIQS's smooth global-solve quadratic where it is sign-safe and
-patch the overshooting pieces with a sign-safe integral-preserving linear — was a
-stakeholder-preferred alternative to PCHIP. It was implemented and measured
-(`fitter_diagnostics/piqs_hybrid.r`, `linear_fallback_quantify.r`) and **not
-adopted**, on four quantified grounds:
+patch **only** the overshooting pieces with a sign-safe integral-preserving linear
+— was the stakeholder-preferred alternative to PCHIP, and it has a **genuine
+motivation we state plainly**: PIQS's global solve makes its flux **near-C¹**
+(continuous *slope*), whereas PCHIP-on-cumulative is only **C⁰ in the flux** — the
+flux carries a small slope kink at each month knot. Measured
+(`FITTER_COMPARISON.md` §4.5): the knot derivative-jump (×width/env) is **PIQS
+0.000 vs PCHIP 0.290**. A *selective* fallback would therefore keep PIQS's superior
+derivative-smoothness on the ~71% of sign-safe pieces and patch only the rest. That
+is the strongest case for it, and it is real.
 
+We implemented and measured it (`fitter_diagnostics/piqs_hybrid.r`,
+`linear_fallback_quantify.r`) and **did not adopt** it, because that C¹ advantage is
+inconsequential for *this* product and is outweighed on locality and continuity:
+
+0. **The C¹ edge does not reach the delivered prior.** The shipped hourly NEE is
+   the fit's monthly mean redistributed by ERA5 hourly meteo; the smoother sets
+   only the small within-month *deviation* term, and the hourly field is sampled,
+   not differentiated. A C⁰-vs-C¹ distinction in the flux *slope* at month knots is
+   below the ERA5 redistribution it rides on — which is exactly why the daily
+   fidelity is a tie (point 3). The smoothness PIQS preserves is aesthetic here,
+   not a measurable property of the prior.
 1. **Non-locality is not fixed.** The linear fallback is applied *post-hoc* to
    PIQS's already-solved coefficients; it does not decouple the knots. A revised
-   NRT month still re-solves PIQS and **rewrites all 302 historical months**
+   NRT month still re-solves PIQS and **rewrites all 303 historical months**
    (the **NRT footprint** row of the §1 scorecard) — the exact disqualifier PCHIP
-   avoids (footprint 0).
-2. **It trades bounded overshoot for large discontinuities.** **29.3%** of land
-   cell-months trigger the fallback, and patching breaks PIQS's C⁰ continuity at
-   those edges: **52% of patched edges jump more than 3× the local flux envelope,
-   and 38% jump more than the *entire* local monthly flux** (the overshooting
-   cells are near-zero transition months, so the patch sits far from its
-   neighbour; median ~5× env). PCHIP's edge discontinuity is exactly **0**.
-3. **"Just use linear everywhere" is *worse* than PIQS.** The continuous
-   integral-preserving linear recursion `y_{i+1}=2·mᵢ−yᵢ` flips sign at **36.9%
-   of interior knots** (vs PIQS's 29.3% overshoot) and rings with **unbounded
-   resonance** (knot/env amplification p99 = 2.6×10⁵ — the Nyquist pole of
-   PROPOSALS #9): it forces the month-to-month alternation that PIQS's quadratic
-   absorbs into curvature onto the knots instead.
-4. **No fidelity gain.** Hybrid daily RMSE/env (2020) is **0.079 / 0.139**, tying
+   avoids (footprint 0). This applies to the *selective* fallback, i.e. Andy's
+   actual proposal, not a strawman.
+2. **It injects a genuine discontinuity where PCHIP injects none — reported
+   denominator-free.** **29.3%** of land cell-months trigger the fallback, and
+   patching breaks PIQS's C⁰ continuity there. The honest, denominator-free
+   statement: the hybrid's **total absolute discontinuity budget is 0.97 mol m⁻²
+   s⁻¹** summed over 1.44 M patched land edges, versus **exactly 0** for PCHIP (C⁰
+   by construction). *We deliberately drop the envelope-normalized headline an
+   earlier draft used (“52% exceed 3× env, 38% exceed the entire local flux”):* the
+   overshooting pieces are near-zero-transition months, so **38% of patched edges
+   have envelope ≈ 0**, and a “jump/env” there blows up by dividing by ~0, not by
+   being physically large — among the 62% of edges with a well-defined envelope the
+   median jump is only **0.25× env**. The defensible claim is the absolute one.
+3. **No fidelity gain.** Hybrid daily RMSE/env (2020) is **0.079 / 0.139**, tying
    PCHIP's **0.081 / 0.141** — the preserved smoothness buys no reconstruction
-   accuracy.
+   accuracy, consistent with point 0.
 
-PCHIP dominates the whole tradeoff — sign-safe *and* C⁰-continuous *and* local
-*and* closed-form — the "good corner" below:
+(*A distinct, weaker proposal — “use continuous linear **everywhere**”, PROPOSALS
+#9, which is **not** the selective fallback above — is worse than PIQS on its own
+terms: the recursion `yᵢ₊₁ = 2·mᵢ − yᵢ` flips sign at 36.9% of interior knots and
+rings with unbounded resonance (knot/env p99 ≈ 2.6×10⁵, a Nyquist pole). We note it
+only to close the option; it is not Andy's proposal.*)
+
+So against the *selective* fallback, PCHIP wins on locality and continuity while
+conceding a real but immaterial C¹-flux advantage; it is sign-safe *and*
+C⁰-continuous *and* local *and* closed-form — the "good corner" below:
 
 ![Sign-safety vs continuity: PCHIP in the good corner](figures/fitter_tradeoff_scatter.png)
 
 ![PIQS+linear-fallback patch-discontinuity distribution](figures/linear_fallback_discontinuity.png)
+
+### 5.2 ATMC, and the sign of the prior's long-term trend
+
+This is the choice most likely to be contested, so we state it without hedging.
+
+**What ATMC is.** NCCS publishes an "atmospheric correction" `ATMC` field with the
+file comment `NEE = Rh − NPP − ATMC`. Per Weir et al. (2021) it is the Low-order
+Flux Inversion (LoFI) empirical sink, `S_m = α_yr·max(T_m−T_{m-1},0)/10·HR_m`, with
+α scaled **each year so the global biospheric total matches the observed
+atmospheric CO₂ growth rate** (~3 PgC/yr, concentrated NH-extratropics JJA).
+
+**The stakes are not cosmetic.** Subtracting ATMC flips the sign of the prior's
+long-term trend: CASA-only NEE trends **+0.0447 PgC/yr/yr**, and with ATMC it is
+**−0.0067** — i.e. essentially flat. Over the 25-yr record the CASA-only trend
+compounds to ≈ **+1.1 PgC/yr** of drift in the net flux, which is *of order the
+mean biospheric sink magnitude itself* (a few PgC/yr) — so this is a first-order
+property of the prior, not a rounding term. We are not waving it away.
+
+**Why we still do not subtract it — and this holds whether the trend is real or a
+CASA bias.** These fluxes are a **prior to a CO₂ inversion that itself assimilates
+atmospheric CO₂**, and ATMC was tuned to *that same observation class* (the global
+growth rate). Subtracting it pre-loads the prior with the very constraint the
+inversion exists to apply — **data leakage / double-dipping** — after which the
+inversion can no longer *independently* constrain the long-term sink, because the
+answer is already baked in. The growth-rate constraint belongs in the inversion's
+assimilation step, applied once, against a prior that reports what the offline
+biosphere model says **on its own**. Crucially this argument does **not** require
+us to claim the +0.0447 trend is physically correct:
+- *If* it is real (e.g. CO₂-fertilization / greening strengthening NPP, which CASA
+  represents through satellite-APAR forcing — Zhu et al. 2016), the inversion keeps
+  it and the data confirm it.
+- *If* it is a CASA structural bias (e.g. warming-driven respiration outrunning
+  NPP), the inversion corrects it from the atmospheric data.
+
+Either way the prior's job is to carry CASA's *own* estimate; baking in ATMC
+forecloses the correction in both cases. So we ship the +0.0447 trend as a property
+of the CASA prior — **not** asserting it is a "real climate feature," only that
+pre-correcting it would be circular.
+
+**When ATMC *would* be appropriate.** If these fluxes are ever used *outside* an
+inversion — forward site-level comparison against obs, or as a fixed ensemble
+member with no further optimization — there is no double-dipping and the ATMC
+subtraction is the right choice. For the current prior-to-inversion use it is not.
+(Trend figures: the **+0.0413** in the 2026-04-29 ATMC table is the *PIQS-era*
+CASA-only trend; **+0.0447** is the later *PCHIP* Section-15 value (2026-05-04 run);
+**+0.04** elsewhere is the same number rounded — one ~+0.04 PgC/yr/yr trend, three
+runs.)
 
 ## 6. Evidence matrix
 
@@ -452,9 +568,14 @@ structural (1.1–1.4); Phase 2 transformation + sanity (2.1–2.4 mass/integral
 biome cells + trends (12.1–12.2, 13.1–13.2, 14.1–14.3, 15.1–15.3 trend/ENSO/COVID,
 16.x diagnostics); Sections 17 diurnal integrity, 18 PCHIP invariants, 19
 additional biomes, 20 cross-product, 21 robustness, 22 performance, 23 provenance,
-24 manifest. The **2026-06-21 re-run** summary is committed at
-`fitter_diagnostics/verify_v2_summary_20260621.txt` (51 PASS / 1 WARN / 9 INFO;
-the lone 24.1 manifest FAIL was a concurrent-append log artifact, since cleaned).
+24 manifest (§24 = observability meta-checks on the run log, *not* product
+assertions). Two committed runs: the original `verify_v2_summary_20260621.txt`
+(whose lone 24.1 FAIL was concurrent-append corruption of the shared `run_manifest.tsv`)
+and, after losslessly recovering that log, the re-run
+`verify_v2_rerun_20260621.txt` (**49 PASS / 1 FAIL / 2 WARN / 10 INFO**) in which
+**24.1 now PASSES** — confirming the artifact — and the only FAIL is **24.2**,
+flagging this session's superseded isolated-PIQS-release job failures (see §0). No
+§§1–23 product/science/provenance check fails in either run.
 
 **Unit tests — all green on Orion (R 4.4.0 / Python, 2026-06-21); the 143
 non-`quadprog` R checks reproduced green locally (R 4.6.0) for this revision:**
@@ -481,16 +602,18 @@ behavior-preserving item maps to a proof in the §4 table.
 
 ---
 
-## 7. Known residual limitations (stated, not hidden)
+## 7. Known residual limitations
 
-- **+0.04 PgC/yr/yr** long-term trend in CASA-only NEE is accepted as a real
-  feature of the prior — by design the inversion corrects it (we do *not*
-  pre-close it with ATMC; §5).
+- **+0.04 PgC/yr/yr** long-term trend in CASA-only NEE is shipped as a property of
+  the CASA prior — *not* asserted to be a real climate feature. Whether real
+  (CO₂-fertilization/greening) or a CASA structural bias, the inversion corrects it
+  from independent atmospheric data, and pre-closing it with ATMC would be circular
+  (§5.2). Sign-of-the-trend stakes: with ATMC the trend is −0.0067 (flat).
 - **Polar-night clip** leaves a ~1.5% mass gap at partial-polar-night latitudes
   (Check 2.2 at 5%) — so the *shipped* product is not exactly mass-preserving
   there (§0/§3.2). Largely (not fully) redundant under PCHIP; kept defensively.
 - **PCHIP is not sign-definite everywhere** — it cuts sub-monthly sign flips
-  16–57× vs PIQS but leaves a small bounded residual (≤0.94% of GPP cell-hours;
+  16–60× vs PIQS but leaves a small bounded residual (≤0.94% of GPP cell-hours;
   reproduced in `fitter_diagnostics/pchip_sign_definiteness.r`), mopped up by the
   clip. "Eliminated by construction" would be an overstatement (§1).
 - **Diurnal respiration refinements** (soil-temp, Lloyd-Taylor) are implemented
@@ -498,12 +621,18 @@ behavior-preserving item maps to a proof in the §4 table.
   — the gate before any default flip (DIURNALIZATION_ALTERNATIVES.md §5.3).
 - **Prior uncertainty is constructed, not native.** MiCASA ships **no per-pixel
   uncertainty** (a single deterministic realization — vars `NPP/Rh/FIRE/FUEL/ATMC/NEE`
-  only), so any prior σ is one we build. The quantified, model-free band is ~3% of
-  the flux envelope (0.1° sub-grid heterogeneity ~3.5% + across-fitter structural
-  ~3%; `FITTER_COMPARISON.md §4.3`), available as an opt-in `NEE_sd` field — a
-  **lower bound** on redistribution + 1° representativeness, *not* the dominant
-  monthly-NPP/Rh model error (tens of %), which is not in the product and is
-  carried by the inversion's prior covariance.
+  only), so any prior σ is one we build. We can bound **two distinct, small
+  components — which should not be summed into a single "~3%"**: (i) 0.1° sub-grid
+  heterogeneity within a 1° cell, which is strongly **biome-dependent, ~1% (boreal)
+  to ~10% (temperate mosaic)**, median ~3.5%; and (ii) across-fitter structural
+  spread, **~3%**. Both are emitted via the opt-in `NEE_sd` field (from the
+  ATP-kriging variance; `FITTER_COMPARISON.md §4.3`). Together they are a **lower
+  bound on the sub-monthly-redistribution + 1°-representativeness error *only*** —
+  they explicitly **exclude the dominant term**, the model error in MiCASA's
+  monthly NPP/Rh itself (tens of %), which the product does not carry and which the
+  inversion's prior error covariance must supply. So this is a floor on two minor
+  components, **not** an uncertainty on the prior as a whole — do not read "~3%" as
+  "the prior is good to 3%."
 - **Archival DOI** ships as `PENDING` (`grep -rl PENDING` finds every spot).
 
 ## 8. References
@@ -515,6 +644,7 @@ behavior-preserving item maps to a proof in the §4 table.
 - van Leer (1979), *Towards the ultimate conservative difference scheme V*, JCP 32(1):101–136, doi:10.1016/0021-9991(79)90145-1.
 - Boneva, Kendall & Stefanov (1971), *Spline transformations*, JRSS-B 33(1):1–70.
 - Wang & Bartlein (2022), *A Fast Mean-Preserving Spline*, JTECH 39(4):503–512, doi:10.1175/JTECH-D-21-0154.1.
+- Rymes & Myers (2001), *Mean-preserving algorithm for smoothly interpolating averaged data*, Solar Energy 71(4):225–231, doi:10.1016/S0038-092X(01)00052-4.
 - Kyriakidis (2004), *A geostatistical framework for area-to-point interpolation*, Geographical Analysis 36(3):259–289, doi:10.1111/j.1538-4632.2004.tb01135.x.
 - Bartlein, *mp-interp* (mean-preserving interpolation reference code): https://github.com/pjbartlein/mp-interp.
 - JULES, *Temporal interpolation* docs: https://jules-lsm.github.io/latest/input/temporal-interpolation.html.
@@ -532,3 +662,4 @@ behavior-preserving item maps to a proof in the §4 table.
 **Inversion context**
 - Denning, Fung & Randall (1995), *Latitudinal gradient of atmospheric CO₂ … (the rectifier)*, Nature 376:240–243, doi:10.1038/376240a0.
 - Weir et al. (2021), *Bias-correcting carbon fluxes* (LoFI / ATMC), ACP 21:9609–9628, doi:10.5194/acp-21-9609-2021.
+- Zhu et al. (2016), *Greening of the Earth and its drivers*, Nature Climate Change 6:791–795, doi:10.1038/nclimate3004.

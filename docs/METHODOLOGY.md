@@ -13,7 +13,7 @@ producing the same on-disk format (`fit.piqs.rda` with three
 coefficients per piece per cell); see [`FITTER_COMPARISON.md`](FITTER_COMPARISON.md) for the full comparison:
 
 - **`write_pchip.r`** — **production default** (Fritsch-Carlson monotone cubic;
-  local; sign-definite at knots — 16–57× fewer sub-monthly sign flips than PIQS,
+  local; sign-definite at knots — 16–60× fewer sub-monthly sign flips than PIQS,
   not zero; a bounded ~1.5x within-piece bump)
 - **`write_ppm.r`** — selectable alternative (PPM limited parabolic; zero
   overshoot but reintroduces small month-edge discontinuities; daily fidelity
@@ -44,7 +44,7 @@ Properties:
   mid-segment even on strictly single-signed input (reproduced — worst
   interior flux −0.042 on positive data; see
   `fitter_diagnostics/pchip_sign_definiteness.r`). In practice this is a
-  **16–57× reduction** in sub-monthly sign flips vs PIQS, not an
+  **16–60× reduction** in sub-monthly sign flips vs PIQS, not an
   elimination — the small residual (≤0.94% of GPP cell-hours) is cleared
   by the polar-night clip / is negligible elsewhere.
 - f is a piecewise quadratic (derivative of a piecewise cubic Hermite),
