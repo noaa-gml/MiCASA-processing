@@ -280,7 +280,21 @@ for (mon in mon.range) {
   times <- epoch.seconds.to.POSIX(times) + 1800   # shift to mid-hour
   nslots <- length(times)
 
-  q10    <- 1.5 ^ ((mets$t2m - 273.15) / 10.0)
+  ## Respiration temperature driver (prototype #1; docs/DIURNALIZATION_ALTERNATIVES.md).
+  ## MiCASA Rh is heterotrophic soil decomposition, physically driven by SOIL
+  ## temperature, not 2-m air temperature. MICASA_RESP_DRIVER selects the var:
+  ##   airtemp  (default) -- 2-m air temperature t2m (legacy Olsen & Randerson)
+  ##   soiltemp           -- 0-7 cm soil temperature stl1 (already loaded)
+  ## Default is byte-identical to the legacy path. stl1 is damped & phase-lagged
+  ## vs t2m, so this reduces the respiration diurnal amplitude and lags its phase.
+  resp.driver <- Sys.getenv("MICASA_RESP_DRIVER", "airtemp")
+  resp.tempK <- switch(resp.driver,
+                       airtemp  = mets$t2m,
+                       soiltemp = mets$stl1,
+                       stop(sprintf("MICASA_RESP_DRIVER='%s' not in {airtemp, soiltemp}",
+                                    resp.driver)))
+  cat(sprintf("Respiration temperature driver: %s\n", resp.driver))
+  q10    <- q10.factor(resp.tempK)
   q10.mn <- apply(q10,         c(1, 2), mean)
   ssr.mn <- apply(mets$ssrd,   c(1, 2), mean)
 
@@ -458,6 +472,9 @@ for (mon in mon.range) {
             attval = if (any(day.source[available.days] != names(era5dirs)[1]))
                        "yes" else "no",
             prec = "text")
+  ## Respiration temperature driver provenance (prototype #1). "airtemp" is the
+  ## canonical Olsen & Randerson path; "soiltemp" drives Q10 off 0-7cm stl1.
+  ncatt_put(ncf, 0, "respiration_temperature_driver", attval = resp.driver, prec = "text")
   if (partial.month) {
     ncatt_put(ncf, 0, "status", attval = "provisional", prec = "text")
     ncatt_put(ncf, 0, "meteo_partial",

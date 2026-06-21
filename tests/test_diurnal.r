@@ -79,6 +79,27 @@ check("clip operates on a matrix",
                                  matrix(c(0, 5, 5, 0), 2, 2)),
                 matrix(c(0, 2, 3, 0), 2, 2)))
 
+## ---- q10.factor (respiration temperature driver) -------------------------
+## Legacy formula: q10.factor(T) must reproduce 1.5^((T-273.15)/10) exactly,
+## so the default airtemp path is byte-identical to the pre-prototype code.
+Tk <- 273.15 + c(-20, -5, 0, 10, 15, 25, 35)
+check("q10.factor reproduces legacy 1.5^((T-273.15)/10)",
+      close.all(q10.factor(Tk), 1.5 ^ ((Tk - 273.15) / 10.0), tol = 1e-12))
+check("q10.factor == 1 at the reference temperature",
+      abs(q10.factor(273.15) - 1) < 1e-12)
+check("q10.factor rises a factor q10.base per +10 K",
+      abs(q10.factor(283.15) / q10.factor(273.15) - 1.5) < 1e-12)
+## ref.K cancels under the diurnalize normalization q10(t)/mean(q10): two
+## reference choices give factors differing only by a constant, so the
+## normalized diurnal shape is identical.
+qa <- q10.factor(Tk, ref.K = 273.15); qb <- q10.factor(Tk, ref.K = 280.0)
+check("ref.K cancels in the normalized ratio q10(t)/mean(q10)",
+      close.all(qa / mean(qa), qb / mean(qb), tol = 1e-12))
+## operates element-wise on a grid slice
+Tm <- matrix(273.15 + runif(12, -10, 30), 3, 4)
+check("q10.factor operates element-wise on a matrix",
+      is.matrix(q10.factor(Tm)) && all(dim(q10.factor(Tm)) == c(3, 4)))
+
 if (.fail > 0L) {
   cat(sprintf("\n%d FAILED\n", .fail))
   quit(status = 1L)

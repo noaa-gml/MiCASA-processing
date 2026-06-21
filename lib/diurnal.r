@@ -27,6 +27,23 @@ diurnal.flux <- function(driver, monthly.mean, mean.driver, qmod) {
   driver * monthly.mean / mean.driver - monthly.mean + qmod
 }
 
+## Q10 temperature factor for the respiration driver.
+##
+##   temp.K    temperature in Kelvin (2-m air t2m, or 0-7cm soil stl1)
+##   q10.base  factor per 10 K (default 1.5, the legacy Olsen & Randerson value)
+##   ref.K     reference temperature (default 273.15 K = 0 degC)
+##
+## Returns q10.base ^ ((temp.K - ref.K) / 10). Pure element-wise; temp.K may be
+## a scalar or a conformable array. The *choice of temperature variable* (air
+## vs soil) is made by the caller -- see diurnalize-ERA5.r MICASA_RESP_DRIVER.
+## Because the diurnalize transform normalizes by this factor's monthly mean,
+## the diurnal SHAPE depends on the nonlinearity (q10.base) and the driving
+## variable, but not on ref.K (a constant ref shifts q10 by a constant factor
+## that cancels in q10(t)/mean(q10)).
+q10.factor <- function(temp.K, q10.base = 1.5, ref.K = 273.15) {
+  q10.base ^ ((temp.K - ref.K) / 10.0)
+}
+
 ## Polar-night clip: GPP must be zero where the shortwave driver is zero
 ## (no incoming light => no photosynthesis). Without this the sub-monthly
 ## quadratic leaks a small residual into dark cell-hours. `gpp` and
