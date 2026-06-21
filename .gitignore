@@ -45,3 +45,7 @@ __pycache__/
 
 # Bake-off / smoke logs (regenerated)
 *.log
+
+# committed documentation figures (override the *.png ignore)
+!docs/figures/
+!docs/figures/*.png
