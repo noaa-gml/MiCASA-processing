@@ -113,7 +113,7 @@ sub-monthly shape, removing most of an unphysical artifact.
   committed at
   `fitter_diagnostics/verify_v2_summary_20260621.txt`
   (**51 PASS / 1 WARN / 9 INFO / 1 FAIL** — the single FAIL is Check 24.1, explained
-  below). **All science / product / provenance checks (§§1–23) PASS and reproduce
+  below). **All science / product / provenance checks (§§1–23) PASS or INFO and reproduce
   the numbers used below.** The two **§24 items are
   manifest / observability meta-checks on a shared working-directory log — not
   assertions about the product.** That run's lone FAIL was Check 24.1
@@ -152,7 +152,7 @@ integral, C⁰ at knots. Two disqualifying problems for an NRT product:
    cell-hours mean, **14.70%** max (the per-month max is ~11% on the 2020 product);
    Rh 0.122% / 0.444%. (The PCHIP product's own Check 3.1 is the 0.11%/0.94% below.)
 2. **Non-locality.** PIQS is a single global solve over the entire record, so any
-   NRT revision **rewrites all 303 historical months** — the published past
+   NRT revision **rewrites the entire ~303-month record** — the published past
    changes every cycle.
 
 **V2 — PCHIP-on-cumulative** (Fritsch & Carlson 1980; `splinefun(method="monoH.FC")`
@@ -484,13 +484,14 @@ Documenting what was *not* changed, and why, is part of the justification:
 - **ATMC budget closure (NEE = Rh − NPP, *not* − ATMC)** — tried 2026-04-29,
   reverted same day. This is the most consequential "rejected" choice — it changes
   the sign of the prior's long-term trend — so it gets its own treatment in **§5.2**.
-- **PPM as default** — briefly defaulted 2026-06-18, reverted: daily fidelity is
-  near-identical (PCHIP negligibly but *significantly* ahead — **Δ≈0.7%** of the
-  pooled-cell-month median level, or **~0.3%** of RMSE on the by-cell product
-  bootstrap of `FITTER_COMPARISON.md` §4.6; same conclusion, different denominator;
-  both CIs exclude 0; PPM better in 54% of cell-months on the pooled metric) but PPM
-  reintroduces month-edge discontinuities at ~70% of edges (CHANGELOG 2026-06-18;
-  FITTER_COMPARISON §4.6).
+- **PPM as default** — briefly defaulted 2026-06-18, reverted: daily fidelity is a
+  near-tie that the two bootstraps *split* — on the **pooled cell-month** metric PPM
+  is marginally ahead (paired Δ ≈ 0.7% of the median level, PPM better in 54% of
+  cell-months), while the more appropriate **by-cell product bootstrap**
+  (`FITTER_COMPARISON.md` §4.6) puts PCHIP significantly but negligibly ahead (~0.3%
+  of RMSE, CI excludes 0). The margin is immaterial either way; PPM is reverted
+  because it reintroduces month-edge **discontinuities at ~70% of edges** — the steps
+  the smoother exists to remove (CHANGELOG 2026-06-18).
 - **MSS** (overshoots despite the name, ~24% wrong-sign GPP knots, ~hours/grid),
   **linear-recursion PIQS** (unstable), **constrained-quadratic PIQS** (dominated
   by PCHIP), **CCGCRV** (not pursued) — FITTER_COMPARISON.md §4.1/§5, PROPOSALS
@@ -526,7 +527,7 @@ continuity:
    not a measurable property of the prior.
 1. **Non-locality is not fixed.** The linear fallback is applied *post-hoc* to
    PIQS's already-solved coefficients; it does not decouple the knots. A revised
-   NRT month still re-solves PIQS and **rewrites all 303 historical months**
+   NRT month still re-solves PIQS and **rewrites the entire ~303-month record**
    (the **NRT footprint** row of the §1 scorecard) — the exact disqualifier PCHIP
    avoids (footprint 0). This applies to the *selective* fallback, i.e. Andy's
    actual proposal, not a strawman.
