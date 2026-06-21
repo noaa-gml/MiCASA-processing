@@ -24,13 +24,14 @@ dated logs but are not needed to follow the argument below.
   bit-identical / exact-equivalent — or a **quantified improvement (A)** carrying a
   measured impact + a physical or statistical justification + a guarding check. The
   change register above lists them all.
-- **§1 — Fitter PIQS → PCHIP cannot move the science signal.** Every fitter is
-  integral-preserving, so for a *pure fitter swap* the monthly-and-longer budget —
-  annual totals, trend, interannual variability, ENSO/COVID — is **identical by
-  construction** (§0). PCHIP only changes the **sub-monthly shape**, and there it
-  fixes PIQS's two disqualifiers: wrong-sign overshoot (**~11% → ≤0.9%** of GPP
-  cell-hours) and a global solve that **rewrites the entire ~303-month record on
-  every near-real-time (NRT) revision (→ 0 for PCHIP)**.
+- **§1 — Fitter PIQS → PCHIP fixes two real PIQS defects, at zero risk to the
+  long-term signal.** PIQS produced unphysical sub-monthly fluxes (wrong-sign
+  overshoot — GPP as a *source* in **~11%** of GPP cell-hours) and, as a single global
+  solve, **rewrote the entire ~303-month published record on every near-real-time
+  (NRT) revision**. PCHIP fixes both (overshoot **→ ≤0.9%**; NRT footprint **→ 0**).
+  This matters because the **sub-monthly shape is what the inversion ingests**; it is
+  *safe* because every fitter is integral-preserving, so the monthly-and-longer budget
+  — annual totals, trend, IAV, ENSO/COVID — is **identical by construction** (§0).
 - **§2 — Diurnalization is V1's, unchanged — but we recommend one flip (the one
   decision requested).** Drive respiration off **soil** temperature rather than 2-m
   air: physically correct, small and sign-correct at the NEE level (full-year 2019
@@ -139,10 +140,23 @@ explanation, and the per-change → check map in **§6**.
 
 ## 1. Headline change — fitter PIQS → PCHIP (A)
 
-This is the change that prompted the V1↔V2 concern, so it gets the fullest
-defense — the decisive comparison is the scorecard and constraint trilemma below.
-(The fuller per-method bake-off, incl. PPM / minmod / MSS / ATP-kriging, is in the
-repo's `FITTER_COMPARISON.md`, but is not needed to follow this section.)
+**Why switch at all, if the budget is unchanged?** Because the long-term
+budget-invariance (§0) does *not* protect against PIQS's two real defects — both
+live in the **sub-monthly shape**, which is precisely what an atmospheric inversion
+ingests (resolving sub-monthly / diurnal structure is first-order for inversions —
+the rectifier effect; `FITTER_COMPARISON.md` §3). PIQS **(a)** produces unphysical
+**wrong-sign sub-monthly fluxes** (GPP appearing as a *source*) and **(b)** — being a
+single global solve — **rewrites the entire published record on every NRT update**.
+PCHIP fixes both. The switch is *safe* exactly because every fitter is
+integral-preserving: it cannot move the annual / trend / ENSO budget (§0). So the net
+is **a real improvement where it matters (the sub-monthly product + NRT stability),
+provably harmless where it doesn't (the long-term signal)** — which is why "it can't
+move the science signal" is the reassurance, not the reason.
+
+This change prompted the V1↔V2 concern, so it gets the fullest defense — the decisive
+comparison is the scorecard and constraint trilemma below. (The fuller per-method
+bake-off, incl. PPM / minmod / MSS / ATP-kriging, is in `FITTER_COMPARISON.md`, not
+needed to follow this section.)
 
 **V1 — PIQS** (Piecewise Integral Quadratic Splines, Rasmussen 1991;
 CT2022-documented). Per-cell quadratic pieces, each preserving the monthly
