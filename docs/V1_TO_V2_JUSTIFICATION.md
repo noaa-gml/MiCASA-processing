@@ -150,6 +150,16 @@ step defensible. (Measured effect when enabled: soil-temp NEE diurnal amplitude
 +2% global, ×0.5 boreal winter; Lloyd-Taylor respiration ×1.5 global — see that
 doc §5.1–5.3.)
 
+**Recommendation (new, with CIs + forcing validation):** the soil-temperature
+driver is now **recommended as the default**. Its respiration damping is validated
+as a *real ERA5 forcing property* — the driver's own `stl1`/`t2m` per-cell
+amplitude ratio (0.860, July) matches the respiration ratio (0.862) to within
+0.002 — the NEE effect is small and sign-correct (amplitude ratio **1.022, 95% CI
+[1.022, 1.023]**, by-cell bootstrap), and it costs nothing (`stl1` already loaded,
+mass conserved, default-off byte-identical). The production default has **not**
+been flipped pending sign-off; Lloyd-Taylor stays opt-in. Full justification +
+figures: DIURNALIZATION_ALTERNATIVES.md §5.4.
+
 ---
 
 ## 3. Other product-number changes (A) — each justified

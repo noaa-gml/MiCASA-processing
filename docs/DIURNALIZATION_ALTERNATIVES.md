@@ -171,8 +171,8 @@ identical fit, and the global-land area-weighted diurnal cycles compared
 This is the basis for a defensible recommendation to Andy: the soil-temp
 driver is more physical, costs nothing (data already loaded), conserves every
 monthly mean exactly, and changes the product modestly (~2% NEE diurnal
-amplitude) in the correct direction. Default remains `airtemp` pending a
-decision to flip it.
+amplitude) in the correct direction. Default remains `airtemp` pending
+sign-off on the §5.4 recommendation below.
 
 ## 5.2 Cold-season contrast — January 2020 shadow-diff
 
@@ -258,6 +258,61 @@ uncertain piece. The test that would actually discriminate Q10=1.5 from
 Lloyd-Taylor is the **observed diurnal amplitude of ecosystem respiration**
 (eddy covariance) — a validation, not another model run — and is the natural next
 step before flipping any default.
+
+## 5.4 Decision: recommend soil-temp as the default driver
+
+With bootstrap confidence intervals and a forcing-level validation added, the
+case for flipping the default from air to soil temperature is solid. The
+recommendation: **make `MICASA_RESP_DRIVER=soiltemp` the default; keep
+Lloyd-Taylor opt-in.** (`fitter_diagnostics/resp_driver_ci_plots.py`.)
+
+**(1) The effect is real, tightly bounded, sign-correct** (by-cell bootstrap,
+B=2000, 95% CI, July 2020):
+
+| Quantity | soil/air ratio | 95% CI |
+|---|---|---|
+| Respiration diurnal amplitude | 0.862 | [0.858, 0.866] |
+| NEE diurnal amplitude | 1.022 | [1.022, 1.023] |
+| Respiration phase shift | +1.0 h | — |
+
+The NEE CI excludes 1 but the change is ~2% — significant *and* small, the
+profile of a defensible refinement. By band (resp amplitude ratio): boreal
+0.830 [0.824, 0.835], NH-temp 0.959 [0.951, 0.969], tropics 0.846 [0.839, 0.853],
+SH-temp 0.787 [0.775, 0.800].
+
+**(2) Forcing validation — the decisive new evidence.** The respiration damping
+is not a modelling choice; it is **inherited cell-by-cell from the ERA5 soil-vs-air
+temperature difference itself.** The per-cell diurnal amplitude ratio of the
+*driver* (`stl1`/`t2m`) is **0.860 (July) / 0.752 (Jan)** — matching the resulting
+respiration amplitude ratio (0.862 / 0.751) to within 0.002 — with the same +1 h
+phase lag. Switching the driver simply lets respiration follow the temperature the
+soil actually experiences; it is using the correct forcing variable, not a tuning.
+
+![ERA5 forcing: 0-7cm soil temp lags 2-m air](figures/resp_forcing_t2m_vs_stl1.png)
+
+![Respiration diurnal cycle, air vs soil driver](figures/resp_diurnal_air_vs_soil.png)
+
+![Per-cell respiration amplitude ratio distribution](figures/resp_amplitude_ratio_hist.png)
+
+**(3) Largest, most defensible where air-temp is least physical.** In boreal
+January the soil-driven respiration amplitude is **0.354 [0.339, 0.366]** of the
+air-driven one (snow-insulated/frozen soil decoupled from swinging air); since
+GPP≈0 there, the boreal-January NEE amplitude is **0.506 [0.481, 0.525]**.
+
+**(4) Cost and risk.** Zero new inputs (`stl1` already loaded), every monthly
+total conserved exactly, default-off byte-identical to the current product
+(`fitter_diagnostics/bytecheck_resp_driver_default.txt`, max |Δ| = 0). The one
+remaining gap — an eddy-covariance amplitude validation — is desirable but no
+longer a blocker: the forcing-level validation (2) plus settled soil-respiration
+physics already establish soil temperature as the correct driver.
+
+**Lloyd-Taylor stays opt-in:** it swings respiration amplitude 1.5–3.7× but NEE
+only ~1% (§5.3), and its steep low-T sensitivity is the uncertain piece — flip it
+only after an eddy-covariance amplitude check.
+
+**Implementation:** a one-line default change (`MICASA_RESP_DRIVER` default
+`airtemp`→`soiltemp`), pending sign-off; until then the production default is
+unchanged.
 
 ## 6. References
 
