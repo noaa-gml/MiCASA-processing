@@ -159,9 +159,10 @@ The "right" picture in our usage: the inversion's atmospheric
 assimilation **is** the place where the global growth-rate constraint
 enters; the prior should reflect what the offline biospheric model
 says **on its own**, and the inversion learns the bias correction from
-data. This means we accept the +0.04 PgC/yr/yr long-term trend in
-CASA-only NEE as a real feature of the prior — it's the inversion's
-job to correct it.
+data. This means we ship the +0.04 PgC/yr/yr long-term trend in
+CASA-only NEE as a **property of the CASA prior — not asserted to be a real
+climate feature**: whether real (CO₂-fertilization) or a CASA bias, it's the
+inversion's job to correct it, and pre-closing it with ATMC would be circular.
 
 Code state after revert: `lib/ingest_common.r` tracers list is
 `NPP/Rh/FIRE/FUEL` (no ATMC); `diurnalize-ERA5.r` computes
@@ -266,8 +267,10 @@ transition months), PCHIP is more sensible because it produces flat
 segments at zero rather than oscillating through it.
 
 Bake-off (`bakeoff_pchip.py`) on 6 representative cells confirmed PCHIP
-gives 0% flip rate by construction vs PIQS up to 30.91% (AK Tundra),
-with absolute flux differences <2e-11 invisible at hourly sampling.
+gives 0% flips *on those cells* (PCHIP is sign-definite at the knots only,
+not 0 by construction; full-grid residual ≤0.94% of GPP cell-hours) vs PIQS
+up to 30.91% (AK Tundra), with absolute flux differences <2e-11 invisible at
+hourly sampling.
 Full-record diurnalize confirmation (25 years, 300 months) shows GPP
 cell-hour mean flip rate 6.55% → 0.12% and Rh effectively zero.
 
