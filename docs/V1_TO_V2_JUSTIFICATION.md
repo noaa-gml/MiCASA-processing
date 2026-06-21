@@ -496,6 +496,14 @@ behavior-preserving item maps to a proof in the §4 table.
 - **Diurnal respiration refinements** (soil-temp, Lloyd-Taylor) are implemented
   and opt-in but **not yet validated against eddy-covariance** diurnal amplitudes
   — the gate before any default flip (DIURNALIZATION_ALTERNATIVES.md §5.3).
+- **Prior uncertainty is constructed, not native.** MiCASA ships **no per-pixel
+  uncertainty** (a single deterministic realization — vars `NPP/Rh/FIRE/FUEL/ATMC/NEE`
+  only), so any prior σ is one we build. The quantified, model-free band is ~3% of
+  the flux envelope (0.1° sub-grid heterogeneity ~3.5% + across-fitter structural
+  ~3%; `FITTER_COMPARISON.md §4.3`), available as an opt-in `NEE_sd` field — a
+  **lower bound** on redistribution + 1° representativeness, *not* the dominant
+  monthly-NPP/Rh model error (tens of %), which is not in the product and is
+  carried by the inversion's prior covariance.
 - **Archival DOI** ships as `PENDING` (`grep -rl PENDING` finds every spot).
 
 ## 8. References

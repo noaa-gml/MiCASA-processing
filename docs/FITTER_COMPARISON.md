@@ -325,9 +325,12 @@ flux field that is genuinely sub-cell heterogeneous in *shape*, not just level.)
 
 ### 4.3 Out-of-domain methods & uncertainty quantification
 
-A broad cross-domain survey (verified deep-research, 2026-06-18) asked whether
-any field outside climate/numerics beats PCHIP/PPM on the five requirements,
-especially by adding the **uncertainty estimate** the deterministic splines lack.
+MiCASA provides **no native per-pixel uncertainty** (a single deterministic
+realization — vars `NPP/Rh/FIRE/FUEL/ATMC/NEE` only), so any prior σ must be
+constructed. A broad cross-domain survey (verified deep-research, 2026-06-18)
+asked whether any field outside climate/numerics beats PCHIP/PPM on the five
+requirements, especially by adding the **uncertainty estimate** the deterministic
+splines (and MiCASA itself) lack.
 
 | Family (field) | mass-exact | positivity | NRT-local | smooth | uncertainty |
 |---|---|---|---|---|---|

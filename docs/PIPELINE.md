@@ -512,3 +512,11 @@ This pipeline does **not** subtract `ATMC` when computing NEE (the
 file-level `:comment` notwithstanding) — see
 [`docs/METHODOLOGY.md`](METHODOLOGY.md) and
 [proposal #7](PROPOSALS.md#7-rejected-atmc-budget-closure-in-nee).
+
+Note there is **no uncertainty field** in the schema — MiCASA is a single
+deterministic realization, so we ship no native per-pixel σ. Any prior
+uncertainty is *constructed*: a model-free ~3%-of-envelope band (0.1° sub-grid
+heterogeneity + across-fitter structural spread), available as an opt-in `NEE_sd`
+output, which is a lower bound (redistribution + representativeness) — not the
+dominant monthly-NPP/Rh model error. See
+[`docs/FITTER_COMPARISON.md`](FITTER_COMPARISON.md) §4.3.

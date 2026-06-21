@@ -224,3 +224,17 @@ isn't.
 
 See [proposal #7](PROPOSALS.md) for the full integrate-and-revert
 chronology.
+
+## Uncertainty
+
+MiCASA provides **no native per-pixel uncertainty** — it is a single
+deterministic realization (the raw file carries only `NPP/Rh/FIRE/FUEL/ATMC/NEE`).
+Any prior uncertainty is therefore *constructed*. We quantify a model-free band of
+~3% of the local flux envelope — 0.1° sub-grid heterogeneity (~3.5%, biome-
+dependent) plus the across-fitter structural spread (~3%) — emitted as an opt-in
+`NEE_sd` field (from the ATP-kriging fitter's variance; see
+[`FITTER_COMPARISON.md`](FITTER_COMPARISON.md) §4.3–4.4). This is a **lower bound**
+covering sub-monthly redistribution and 1° representativeness; it does **not**
+include the dominant term — the model error in the monthly NPP/Rh itself (tens of
+%) — which MiCASA does not provide and which the downstream inversion's prior
+error covariance carries separately.
