@@ -174,6 +174,38 @@ monthly mean exactly, and changes the product modestly (~2% NEE diurnal
 amplitude) in the correct direction. Default remains `airtemp` pending a
 decision to flip it.
 
+## 5.2 Cold-season contrast — January 2020 shadow-diff
+
+The air-vs-soil difference is strongly **seasonal** and concentrated in the
+winter hemisphere's high latitudes, where snow-insulated / frozen soil is most
+decoupled from the still-swinging air. Repeating the shadow-diff for January
+2020 (`fluxes_202001.nc`):
+
+| Region | Rh amplitude ratio soil/air, July | January |
+|---|---|---|
+| Boreal 50-70N | 0.83 | **0.35** |
+| NH temperate 25-50N | 0.96 | 0.59 |
+| Tropics 25S-25N | 0.85 | 0.85 |
+| SH temperate 25-50S | 0.79 | 1.06 |
+| Global median | 0.86 | 0.75 |
+
+- **Boreal winter is where the legacy driver is most wrong.** Soil-temp
+  respiration diurnal amplitude there is only **35%** of the air-temp version
+  (vs 83% in July): frozen / snow-insulated 0-7 cm soil barely cycles while
+  2-m air still swings ~10 K. Air temp grossly overstates the winter boreal
+  respiration diurnal cycle; soil temp correctly flattens it.
+- **Tropics are aseasonal** (0.85 both months); **SH temperate** in austral
+  summer is ~neutral-to-slightly-amplified (1.06).
+- **NEE consequence is localized but real.** Globally NEE diurnal amplitude
+  still moves only ~+2% (the boreal winter flux is small in the global mean),
+  but because GPP ~ 0 in polar winter, NEE there is respiration alone, so the
+  **boreal-January NEE diurnal amplitude is halved** (ratio 0.51, +1 h phase) —
+  in exactly the high-latitude cold-season regime the rectifier is sensitive to.
+
+Takeaway: the soil-temp driver's largest, most defensible corrections land in
+the cold winter hemisphere high latitudes — the seasons/regions where an
+air-temperature proxy for soil decomposition is least physical.
+
 ## 6. References
 
 - Best et al. (2011), *The Joint UK Land Environment Simulator (JULES)*, GMD 4:677–699, doi:10.5194/gmd-4-677-2011.

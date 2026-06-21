@@ -13,8 +13,12 @@
 ## diurnal-cycle figure. Pure ncdf4 + base R.
 suppressMessages(library(ncdf4))
 
-fair  <- "ERA5_resp_airtemp/fluxes_202007.nc"
-fsoil <- "ERA5_resp_soiltemp/fluxes_202007.nc"
+## Two single-month shadow outputs to compare; default July 2020, override via
+## args:  Rscript resp_driver_shadowdiff.r <air.nc> <soil.nc>
+.a <- commandArgs(trailingOnly=TRUE)
+fair  <- if (length(.a) >= 1) .a[1] else "ERA5_resp_airtemp/fluxes_202007.nc"
+fsoil <- if (length(.a) >= 2) .a[2] else "ERA5_resp_soiltemp/fluxes_202007.nc"
+tag   <- sub(".*fluxes_([0-9]+)\\.nc", "\\1", fair)
 stopifnot(file.exists(fair), file.exists(fsoil))
 
 rd <- function(f, v) { nc <- nc_open(f); on.exit(nc_close(nc)); ncvar_get(nc, v) }
@@ -51,7 +55,7 @@ diurnal.cycle <- function(x3) {
 report <- c(); CYC <- list()
 say <- function(...) { s <- sprintf(...); cat(s, "\n"); report <<- c(report, s) }
 
-say("=== Respiration-driver shadow-diff: July 2020 (air vs soil temp) ===")
+say("=== Respiration-driver shadow-diff: %s (air vs soil temp) ===", tag)
 for (vv in c("resp", "NEE", "GPP")) {
   xa <- rd(fair,  vv); xs <- rd(fsoil, vv)
   ## (1) mass conservation: monthly mean per cell
@@ -103,11 +107,11 @@ for (vv in c("resp", "NEE", "GPP")) {
   CYC[[vv]] <- data.frame(hour=0:23, air=gca, soil=gcs)  # stash for CSV/figure
 }
 
-writeLines(report, "fitter_diagnostics/resp_driver_shadowdiff.txt")
+writeLines(report, sprintf("fitter_diagnostics/resp_driver_shadowdiff_%s.txt", tag))
 
 ## dump global-land mean diurnal cycles (resp + NEE, air vs soil) for plotting
 cyc <- data.frame(hour=0:23,
   resp_air=CYC$resp$air, resp_soil=CYC$resp$soil,
   nee_air =CYC$NEE$air,  nee_soil =CYC$NEE$soil)
-write.csv(cyc, "fitter_diagnostics/resp_driver_diurnal.csv", row.names=FALSE)
-cat("\nWrote resp_driver_shadowdiff.txt and resp_driver_diurnal.csv\n")
+write.csv(cyc, sprintf("fitter_diagnostics/resp_driver_diurnal_%s.csv", tag), row.names=FALSE)
+cat(sprintf("\nWrote shadowdiff_%s.txt and diurnal_%s.csv\n", tag, tag))
