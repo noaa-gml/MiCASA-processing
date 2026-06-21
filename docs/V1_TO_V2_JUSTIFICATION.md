@@ -56,6 +56,31 @@ dated logs but are not needed to follow the argument below.
   Orion; 143 reproduced green locally, 10 `quadprog`-gated) and committed diagnostic
   scripts + figures (§6).
 
+## Change register — the whole scope at a glance
+
+Every V1→V2 change, classified **(A)** moves output numbers or **(B)** proven no-op.
+The one item needing your decision is bold.
+
+| # | Change | Type | Impact / status | Where |
+|---|---|---|---|---|
+| 1 | Fitter **PIQS → PCHIP** | A | budget unchanged (integral-preserving); sub-monthly sign-flips ~11% → ≤0.9%; NRT-local | §1 |
+| 2 | **Respiration driver: 2-m air → soil temp** | A (proposed) | **DECISION REQUESTED** — NEE diurnal-amplitude +2.3% [1.021,1.024]; EC-validation gate open | §2 |
+| 3.1 | 0.1°→1° aggregation latitude-weight bug fix | A | V1 mis-weighted; <0.01% typical, larger toward poles | §3.1 |
+| 3.2 | Polar-night GPP = 0 clip | A | ~0.16% median GPP gap (mass-conserving clip available opt-in) | §3.2 |
+| 3.3 | ERA5 FastTrack dual-tree fallback | A | NRT trailing months only; per-day provenance | §3.3 |
+| 3.4 | Per-month climatology auto-detect | A | real-vs-climatology decided per month by file presence | §3.4 |
+| — | 15 library / refactor / compression / provenance / manifest / packaging changes | B | proven no-ops (bit-identical or exact-equivalent) | §4 |
+| — | ATMC subtraction; PIQS+linear-fallback; MSS; PPM-as-default; … | rejected | diligence, not changes | §5 |
+
+**How this document is organized.** The executive summary and the register above are
+the whole story at a glance; the rest is for auditing. **§§1–3** detail each change
+that moves numbers (including the one decision requested, §2); **§4** the proven
+no-ops; **§5** what was considered and rejected; **§6–7** the evidence and
+limitations; **Appendix A** the fitter equations. Skip the equations and the full
+scorecard (§1) if you trust the headline.
+
+---
+
 ## 0. How to read this — two categories and one invariant
 
 Every change is exactly one of:
@@ -104,32 +129,9 @@ on two legs, stated to their exact epistemic status:
 So the change Andy flagged does not move the science signal — it changes the
 sub-monthly shape, removing most of an unphysical artifact.
 
-**Standing evidence base.** Two independent harnesses back the claims below:
-- `verify_v2` — **60 numbered checks across 24 sections** (enumerated in §6; the
-  summary shows 62 status lines = 51 PASS / 1 WARN / 9 INFO / 1 FAIL, because Check
-  2.1 splits into `2.1.gpp`/`2.1.rtot` and a `P2.0` build-cube line is also logged),
-  committed at
-  `fitter_diagnostics/verify_v2_summary_20260621.txt`
-  (**51 PASS / 1 WARN / 9 INFO / 1 FAIL** — the single FAIL is Check 24.1, explained
-  below). **All science / product / provenance checks (§§1–23) PASS or INFO and reproduce
-  the numbers used below.** The two **§24 items are
-  manifest / observability meta-checks on a shared working-directory log — not
-  assertions about the product.** That run's lone FAIL was Check 24.1
-  (run-manifest integrity): **concurrent-append corruption** of `jobs/run_manifest.tsv`
-  — interleaved/partial writes from many parallel jobs — a pure logging artifact, as
-  Check 24.2 ("no failed pipeline steps") **PASSED** in the same run. We
-  **losslessly recovered** the log (split the merged records, dropped the empty
-  lines; a re-parse then shows 0 rows ≠ 7 columns — exactly Check 24.1's criterion;
-  not committed, as the manifest is a gitignored runtime artifact). We deliberately
-  do **not** post a fresh re-run tally: this session's
-  *separate* isolated PIQS-release builds have since written to the same shared
-  `jobs/` logs that §3.1/§24 read, so a re-run would reflect that unrelated activity
-  rather than the shipped product. The clean PCHIP-product numbers below are from
-  the committed summary.
-- `tests/` — **143 R checks run on any host (10 files) + 10 `quadprog`-gated
-  (`test_mss_fit.r`, Orion only) = 153**, plus 4 Python suites; **all green** on
-  Orion (R 4.4.0, 2026-06-21). The 143 non-gated R checks were reproduced green
-  locally (R 4.6.0) for this revision. Per-change → test map in §6.
+**Evidence base.** Two independent harnesses back every claim below — `verify_v2`
+(60 checks) and `tests/` (153) — with the full tallies, the §24 manifest-artifact
+explanation, and the per-change → check map in **§6**.
 
 ---
 
@@ -158,52 +160,13 @@ integral, C⁰ at knots. Two disqualifying problems for an NRT product:
 cumulative integral F(t), differentiated analytically to the flux f = F′ as a
 piecewise quadratic (same `(a,b,c)` storage as PIQS).
 
-### Equations
-
-Both fitters store, per cell and month *i*, a quadratic on `t ∈ [tᵢ, tᵢ₊₁]` of
-width `hᵢ`, and both impose **mass preservation** — the piece integral equals the
-MiCASA monthly mean `ȳᵢ` (this *is* the master invariant of §0):
-
-```
-fᵢ(t) = aᵢ (t−tᵢ)² + bᵢ (t−tᵢ) + cᵢ
-(1/hᵢ) ∫[tᵢ→tᵢ₊₁] fᵢ dt = aᵢhᵢ²/3 + bᵢhᵢ/2 + cᵢ = ȳᵢ
-```
-
-**PIQS** (Rasmussen 1991) fixes the remaining freedom by a **single global solve**:
-each piece preserves its integral *and* adjacent pieces share the knot value (C⁰),
-`fᵢ(tᵢ₊₁) = fᵢ₊₁(tᵢ₊₁)`. That continuity system couples *every* month to every
-other → non-local; nothing constrains the quadratic's sign, so it overshoots
-through zero in sharply seasonal cells.
-
-**PCHIP-on-cumulative** (Fritsch & Carlson 1980; `lib/pchip_fit.r`) instead works
-on the cumulative integral and is **local**:
-
-```
-Fₖ = Σ_{i<k} ȳᵢ hᵢ           (F₀ = 0; monotone when the ȳᵢ share a sign)
-secants     mₖ = ȳₖ
-F-C knot slopes dₖ:  dₖ = 0 at a secant sign change,
-                     else |dₖ| ≤ 3·min(|mₖ₋₁|, |mₖ|)   ← monotonicity limiter
-```
-
-The flux is the derivative of the monotone cubic Hermite on `F`; on segment *k*
-with `s = (t−xₖ)/hₖ`,
-
-```
-f(s) = (6s−6s²)·mₖ + (3s²−4s+1)·dₖ + (3s²−2s)·dₖ₊₁
-```
-
-which in the stored `(a,b,c)` form is, with `Q = −6mₖ+3dₖ+3dₖ₊₁`,
-`L = 6mₖ−4dₖ−2dₖ₊₁`, `K = dₖ`:
-
-```
-aᵢ = Q/hₖ²,   bᵢ = L/hₖ,   cᵢ = K          (signs negated for GPP ≤ 0)
-```
-
-Mass is automatic (`∫₀¹ f ds = mₖ = ȳₖ`). **The contrast in one line:** PIQS sets
-`(a,b,c)` by a *global* C⁰ system (→ non-local, sign-unconstrained → overshoot);
-PCHIP sets them from *local* Fritsch-Carlson knot slopes `dₖ` (→ ~1-month
-revision footprint, sign-definite *at the knots* by the limiter). Both yield the
-identical `ȳᵢ` — hence the budget-invariance (§0).
+Both store the same per-piece quadratic `(a,b,c)` with the same mass-preservation
+identity; they differ only in how the free coefficient is set. **In one line:** PIQS
+fixes it by a *global* C⁰ continuity solve (couples every month → non-local,
+sign-unconstrained → overshoots in sharply seasonal cells); PCHIP sets it from
+*local* Fritsch-Carlson knot slopes (~1-month revision footprint, sign-definite *at
+the knots* by the monotonicity limiter). Both reproduce the identical monthly mean
+`ȳᵢ` — hence the budget-invariance (§0). Full equations in **Appendix A**.
 
 ### The constraint trilemma — why every fitter relaxes *something*
 
@@ -740,6 +703,53 @@ behavior-preserving item maps to a proof in the §4 table.
   components, **not** an uncertainty on the prior as a whole — do not read "~3%" as
   "the prior is good to 3%."
 - **Archival DOI** ships as `PENDING` (`grep -rl PENDING` finds every spot).
+
+---
+
+## Appendix A — Fitter equations (PIQS vs PCHIP)
+
+Both fitters store, per cell and month *i*, a quadratic on `t ∈ [tᵢ, tᵢ₊₁]` of
+width `hᵢ`, and both impose **mass preservation** — the piece integral equals the
+MiCASA monthly mean `ȳᵢ` (this *is* the master invariant of §0):
+
+```
+fᵢ(t) = aᵢ (t−tᵢ)² + bᵢ (t−tᵢ) + cᵢ
+(1/hᵢ) ∫[tᵢ→tᵢ₊₁] fᵢ dt = aᵢhᵢ²/3 + bᵢhᵢ/2 + cᵢ = ȳᵢ
+```
+
+**PIQS** (Rasmussen 1991) fixes the remaining freedom by a **single global solve**:
+each piece preserves its integral *and* adjacent pieces share the knot value (C⁰),
+`fᵢ(tᵢ₊₁) = fᵢ₊₁(tᵢ₊₁)`. That continuity system couples *every* month to every
+other → non-local; nothing constrains the quadratic's sign, so it overshoots
+through zero in sharply seasonal cells.
+
+**PCHIP-on-cumulative** (Fritsch & Carlson 1980; `lib/pchip_fit.r`) instead works
+on the cumulative integral and is **local**:
+
+```
+Fₖ = Σ_{i<k} ȳᵢ hᵢ           (F₀ = 0; monotone when the ȳᵢ share a sign)
+secants     mₖ = ȳₖ
+F-C knot slopes dₖ:  dₖ = 0 at a secant sign change,
+                     else |dₖ| ≤ 3·min(|mₖ₋₁|, |mₖ|)   ← monotonicity limiter
+```
+
+The flux is the derivative of the monotone cubic Hermite on `F`; on segment *k*
+with `s = (t−xₖ)/hₖ`,
+
+```
+f(s) = (6s−6s²)·mₖ + (3s²−4s+1)·dₖ + (3s²−2s)·dₖ₊₁
+```
+
+which in the stored `(a,b,c)` form is, with `Q = −6mₖ+3dₖ+3dₖ₊₁`,
+`L = 6mₖ−4dₖ−2dₖ₊₁`, `K = dₖ`:
+
+```
+aᵢ = Q/hₖ²,   bᵢ = L/hₖ,   cᵢ = K          (signs negated for GPP ≤ 0)
+```
+
+Mass is automatic (`∫₀¹ f ds = mₖ = ȳₖ`). PIQS sets `(a,b,c)` by a *global* C⁰
+system; PCHIP from *local* Fritsch-Carlson knot slopes `dₖ`. Both yield the
+identical `ȳᵢ` — hence the budget-invariance (§0).
 
 ## 8. References
 
