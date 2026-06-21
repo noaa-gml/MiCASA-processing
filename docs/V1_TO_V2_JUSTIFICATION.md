@@ -256,6 +256,42 @@ Documenting what was *not* changed, and why, is part of the justification:
 
 ---
 
+### 5.1 Why not "PIQS, then revert to linear on overshoot"
+
+This hybrid — keep PIQS's smooth global-solve quadratic where it is sign-safe and
+patch the overshooting pieces with a sign-safe integral-preserving linear — was a
+stakeholder-preferred alternative to PCHIP. It was implemented and measured
+(`fitter_diagnostics/piqs_hybrid.r`, `linear_fallback_quantify.r`) and **not
+adopted**, on four quantified grounds:
+
+1. **Non-locality is not fixed.** The linear fallback is applied *post-hoc* to
+   PIQS's already-solved coefficients; it does not decouple the knots. A revised
+   NRT month still re-solves PIQS and **rewrites all 302 historical months**
+   (footprint table, FITTER_COMPARISON §4) — the exact disqualifier PCHIP avoids
+   (footprint 0).
+2. **It trades bounded overshoot for large discontinuities.** **29.3%** of land
+   cell-months trigger the fallback, and patching breaks PIQS's C⁰ continuity at
+   those edges: **52% of patched edges jump more than 3× the local flux envelope,
+   and 38% jump more than the *entire* local monthly flux** (the overshooting
+   cells are near-zero transition months, so the patch sits far from its
+   neighbour; median ~5× env). PCHIP's edge discontinuity is exactly **0**.
+3. **"Just use linear everywhere" is *worse* than PIQS.** The continuous
+   integral-preserving linear recursion `y_{i+1}=2·mᵢ−yᵢ` flips sign at **36.9%
+   of interior knots** (vs PIQS's 29.3% overshoot) and rings with **unbounded
+   resonance** (knot/env amplification p99 = 2.6×10⁵ — the Nyquist pole of
+   PROPOSALS #9): it forces the month-to-month alternation that PIQS's quadratic
+   absorbs into curvature onto the knots instead.
+4. **No fidelity gain.** Hybrid daily RMSE/env (2020) is **0.079 / 0.139**, tying
+   PCHIP's **0.081 / 0.141** — the preserved smoothness buys no reconstruction
+   accuracy.
+
+PCHIP dominates the whole tradeoff — sign-safe *and* C⁰-continuous *and* local
+*and* closed-form — the "good corner" below:
+
+![Sign-safety vs continuity: PCHIP in the good corner](figures/fitter_tradeoff_scatter.png)
+
+![PIQS+linear-fallback patch-discontinuity distribution](figures/linear_fallback_discontinuity.png)
+
 ## 6. Evidence matrix
 
 **Validation harness — `verify_v2` (60 distinct checks / 24 sections).** Phase 1
