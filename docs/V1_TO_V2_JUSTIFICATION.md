@@ -2,15 +2,15 @@
 
 **Status:** decision / review document · **Date:** 2026-06-21 · **Purpose:** make the
 case that it is worth switching the MiCASA pipeline feeding CarbonTracker from **V1**
-— the long-running, verified production line — to **V2** (`main`, tagged `v2.0.0`),
-and to show the switch is low-risk. The default position is "stay on V1": it works
+— the long-running, verified production line — to **V2** (`main`, tagged `v2.0.0`).
+The default position is "stay on V1": it works
 and has years of track record, so the burden is on V2 to earn the change. Every
 change from V1 is justified below with its rationale, quantified impact, and
 verification, so the case can be audited change by change.
 
 > **Decision requested:** adopt **V2** as the MiCASA pipeline feeding CarbonTracker,
 > replacing V1. V2 is built, tagged (`v2.0.0`), and verified; everything below is the
-> case that the switch is worth it and low-risk. *(One sub-decision lives inside V2:
+> case that the switch is worth it, with the receipts to check it. *(One sub-decision lives inside V2:
 > whether to also flip the respiration driver to soil temperature, §2 — that one can
 > be deferred without holding up the switch.)*
 
@@ -22,7 +22,7 @@ dated logs but are not needed to follow the argument below.
 
 ## Executive summary
 
-**The case in brief — V1 is proven; here is why V2 is worth the switch and low-risk:**
+**The case in brief — V1 is proven; here is why V2 is worth the switch:**
 
 - **What you keep.** V2's monthly-and-longer budget matches V1's to **0.04% per
   latitude band** (§20.1): every fitter is integral-preserving (§0) and the
@@ -40,7 +40,7 @@ dated logs but are not needed to follow the argument below.
   typical), not adding risk.
 
 **Bottom line: V2 preserves everything V1 got right and corrects the little it got
-wrong — at low, quantified risk.**
+wrong — and the cost of switching is quantified here, not asserted.**
 
 The rest of this summary follows the document's structure, one bullet per section:
 
