@@ -546,10 +546,11 @@ and concluded:
   `y_{i+1}=2m_i−y_i`, pole at Nyquist) — confirms PROPOSAL #9.
 - **Decision (2026-06-18):** PCHIP **remains** the V2 default. The real fix —
   moving off PIQS to a *local, sign-definite* method — already happened at V2
-  (PCHIP). A paired same-cell test shows PCHIP vs PPM daily fidelity is a
-  **statistical tie** (PPM better in 54% of cell-months, 49% in boreal; the
-  paired-difference IQR straddles zero), and PCHIP **wins on continuity** (zero
-  flux jumps vs PPM's small jumps at most month edges) -- and continuity is the
+  (PCHIP). A by-cell bootstrap shows PCHIP vs PPM daily fidelity is
+  **near-identical** — PCHIP negligibly but *significantly* ahead (Δ≈0.7% of level,
+  95% CI excludes 0; PPM better in 54% of cell-months on the pooled metric, 49% in
+  boreal), and PCHIP **wins on continuity** (zero flux jumps vs PPM's small jumps at
+  most month edges) -- and continuity is the
   smoother's whole purpose. So PCHIP stays default; `write_ppm.r` and
   `write_linmm.r` are selectable via `MICASA_FIT_RDA`. PIQS is unsuitable for an
   NRT product (28% wrong-sign GPP cell-months; global-solve non-locality); MSS

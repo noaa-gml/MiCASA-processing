@@ -4,7 +4,13 @@
 single auditable register that defends *every* change from the V1 (legacy)
 processing pipeline to V2 (`main`, tagged `v2.0.0`). For any change a reviewer
 questions, this document gives the rationale, the quantified impact, and the
-verification that backs it. **This document is self-contained** — the
+verification that backs it.
+
+> **Decision requested:** sign-off to make **soil temperature the default
+> respiration driver** (§2). Everything else here is already shipped and verified —
+> it is backup for any change you want to audit, not an open question.
+
+**This document is self-contained** — the
 load-bearing scorecard, equations, figures, and references are inlined here; the
 repo docs (`FITTER_COMPARISON.md`, `DIURNALIZATION_ALTERNATIVES.md`,
 `METHODOLOGY.md`, `PROPOSALS.md`, `CHANGELOG.md`) hold the fuller bake-offs and
@@ -17,17 +23,16 @@ dated logs but are not needed to follow the argument below.
   few that move numbers each carry a measured impact + a physical or statistical
   justification + a guarding check (§0, §4).
 - **The fitter switch (PIQS → PCHIP) cannot move the science signal.** Every
-  fitter is integral-preserving, so the monthly-and-longer budget — annual totals,
-  trend, interannual variability, ENSO/COVID — is *identical by construction* (the
-  shipped PCHIP product gives trend +0.0447 PgC/yr/yr, 2015-16 El Niño +0.643, 2020
-  COVID −0.346; PIQS matches these to floating point by the integral-preserving
-  invariant, §0 — a deductive guarantee, not a separate run-and-diff). PCHIP only
-  changes the **sub-monthly shape**, and there it fixes PIQS's two disqualifiers:
-  wrong-sign overshoot (**~11% → ≤0.9%** of GPP cell-hours) and a global solve that
-  **rewrites all 303 historical months on every NRT revision (→ 0 for PCHIP)**
-  (§1, scorecard).
+  fitter is integral-preserving, so for a *pure fitter swap* the monthly-and-longer
+  budget — annual totals, trend, interannual variability, ENSO/COVID — is
+  **identical by construction** (the deductive guarantee, with the measured PCHIP
+  values, is in §0). PCHIP only changes the **sub-monthly shape**, and there it
+  fixes PIQS's two disqualifiers: wrong-sign overshoot (**~11% → ≤0.9%** of GPP
+  cell-hours) and a global solve that **rewrites the entire ~303-month record on
+  every near-real-time (NRT) revision (→ 0 for PCHIP)** (§1, scorecard).
 - **"PIQS-then-revert-to-linear" was evaluated and is dominated** — despite a real
-  motivation (PIQS's near-C¹ flux, which PCHIP gives up). It does *not* fix the
+  motivation (PIQS's near-C¹ flux — continuous *slope* — which PCHIP gives up; PCHIP
+  keeps only C⁰, continuous *value*). It does *not* fix the
   non-locality (still rewrites the record), injects a genuine discontinuity (**0.97
   mol m⁻² s⁻¹** absolute budget vs PCHIP's exact **0**), and only *ties* PCHIP on
   daily fidelity — and PIQS's smoothness edge never reaches the ERA5-redistributed
@@ -39,10 +44,11 @@ dated logs but are not needed to follow the argument below.
   by spatial block bootstrap — all 12 months exclude 1), and free (the soil field
   is already loaded). The one outstanding gate is eddy-covariance amplitude
   validation. Lloyd-Taylor stays opt-in. **Awaiting your sign-off** (§2).
-- **Standing verification base:** `verify_v2` (60 checks, 2026-06-21: all
-  science/product checks §§1–23 pass) + `tests/` (153 on Orion; 143 reproduced
-  green locally, 10 `quadprog`-gated) + committed
-  diagnostic scripts and figures (§6).
+- **Standing verification base:** `verify_v2` (60 checks, 2026-06-21: §§1–23 all
+  **PASS or INFO**; the one WARN (11.1) is unrelated atpk-experiment logs, the §24
+  FAIL is a manifest logging artifact, and the §20 cross-product checks are
+  **deferred/not-yet-run** — §6) + `tests/` (153 on Orion; 143 reproduced green
+  locally, 10 `quadprog`-gated) + committed diagnostic scripts and figures (§6).
 
 ## 0. How to read this — two categories and one invariant
 
@@ -76,7 +82,8 @@ The fitter can only change the **sub-monthly shape**. The budget invariance rest
 on two legs, stated to their exact epistemic status:
 - **Deductive:** verify_v2 Check 2.1 confirms each fitter preserves the per-piece
   integral (max-abs < 1e-9, max-rel < 1e-6). Equal monthly means ⇒ equal
-  monthly-and-longer budget. The PIQS↔PCHIP equality of the Section-15 signals is
+  monthly-and-longer budget. The PIQS↔PCHIP equality of the **verify_v2 §15**
+  (trend/ENSO/COVID) signals is
   therefore a *consequence of this invariant*, **argued, not separately
   diffed** — we report it as a guarantee, not a measurement.
 - **Measured (PCHIP only):** the Section-15 values — trend +0.0447 PgC/yr/yr,
@@ -90,9 +97,10 @@ So the change Andy flagged does not move the science signal — it changes the
 sub-monthly shape, removing most of an unphysical artifact.
 
 **Standing evidence base.** Two independent harnesses back the claims below:
-- `verify_v2` — **60 numbered checks across 24 sections** (enumerated in §6; Check
-  2.1 appears as two sub-lines `2.1.gpp`/`2.1.rtot` in the summary, so the committed
-  file shows 61 result lines), committed at
+- `verify_v2` — **60 numbered checks across 24 sections** (enumerated in §6; the
+  summary shows 62 status lines = 51 PASS / 1 WARN / 9 INFO / 1 FAIL, because Check
+  2.1 splits into `2.1.gpp`/`2.1.rtot` and a `P2.0` build-cube line is also logged),
+  committed at
   `fitter_diagnostics/verify_v2_summary_20260621.txt`
   (**51 PASS / 1 WARN / 9 INFO / 1 FAIL** — the single FAIL is Check 24.1, explained
   below). **All science / product / provenance checks (§§1–23) PASS and reproduce
@@ -103,8 +111,9 @@ sub-monthly shape, removing most of an unphysical artifact.
   — interleaved/partial writes from many parallel jobs — a pure logging artifact, as
   Check 24.2 ("no failed pipeline steps") **PASSED** in the same run. We
   **losslessly recovered** the log (split the merged records, dropped the empty
-  lines; 0 malformed rows remain — verified directly, which is exactly Check 24.1's
-  criterion). We deliberately do **not** post a fresh re-run tally: this session's
+  lines; a re-parse then shows 0 rows ≠ 7 columns — exactly Check 24.1's criterion;
+  not committed, as the manifest is a gitignored runtime artifact). We deliberately
+  do **not** post a fresh re-run tally: this session's
   *separate* isolated PIQS-release builds have since written to the same shared
   `jobs/` logs that §3.1/§24 read, so a re-run would reflect that unrelated activity
   rather than the shipped product. The clean PCHIP-product numbers below are from
@@ -128,8 +137,10 @@ CT2022-documented). Per-cell quadratic pieces, each preserving the monthly
 integral, C⁰ at knots. Two disqualifying problems for an NRT product:
 1. **Overshoot → unphysical sign flips.** In sharply seasonal cells the quadratic
    overshoots through zero, producing positive (source) GPP and negative
-   respiration sub-monthly. Measured rate (Check 3.1): **6.55%** of GPP
-   cell-hours mean, **14.70%** max; Rh 0.122% / 0.444%.
+   respiration sub-monthly. Measured rate on a regenerated PIQS fit
+   (`fitter_diagnostics/piqs_score.r`, full 2001–2026 record): **6.55%** of GPP
+   cell-hours mean, **14.70%** max (the per-month max is ~11% on the 2020 product);
+   Rh 0.122% / 0.444%. (The PCHIP product's own Check 3.1 is the 0.11%/0.94% below.)
 2. **Non-locality.** PIQS is a single global solve over the entire record, so any
    NRT revision **rewrites all 303 historical months** — the published past
    changes every cycle.
@@ -246,7 +257,9 @@ implementation-broken tie for PCHIP over Rymes–Myers.
    What PCHIP buys is a 1–2 order-of-magnitude *reduction* vs PIQS, leaving a small
    bounded residual: GPP **6.55% → 0.11%** mean (~60×), 14.70% → **0.94%** max
    (16×); Rh 0.122% → 0.0000% mean, 0.444% → 0.002% max (Check 3.1,
-   `verify_v2_summary_20260621.txt`). Check 18.2 confirms C¹ continuity (|jump| ≤ 1e-12). Check 18.1 (INFO)
+   `verify_v2_summary_20260621.txt`). Check 18.2 confirms **C⁰ flux continuity**
+   (flux-value |jump| ≤ 1e-12 at knots — i.e. C¹ of the cumulative F; PCHIP is *not*
+   C¹ in the flux, see §5.1). Check 18.1 (INFO)
    finds **0.646% of GPP *segments*** carry a wrong-sign interior
    point (max 1.24e-6) — a *different* denominator (segments, not cell-hours), so
    consistent in order of magnitude rather than a strict cross-check, but it
@@ -270,21 +283,30 @@ vs PIQS up to 30.91% — the full-grid residual is the ≤0.94% in claim 2, |Δ 
 
 ### Empirical scorecard — production fit + full-year 2020 diurnalize (~4.4 M land cell-months)
 
+The trilemma table above is conceptual — *which property* each method sacrifices.
+This scorecard is the **measured** version of the same comparison on the production
+fit. Throughout, **env** = the local monthly-mean flux magnitude (the natural scale
+for normalizing a sub-monthly excursion).
+
 | Metric | PIQS (V1) | **PCHIP (V2)** | PPM | minmod | PIQS+lin-fallback |
 |---|---|---|---|---|---|
 | Mass-conserving | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Overshoot peak/env (med / max) | 0.93 / **~10¹⁸** | 0.83 / **1.50** | 0.78 / 1.00 | – / 1.00 | – / 1.00 |
-| GPP wrong-sign, 2020 product (cell-hours, max mo) | **~11%** | **0.1–0.9%** | 0% | 0% | 0% |
-| Daily-fidelity RMSE/env, GPP (mean) | **18.6** ² | 0.151 | 0.149 | 0.159 | 0.139 (≈ PCHIP) |
+| Overshoot peak/env (med / max) | 0.93 / **~10¹⁸** (diverges, see ²) | 0.83 / **1.50** | 0.78 / 1.00 | – / 1.00 | – / 1.00 |
+| GPP wrong-sign (cell-hours, max month) | **~11%** (2020) | **0.1–0.9%** | 0% | 0% | 0% |
+| Daily-fidelity RMSE/env, GPP (**median**) ² | 0.086 | **0.081** | 0.079 | 0.094 | 0.079 |
 | Flux continuity (jump/env med ; % edges) | C⁰ | **0 ; 0%** | 0.018 ; ~70% | 0.10 ; ~93% | **0.25⁴ ; 29%** |
 | **NRT footprint** (months rewritten, +10% revision)³ | **all 303** | **0** | ≤2 | ≤1 | **all 303** |
 | Lineage | Rasmussen 1991 | Fritsch-Carlson 1980 | Colella-Woodward 1984 | van Leer 1979 | — |
 
-² PIQS's GPP-fidelity *median* (0.086) is fine; the *mean* (18.6) is wrecked by a
-tail of cells where the global solve diverges to ~10¹⁸× the envelope (28% of GPP
-cell-months carry a wrong-sign knot). All numbers measured 2026-06-18 on a
-regenerated PIQS fit, on the **same** record/diurnalize as the others
-(`fitter_diagnostics/piqs_score.r`). ³ Perturb the latest monthly mean +10%,
+² We report the **median** RMSE/env because the *mean* is tail-sensitive: PIQS's
+GPP mean is **18.6**, wrecked by cells where the global solve diverges to ~10¹⁸× the
+envelope (28% of GPP cell-months carry a wrong-sign knot), and even the local
+methods' means (PCHIP 0.151 / PPM 0.149 / minmod 0.159; committed in
+`fitter_diagnostics/uncertainty_fidelity_20260621.txt`) are noisier than their
+medians. On the robust median all local methods sit within ~0.015, and **PIQS's own
+median (0.086) is fine** — its disqualifiers are the overshoot tail and
+non-locality, not median fidelity. PIQS numbers measured 2026-06-18 on a regenerated
+fit, same record/diurnalize (`piqs_score.r`). ³ Perturb the latest monthly mean +10%,
 refit, count prior months moving > 1% (PIQS's global solve couples the whole
 record). ⁴ The PIQS+lin-fallback continuity entry is the **finite-envelope median**
 jump/env (0.25) over the 29% of cell-months that trigger the patch; 38% of patched
@@ -336,11 +358,9 @@ months; script `fitter_diagnostics/resp_driver_blockboot.py`, committed output
   correlated land cells as independent. It survives a conservative 20°-block CI
   [1.020, 1.025], and **every one of the 12 months excludes 1 individually**
   (range 1.016–1.027) — a consistent all-season effect, not a single-month
-  artifact. *(Honesty note: the block-bootstrap CI here has width **0.0032**; an
-  earlier i.i.d.-cell resample gave **[1.0225, 1.0228]**, width **~0.0002** — about
-  **16× tighter**, because it treated ~15.6k spatially autocorrelated land cells as
-  independent. The block interval is the correct one; the qualitative conclusion —
-  the CI excludes 1 — is unchanged.)*
+  artifact. *(The 10° block respects spatial autocorrelation; a naive i.i.d.-cell
+  resample would give a ~16×-tighter, invalid CI — [1.0225, 1.0228] — by treating
+  ~15.6k correlated cells as independent.)*
 - **Respiration is materially damped, most where air temp is least physical.** The
   respiration amplitude ratio soil/air is **0.80, 95% CI [0.78, 0.83]** (10° block,
   annual), pulled down by the **boreal band 0.61 [0.58, 0.63]** — snow-insulated or
@@ -452,9 +472,11 @@ Documenting what was *not* changed, and why, is part of the justification:
 - **ATMC budget closure (NEE = Rh − NPP, *not* − ATMC)** — tried 2026-04-29,
   reverted same day. This is the most consequential "rejected" choice — it changes
   the sign of the prior's long-term trend — so it gets its own treatment in **§5.2**.
-- **PPM as default** — briefly defaulted 2026-06-18, reverted: daily fidelity is a
-  statistical tie with PCHIP (PPM better in 54% of cell-months) but PPM
-  reintroduces month-edge discontinuities at ~70% of edges (CHANGELOG 2026-06-18).
+- **PPM as default** — briefly defaulted 2026-06-18, reverted: daily fidelity is
+  near-identical (a by-cell bootstrap puts PCHIP negligibly but *significantly* ahead,
+  Δ≈0.7% of level, CI excludes 0; PPM better in 54% of cell-months on the pooled
+  metric) but PPM reintroduces month-edge discontinuities at ~70% of edges
+  (CHANGELOG 2026-06-18; FITTER_COMPARISON §4.6).
 - **MSS** (overshoots despite the name, ~24% wrong-sign GPP knots, ~hours/grid),
   **linear-recursion PIQS** (unstable), **constrained-quadratic PIQS** (dominated
   by PCHIP), **CCGCRV** (not pursued) — FITTER_COMPARISON.md §4.1/§5, PROPOSALS
@@ -499,15 +521,16 @@ continuity:
    patching breaks PIQS's C⁰ continuity there. The honest, denominator-free
    statement: the hybrid's **total absolute discontinuity budget is 0.97 mol m⁻²
    s⁻¹** summed over 1.44 M patched land edges, versus **exactly 0** for PCHIP (C⁰
-   by construction). *We deliberately drop the envelope-normalized headline an
-   earlier draft used (“52% exceed 3× env, 38% exceed the entire local flux”):* the
-   overshooting pieces are near-zero-transition months, so **38% of patched edges
-   have envelope ≈ 0**, and a “jump/env” there blows up by dividing by ~0, not by
-   being physically large — among the 62% of edges with a well-defined envelope the
-   median jump is only **0.25× env**. The defensible claim is the absolute one.
-3. **No fidelity gain.** Hybrid daily RMSE/env (2020) is **0.079 / 0.139**, tying
-   PCHIP's **0.081 / 0.141** — the preserved smoothness buys no reconstruction
-   accuracy, consistent with point 0.
+   by construction). An envelope-normalized framing (“52% exceed 3× env”) is
+   misleading here: the overshooting pieces are near-zero-transition months, so
+   **38% of patched edges have envelope ≈ 0**, where “jump/env” blows up by dividing
+   by ~0, not by being physically large (among the 62% of edges with a well-defined
+   envelope the median jump is only **0.25× env**). The absolute budget is the
+   defensible cross-method number.
+3. **No fidelity gain.** On the robust **median**, hybrid daily RMSE/env (2020) is
+   **0.079** vs PCHIP's **0.081** — a tie; the means (0.139 vs 0.151) are
+   tail-sensitive and not a meaningful difference. The preserved smoothness buys no
+   reconstruction accuracy, consistent with point 0.
 
 (*A distinct, weaker proposal — “use continuous linear **everywhere**”, PROPOSALS
 #9, which is **not** the selective fallback above — is worse than PIQS on its own
@@ -525,7 +548,7 @@ C⁰-continuous *and* local *and* closed-form — the "good corner" below:
 
 ### 5.2 ATMC, and the sign of the prior's long-term trend
 
-This is the choice most likely to be contested, so we state it without hedging.
+This is the choice most likely to be contested.
 
 **What ATMC is.** NCCS publishes an "atmospheric correction" `ATMC` field with the
 file comment `NEE = Rh − NPP − ATMC`. Per Weir et al. (2021) it is the Low-order
@@ -535,12 +558,11 @@ atmospheric CO₂ growth rate** (~3 PgC/yr, concentrated NH-extratropics JJA).
 
 **The stakes are not cosmetic — and they hit both the level and the trend.**
 Subtracting ATMC more than *doubles the mean biospheric sink*, from **−2.45 to
-−5.99 PgC/yr** (the ~3 PgC/yr ATMC magnitude), and *flips the sign of the long-term
+−5.99 PgC/yr** (a 3.5 PgC/yr shift; the ATMC field itself is ~3 PgC/yr), and *flips the sign of the long-term
 trend*: CASA-only NEE trends **+0.0413 PgC/yr/yr**, with ATMC **−0.0067** (i.e.
 essentially flat). The trend alone compounds to ≈ **+1.1 PgC/yr** of drift over the
 25-yr record — itself of order the mean sink. So ATMC is a first-order change to
-both the magnitude and the time-evolution of the prior, not a rounding term. We are
-not waving it away.
+both the magnitude and the time-evolution of the prior, not a rounding term.
 
 **Why we still do not subtract it — and this holds whether the trend is real or a
 CASA bias.** These fluxes are a **prior to a CO₂ inversion that itself assimilates
@@ -570,7 +592,10 @@ subtraction is the right choice. For the current prior-to-inversion use it is no
 (Trend figures: the **+0.0413** in the 2026-04-29 ATMC table is the *PIQS-era*
 CASA-only trend; **+0.0447** is the later *PCHIP* Section-15 value (2026-05-04 run);
 **+0.04** elsewhere is the same number rounded — one ~+0.04 PgC/yr/yr trend, three
-runs.)
+runs. The +0.0413→+0.0447 difference is between two **different-date pipeline runs**
+with other V2 changes intervening — *not* a fitter effect; the budget-invariance of
+§0 is a statement about a **pure fitter swap on a fixed pipeline**, which is why we
+do not claim the cross-date runs match to floating point.)
 
 ## 6. Evidence matrix
 
@@ -595,7 +620,7 @@ non-`quadprog` R checks reproduced green locally (R 4.6.0) for this revision:**
 
 | Suite | Checks | Guards |
 |---|---|---|
-| test_pchip_fit.r | 12 | PCHIP mass / C¹ / sign-flip-rate (not sign-definiteness — see §1) |
+| test_pchip_fit.r | 12 | PCHIP mass / C⁰ flux continuity (= C¹ of F; not C¹ flux) / sign-flip-rate (not sign-definiteness — see §1) |
 | test_diurnal.r | 21 | diurnalize transform + q10/lt factors |
 | test_atpk_fit.r | 14 | ATP coherence/variance/sign |
 | test_ppm_fit.r / test_linmm_fit.r | 13 / 11 | PPM & minmod mass/limiter |
@@ -621,7 +646,10 @@ behavior-preserving item maps to a proof in the §4 table.
   the CASA prior — *not* asserted to be a real climate feature. Whether real
   (CO₂-fertilization/greening) or a CASA structural bias, the inversion corrects it
   from independent atmospheric data, and pre-closing it with ATMC would be circular
-  (§5.2). Sign-of-the-trend stakes: with ATMC the trend is −0.0067 (flat).
+  (§5.2). Sign-of-the-trend stakes: with ATMC the trend is −0.0067 (flat). The
+  trend is also **non-stationary** (Check 16.2: first-half 2001–2012 +0.0274,
+  second-half 2013–2025 +0.1031 — ~3.8× steeper), which only strengthens the case
+  for letting the inversion, not a baked-in correction, resolve it.
 - **Polar-night clip** leaves a ~1.5% mass gap at partial-polar-night latitudes
   (Check 2.2 at 5%) — so the *shipped* product is not exactly mass-preserving
   there (§0/§3.2). Largely (not fully) redundant under PCHIP; kept defensively.

@@ -145,6 +145,12 @@ test harness — no change to the production path to measure the candidate.
 
 ## 5.1 Prototype #1 result — July 2020 shadow-diff
 
+> **Note:** §5.1–5.2 are the original *single-month* (July/Jan 2020) prototype
+> diagnostics. The headline numbers used for the recommendation are the **full-year
+> 2019 spatial block-bootstrap** values in §5.4 (e.g. boreal resp ratio 0.61, not
+> the 0.83 quoted here for July) — these single-month figures are kept for the
+> shadow-diff record but are superseded by §5.4.
+
 Implemented as `MICASA_RESP_DRIVER={airtemp|soiltemp}` (default `airtemp`,
 byte-identical to legacy; `q10.factor()` extracted to `lib/diurnal.r` and
 unit-tested). July 2020 was diurnalized both ways into shadow dirs with the

@@ -457,7 +457,7 @@ sign-safe minmod-linear (`fitter_diagnostics/piqs_hybrid.r`):
 | PIQS overshoot rate | **29.3%** of land cell-months need patching |
 | smoothness (knot deriv-jump·D/env) | **PIQS 0.000 vs PCHIP 0.290** — PIQS's global solve is near-C¹ in the flux (the genuine motivation) |
 | sign-safety after fallback | **0.000% wrong-sign** |
-| fidelity (2020 daily RMSE/env) | hybrid 0.079 med / 0.139 mean ≈ PCHIP 0.081 / 0.141 (fixes PIQS's 15.7 mean blow-up; tied) |
+| fidelity (2020 daily RMSE/env) | hybrid median 0.079 ≈ PCHIP median 0.081 — a tie on the robust statistic; means (0.139 vs 0.151) are tail-sensitive (both fix PIQS's blown-out mean) |
 | **discontinuity at patched edges** | **absolute budget 0.97 mol m⁻² s⁻¹** over 1.44 M patched edges vs PCHIP's exact 0 (C⁰). Env-normalized: finite-envelope median only **0.25× env**, but **38% of patched edges sit in near-zero-envelope transition months** where jump/env diverges by dividing by ~0 — so the absolute budget is the honest cross-method metric, not the inflated "~5× env" an earlier draft quoted (that median included the env≈0 → ∞ edges) |
 | NRT locality | **inherits PIQS's global solve** — a revised month rewrites the whole record |
 

@@ -25,9 +25,10 @@ this file is for "what landed when, and what numbers it moved."
 
 - **Reverted the PPM-default switch; PCHIP remains the V2 default.** A paired,
   same-cell daily-fidelity test (`fitter_diagnostics/uncertainty_fidelity.r`)
-  showed PCHIP vs PPM is a statistical tie (PPM better in 54% of cell-months,
-  49% in boreal; paired-Δ IQR straddles zero) — the earlier 0.149-vs-0.151 mean
-  gap was within noise. PPM also reintroduces small flux discontinuities at ~70%
+  showed PCHIP vs PPM daily fidelity is near-identical (PPM better in 54% of
+  cell-months, 49% in boreal; a by-cell bootstrap puts PCHIP significantly but
+  negligibly ahead, Δ≈0.7%, CI excludes 0 — see FITTER_COMPARISON §4.6) — the
+  earlier 0.149-vs-0.151 mean gap is within the median-level noise. PPM also reintroduces small flux discontinuities at ~70%
   of month edges (the steps the smoother exists to remove); PCHIP is the only
   zero-jump method. `run_year.sh`/`produce_2025_2026.sh` call `write_pchip.r`
   again and `fit.piqs.rda` is the PCHIP fit. PPM/minmod stay selectable via
