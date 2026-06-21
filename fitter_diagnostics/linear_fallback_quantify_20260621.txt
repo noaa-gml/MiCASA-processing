@@ -1,0 +1,6 @@
+PIQS overshoot / fallback-trigger rate (land cell-months): 29.3%
+(A) patch discontinuity / env (finite, n=892893)  p10=0.02 p25=0.06 MED=0.25 p75=2.30 p90=37.49 p99=8895.46
+    58.8% of patched edges exceed 1x env ; 52.3% exceed 3x env ; 38.2% have env~0 so the jump EXCEEDS the entire local monthly flux
+(B) continuous-linear knot recursion: 97.4% of land cells get >=1 wrong-sign knot; 36.93% of interior knots flip (vs PIQS overshoot 29.3%)
+    knot amplification |knot|/env (continuous linear): p99=255887.5  p99.9=49907525.6  (unbounded resonance, PROPOSALS #9 Nyquist pole; PIQS quadratic absorbs this into curvature)
+(C) total ABSOLUTE discontinuity budget (sum |jump| over 1443845 patched land edges, mol m-2 s-1): hybrid=9.723e-01  PCHIP=0 (C0 by construction)

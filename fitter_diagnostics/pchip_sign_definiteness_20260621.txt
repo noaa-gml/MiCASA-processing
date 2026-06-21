@@ -1,0 +1,6 @@
+STRICTLY POSITIVE input  (20000 series): worst interior flux = -4.2290e-02 ; series with a wrong-sign interior dip = 0.1%
+STRICTLY NEGATIVE input  (20000 series): worst interior wrong-sign flux = -4.1724e-02
+Conclusion: PCHIP-on-cumulative is sign-definite AT THE KNOTS, not everywhere.
+Interior dips occur on single-signed input, so the production sign-flip rate
+(verify_v2 Check 3.1: GPP <=0.94% of cell-hours) is a real reduction vs PIQS
+(<=14.70%), NOT an elimination 'by construction'.
