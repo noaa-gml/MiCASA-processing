@@ -67,7 +67,7 @@ this file is for "what landed when, and what numbers it moved."
   `run_year.sh` was already single-year so the default is unchanged.
 - **`docs/FITTER_COMPARISON.md`** — full method survey (equations, citations),
   empirical scorecard on 2001–2026 + a full-year 2020 diurnalize, and the case
-  for retiring PIQS (overshoot→sign-flips; its global solve rewrites all 302
+  for retiring PIQS (overshoot→sign-flips; its global solve rewrites all 303
   historical months on any NRT revision). PPM recommended; PCHIP acceptable.
   See PROPOSALS #17.
 
@@ -348,15 +348,17 @@ clean `fluxes_202602.nc` with `meteo_fallback_used = "yes"`.
 
 After full-record confirmation (300 months, 25 years), switched
 `produce_2025_2026.sh` and `run_year.sh` from `write_piqs.r` to
-`write_pchip.r`. PCHIP-on-cumulative is provably non-negative by
-Fritsch-Carlson construction, eliminating sub-monthly sign flips
-without requiring the polar-night clip.
+`write_pchip.r`. PCHIP-on-cumulative is sign-definite **at the knots** by
+Fritsch-Carlson construction, cutting sub-monthly sign flips ~16–60× vs PIQS — a
+large reduction, **not** elimination (the derivative quadratic can still dip
+mid-segment; a small bounded residual remains and is mopped up by the polar-night
+clip, kept defensively).
 
 verify_v2 Check 3.1 numbers:
 
 | Metric | PIQS | PCHIP |
 |---|---|---|
-| GPP cell-hour mean | 6.55% | 0.12% (57× reduction) |
+| GPP cell-hour mean | 6.55% | 0.11% (~60× reduction) |
 | GPP cell-hour max | 14.70% | 0.94% (16× reduction) |
 | Rh cell-hour mean | 0.122% | 0.0000% |
 | Rh cell-hour max | 0.444% | 0.002% (222× reduction) |

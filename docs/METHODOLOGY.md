@@ -60,7 +60,7 @@ Confirmed reduction in sub-monthly sign-flip rates over the full
 
 | Metric | PIQS | PCHIP |
 |---|---|---|
-| GPP cell-hour mean | 6.55% | 0.12% |
+| GPP cell-hour mean | 6.55% | 0.11% |
 | GPP cell-hour max | 14.70% | 0.94% |
 | Rh cell-hour mean | 0.122% | 0.0000% |
 | Rh cell-hour max | 0.444% | 0.002% |
@@ -212,9 +212,11 @@ The "right" picture in our usage: the inversion's atmospheric
 assimilation is the place where the global growth-rate constraint
 enters; the prior should reflect what the offline biospheric model
 says **on its own**, and the inversion learns the bias correction from
-data. This means we accept the +0.04 PgC/yr/yr long-term trend in
-CASA-only NEE (verify_v2 Check 15.1) as a real feature of the prior
-— it's the inversion's job to correct it.
+data. This means we ship the +0.04 PgC/yr/yr long-term trend in CASA-only NEE
+(verify_v2 Check 15.1) as a **property of the CASA prior — not asserted to be a
+real climate feature**: whether it is real (CO₂-fertilization/greening) or a CASA
+structural bias, it's the inversion's job to correct it from independent
+atmospheric data, and pre-closing it with ATMC would be circular.
 
 If MiCASA fluxes are ever used in a context **other** than an
 atmospheric inversion (e.g., forward-model comparison vs obs at site

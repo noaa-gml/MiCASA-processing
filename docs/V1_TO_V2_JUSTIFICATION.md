@@ -39,8 +39,8 @@ dated logs but are not needed to follow the argument below.
   by spatial block bootstrap — all 12 months exclude 1), and free (the soil field
   is already loaded). The one outstanding gate is eddy-covariance amplitude
   validation. Lloyd-Taylor stays opt-in. **Awaiting your sign-off** (§2).
-- **Standing verification base:** `verify_v2` (60 checks, re-run 2026-06-21: all
-  science/product checks pass) + `tests/` (153 checks, all green) + committed
+- **Standing verification base:** `verify_v2` (60 checks, 2026-06-21: all
+  science/product checks §§1–23 pass) + `tests/` (153 checks, all green) + committed
   diagnostic scripts and figures (§6).
 
 ## 0. How to read this — two categories and one invariant
@@ -89,21 +89,22 @@ So the change Andy flagged does not move the science signal — it changes the
 sub-monthly shape, removing most of an unphysical artifact.
 
 **Standing evidence base.** Two independent harnesses back the claims below:
-- `verify_v2` — **60 distinct checks across 24 sections** (enumerated in §6). **All
-  science / product / provenance checks (§§1–23) PASS and reproduce the numbers used
-  below.** The two §24 items are **manifest / observability meta-checks on a shared
-  working-directory log — not assertions about the product**, and behave accordingly:
-  the original 2026-06-21 run reported a Check 24.1 FAIL that was **concurrent-append
-  corruption** of `jobs/run_manifest.tsv` by many parallel jobs (interleaved/partial
-  writes). We **losslessly recovered** the log (split the merged records, dropped
-  the empty lines — no records lost) and **re-ran**: **24.1 now PASSES**, confirming
-  it was a logging artifact (committed: `fitter_diagnostics/verify_v2_rerun_20260621.txt`,
-  49 PASS / 1 FAIL / 2 WARN / 10 INFO). The lone remaining FAIL is **24.2**, which —
-  once the log parsed cleanly — surfaced 182 *fail* records from **this session's
-  isolated PIQS-release re-diurnalize** (a `MICASA_FIT_RDA` path bug we diagnosed and
-  re-ran successfully). Those are transient, since-superseded job-step failures of a
-  *separate* build that shared this checkout's log; **no §§1–23 product check fails**.
-  We leave them in the log rather than prune to a cosmetic pass.
+- `verify_v2` — **60 distinct checks across 24 sections** (enumerated in §6),
+  committed at `fitter_diagnostics/verify_v2_summary_20260621.txt`
+  (**51 PASS / 1 WARN / 9 INFO**). **All science / product / provenance checks
+  (§§1–23) PASS and reproduce the numbers used below.** The two **§24 items are
+  manifest / observability meta-checks on a shared working-directory log — not
+  assertions about the product.** That run's lone FAIL was Check 24.1
+  (run-manifest integrity): **concurrent-append corruption** of `jobs/run_manifest.tsv`
+  — interleaved/partial writes from many parallel jobs — a pure logging artifact, as
+  Check 24.2 ("no failed pipeline steps") **PASSED** in the same run. We
+  **losslessly recovered** the log (split the merged records, dropped the empty
+  lines; 0 malformed rows remain — verified directly, which is exactly Check 24.1's
+  criterion). We deliberately do **not** post a fresh re-run tally: this session's
+  *separate* isolated PIQS-release builds have since written to the same shared
+  `jobs/` logs that §3.1/§24 read, so a re-run would reflect that unrelated activity
+  rather than the shipped product. The clean PCHIP-product numbers below are from
+  the committed summary.
 - `tests/` — **143 R checks run on any host (10 files) + 10 `quadprog`-gated
   (`test_mss_fit.r`, Orion only) = 153**, plus 4 Python suites; **all green** on
   Orion (R 4.4.0, 2026-06-21). The 143 non-gated R checks were reproduced green
@@ -239,8 +240,8 @@ implementation-broken tie for PCHIP over Rymes–Myers.
    [`fitter_diagnostics/pchip_sign_definiteness.r`](../fitter_diagnostics/pchip_sign_definiteness.r).
    What PCHIP buys is a 1–2 order-of-magnitude *reduction* vs PIQS, leaving a small
    bounded residual: GPP **6.55% → 0.11%** mean (~60×), 14.70% → **0.94%** max
-   (16×); Rh 0.122% → 0.0000% mean, 0.444% → 0.002% max (Check 3.1, 2026-06-21
-   re-run). Check 18.2 confirms C¹ continuity (|jump| ≤ 1e-12). Check 18.1 (INFO)
+   (16×); Rh 0.122% → 0.0000% mean, 0.444% → 0.002% max (Check 3.1,
+   `verify_v2_summary_20260621.txt`). Check 18.2 confirms C¹ continuity (|jump| ≤ 1e-12). Check 18.1 (INFO)
    finds **0.646% of GPP *segments*** carry a wrong-sign interior
    point (max 1.24e-6) — a *different* denominator (segments, not cell-hours), so
    consistent in order of magnitude rather than a strict cross-check, but it
@@ -320,7 +321,8 @@ doc §5.1–5.3.)
 recommend soil temperature as the default respiration driver, with **one explicit
 outstanding gate** (eddy-covariance amplitude validation, below). The case has
 three legs, measured on the matched full-year-2019 PCHIP air-vs-soil pair (all 12
-months; `fitter_diagnostics/resp_driver_blockboot.py`):
+months; script `fitter_diagnostics/resp_driver_blockboot.py`, committed output
+`fitter_diagnostics/resp_driver_blockboot_2019.txt`):
 
 - **The NEE effect is small but robustly non-zero.** The global area-weighted NEE
   diurnal-amplitude ratio soil/air is **1.023, 95% CI [1.021, 1.024]** by a
@@ -329,10 +331,11 @@ months; `fitter_diagnostics/resp_driver_blockboot.py`):
   correlated land cells as independent. It survives a conservative 20°-block CI
   [1.020, 1.025], and **every one of the 12 months excludes 1 individually**
   (range 1.016–1.027) — a consistent all-season effect, not a single-month
-  artifact. *(Honesty note: an earlier i.i.d.-cell resample reported [1.022, 1.023]
-  — width 0.0002. Treating autocorrelated cells as independent made that CI ~16×
-  too tight; the block-bootstrap interval above is the correct one. The qualitative
-  conclusion — the CI excludes 1 — is unchanged.)*
+  artifact. *(Honesty note: the block-bootstrap CI here has width **0.0032**; an
+  earlier i.i.d.-cell resample gave **[1.0225, 1.0228]**, width **~0.0002** — about
+  **16× tighter**, because it treated ~15.6k spatially autocorrelated land cells as
+  independent. The block interval is the correct one; the qualitative conclusion —
+  the CI excludes 1 — is unchanged.)*
 - **Respiration is materially damped, most where air temp is least physical.** The
   respiration amplitude ratio soil/air is **0.80, 95% CI [0.78, 0.83]** (10° block,
   annual), pulled down by the **boreal band 0.61 [0.58, 0.63]** — snow-insulated or
@@ -569,13 +572,13 @@ biome cells + trends (12.1–12.2, 13.1–13.2, 14.1–14.3, 15.1–15.3 trend/E
 16.x diagnostics); Sections 17 diurnal integrity, 18 PCHIP invariants, 19
 additional biomes, 20 cross-product, 21 robustness, 22 performance, 23 provenance,
 24 manifest (§24 = observability meta-checks on the run log, *not* product
-assertions). Two committed runs: the original `verify_v2_summary_20260621.txt`
-(whose lone 24.1 FAIL was concurrent-append corruption of the shared `run_manifest.tsv`)
-and, after losslessly recovering that log, the re-run
-`verify_v2_rerun_20260621.txt` (**49 PASS / 1 FAIL / 2 WARN / 10 INFO**) in which
-**24.1 now PASSES** — confirming the artifact — and the only FAIL is **24.2**,
-flagging this session's superseded isolated-PIQS-release job failures (see §0). No
-§§1–23 product/science/provenance check fails in either run.
+assertions). Committed run `verify_v2_summary_20260621.txt` (**51 PASS / 1 WARN /
+9 INFO**); its lone FAIL is Check 24.1 — concurrent-append corruption of the shared
+`run_manifest.tsv`, a logging artifact (Check 24.2 "no failed steps" PASSED in the
+same run). The log was then **losslessly recovered** (0 malformed rows remain —
+Check 24.1's exact criterion). All §§1–23 product / science / provenance checks
+pass. (We don't post a fresh re-run: this session's separate isolated PIQS-release
+builds have since written to the shared `jobs/` logs §3.1/§24 read — see §0.)
 
 **Unit tests — all green on Orion (R 4.4.0 / Python, 2026-06-21); the 143
 non-`quadprog` R checks reproduced green locally (R 4.6.0) for this revision:**

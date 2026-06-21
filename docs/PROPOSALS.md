@@ -538,7 +538,7 @@ and concluded:
   PCHIP −2.617 vs PPM −2.612 PgC, 0.2%). Overshoot: PCHIP bounded 1.5×, PPM and
   linear 1.0× (none). 2020 product GPP sign-flips: PCHIP 0.1–0.7%, PPM 0%.
   Daily-fidelity vs MiCASA's own daily product: PPM < PCHIP < minmod < flat.
-  NRT-revision footprint: PCHIP 0 / minmod ≤1 / PPM ≤2 months, **PIQS all 302**.
+  NRT-revision footprint: PCHIP 0 / minmod ≤1 / PPM ≤2 months, **PIQS all 303**.
 - **Continuous integral-preserving linear is unstable** (trapezoidal recursion
   `y_{i+1}=2m_i−y_i`, pole at Nyquist) — confirms PROPOSAL #9.
 - **Decision (2026-06-18):** PCHIP **remains** the V2 default. The real fix —

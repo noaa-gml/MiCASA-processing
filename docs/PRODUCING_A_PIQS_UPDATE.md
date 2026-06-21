@@ -30,7 +30,7 @@ ingest and diurnalize stages submit SBATCH jobs with `--wait`.
 
 PIQS is a **single global solve over the whole record**, so adding or revising
 months **re-fits everything and rewrites every historical month** (`verify_v2`
-NRT footprint: all 302; this is the exact property the V2 PCHIP default was chosen
+NRT footprint: all 303; this is the exact property the V2 PCHIP default was chosen
 to avoid — see [`V1_TO_V2_JUSTIFICATION.md`](V1_TO_V2_JUSTIFICATION.md) §1).
 Practical consequences:
 

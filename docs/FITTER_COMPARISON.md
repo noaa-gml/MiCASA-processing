@@ -24,7 +24,7 @@ added. The findings:
 1. **The consequential fix already happened at V2.** What matters is moving off
    PIQS to a *local, sign-definite* fitter — done at V2 (PCHIP). PIQS is
    unsuitable for an NRT product on two measured grounds: overshoot → ~11% of
-   GPP cell-hours wrong-sign (2020), and its **global solve rewrites all 302
+   GPP cell-hours wrong-sign (2020), and its **global solve rewrites all 303
    historical months** on any revision (§5).
 2. **Among local methods the differences are second-order.** PCHIP vs PPM is a
    near-identical on product fidelity — a by-cell bootstrap finds PCHIP
@@ -267,7 +267,7 @@ Reproducible from `fitter_diagnostics/` (§7). Uncertainty shown where it matter
 | Within-month structure (grad/env, med) | high | 0.111 | 0.060 | 0.031 | 0 |
 | Flux value-continuity (jump/env, med; % edges jumping) | C⁰ | **0 ; 0%** | 0.018 ; **~70%** | 0.10 ; ~93% | 0.24 ; ~100% |
 | Interior extrema (% of months) | high | 54–71% | 5–7% | 0% | 0% |
-| **NRT-revision footprint** (months rewritten)³ | **all 302** | **0** | ≤2 | ≤1 | 0 |
+| **NRT-revision footprint** (months rewritten)³ | **all 303** | **0** | ≤2 | ≤1 | 0 |
 | Annual global NEE budget, 2020⁴ | ~same | −2.617 PgC | −2.612 PgC | ~same | ~same |
 | Month-boundary aliasing vs PCHIP | — | 1.0× | 0.44–1.0× | worse | worst |
 | Fit cost | fast | fast | fast | fast | trivial |
@@ -536,7 +536,7 @@ PIQS to PCHIP. Two PIQS properties are disqualifying for an NRT product:
    methods remove this: PCHIP 0.1–0.7%, PPM/minmod 0%.
 2. **Global solve ⇒ NRT non-reproducibility.** PIQS couples every knot to every
    month, so appending/revising the latest vNRT month (which MiCASA's stream does
-   in place) re-solves and changes **all 302 historical months** — the published
+   in place) re-solves and changes **all 303 historical months** — the published
    hourly record would silently change each cycle. The local methods confine a
    revision to **0–2 months** (PCHIP 0).
 

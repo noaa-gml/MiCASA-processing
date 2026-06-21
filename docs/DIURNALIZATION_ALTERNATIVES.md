@@ -266,7 +266,8 @@ PCHIP air-vs-soil pair), the case for flipping the default from air to soil
 temperature is solid — with **one validation gate still open** (eddy covariance,
 (4)). Recommendation: **make `MICASA_RESP_DRIVER=soiltemp` the default; keep
 Lloyd-Taylor opt-in**, pending sign-off.
-(`fitter_diagnostics/resp_driver_blockboot.py`.)
+(`fitter_diagnostics/resp_driver_blockboot.py`; committed output
+`fitter_diagnostics/resp_driver_blockboot_2019.txt`.)
 
 **(1) The effect is real, sign-correct, and robust across seasons** — *spatial*
 block bootstrap (resampling unit = 10° block, so the CI respects the field's
@@ -281,11 +282,11 @@ The NEE CI excludes 1 — and **every one of the 12 months excludes 1 individual
 (1.016–1.027), surviving a conservative 20°-block CI [1.020, 1.025] — but the change
 is ~2.3%: significant *and* small, the profile of a defensible refinement. By band
 (resp amplitude ratio, annual, 10° block): boreal **0.61 [0.58, 0.63]**, NH-temp
-0.81 [0.78, 0.85], tropics 0.85 [0.81, 0.90], SH-temp 0.94 [0.86, 1.07]. *(An
-earlier i.i.d.-cell resample gave [1.022, 1.023] for the NEE ratio — width 0.0002 —
-which treated ~15.6k autocorrelated land cells as independent and was ~16× too
-tight. The block-bootstrap CIs above are the correct ones; the conclusion is
-unchanged.)*
+0.81 [0.78, 0.85], tropics 0.85 [0.81, 0.90], SH-temp 0.94 [0.86, 1.07]. *(The
+block-bootstrap NEE CI has width 0.0032; an earlier i.i.d.-cell resample gave
+[1.0225, 1.0228] — width ~0.0002, ~16× tighter — because it treated ~15.6k
+autocorrelated land cells as independent. The block-bootstrap CIs above are the
+correct ones; the conclusion is unchanged.)*
 
 **(2) Forcing consistency — confirms the implementation, not the physics.** The
 per-cell diurnal amplitude ratio of the *driver* (`stl1`/`t2m`, annual 2019) is
