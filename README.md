@@ -55,8 +55,11 @@ Work on `main`. Use `legacy` only to reproduce a v1-vintage product.
 
 | Document | Contents |
 |---|---|
+| [`docs/V1_TO_V2_JUSTIFICATION.md`](docs/V1_TO_V2_JUSTIFICATION.md) | **Change register: a bulletproof, evidence-backed justification for every change from V1 -> V2**, classified behavior-preserving vs intentional improvement, with the verification guarding each |
 | [`docs/PIPELINE.md`](docs/PIPELINE.md) | Versions (v1 vs vNRT), configuration env vars, flowchart, every program in the tree, data-layout reference, output provenance metadata, NetCDF input schema |
 | [`docs/METHODOLOGY.md`](docs/METHODOLOGY.md) | PIQS / PCHIP / MSS fitter theory; diurnalization with ERA5; why NEE = Rh − NPP and not Rh − NPP − ATMC |
+| [`docs/FITTER_COMPARISON.md`](docs/FITTER_COMPARISON.md) | Full sub-monthly-fitter bake-off (PIQS/PCHIP/PPM/minmod/MSS/ATP), equations, scorecard, uncertainty; why PCHIP is the default |
+| [`docs/DIURNALIZATION_ALTERNATIVES.md`](docs/DIURNALIZATION_ALTERNATIVES.md) | Diurnal-redistribution survey + soil-temp / Lloyd-Taylor respiration prototypes (opt-in), with shadow-diff results |
 | [`docs/PROPOSALS.md`](docs/PROPOSALS.md) | Architecture decision records: 11 numbered notes covering landed / proposed / rejected design changes, with rationale |
 | [`CHANGELOG.md`](CHANGELOG.md) | Dated engineering entries: latent-bug sweep, performance tuning, ATMC integration arc, PCHIP promotion |
 | [`README.notes`](README.notes) | Historical author log (Pera, Jacobson, Weir) — kept for provenance |
