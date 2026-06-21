@@ -44,6 +44,23 @@ q10.factor <- function(temp.K, q10.base = 1.5, ref.K = 273.15) {
   q10.base ^ ((temp.K - ref.K) / 10.0)
 }
 
+## Lloyd & Taylor (1994) temperature response for the respiration driver.
+##
+##   temp.K  temperature in Kelvin (air t2m or soil stl1)
+##   E0      activation-energy parameter (K); 308.56 is the L&T 1994 value
+##   T0      lower temperature limit (K); 227.13 = -46.02 degC (L&T 1994)
+##
+## The full L&T form is R = R_ref * exp(E0*(1/(T_ref-T0) - 1/(T-T0))). Under the
+## diurnalize ratio-normalization f(t)/mean(f) the R_ref and the constant
+## exp(E0/(T_ref-T0)) cancel, so only the temperature-dependent SHAPE survives:
+## exp(-E0/(T-T0)). Its apparent Q10 RISES as T falls (steeper low-temperature
+## sensitivity than a fixed Q10), which is the point of using it. temp.K is
+## clamped just above T0 so the curve stays finite and monotone for any input
+## (below ~T0 respiration underflows to ~0, i.e. frozen). Element-wise.
+lt.factor <- function(temp.K, E0 = 308.56, T0 = 227.13) {
+  exp(-E0 / (pmax(temp.K, T0 + 0.1) - T0))
+}
+
 ## Polar-night clip: GPP must be zero where the shortwave driver is zero
 ## (no incoming light => no photosynthesis). Without this the sub-monthly
 ## quadratic leaks a small residual into dark cell-hours. `gpp` and

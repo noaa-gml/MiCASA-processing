@@ -100,6 +100,27 @@ Tm <- matrix(273.15 + runif(12, -10, 30), 3, 4)
 check("q10.factor operates element-wise on a matrix",
       is.matrix(q10.factor(Tm)) && all(dim(q10.factor(Tm)) == c(3, 4)))
 
+## ---- lt.factor (Lloyd & Taylor 1994 respiration response) -----------------
+## Monotonic increasing in temperature.
+Tk2 <- 273.15 + c(-30, -10, 0, 10, 20, 30)
+check("lt.factor strictly increases with temperature",
+      all(diff(lt.factor(Tk2)) > 0))
+## Apparent Q10 RISES as T falls: the +10 K ratio is larger in the cold.
+cold <- lt.factor(283.15) / lt.factor(273.15)
+warm <- lt.factor(303.15) / lt.factor(293.15)
+check("lt.factor apparent Q10 is higher at low T than high T", cold > warm)
+## Finite and ~0 below the T0 frozen limit (no NaN/Inf from the clamp).
+fr <- lt.factor(227.13 + c(-50, -10, -0.05))
+check("lt.factor stays finite and ~0 below T0 (frozen clamp)",
+      all(is.finite(fr)) && all(fr >= 0) && max(fr) < 1e-30)
+## ref/scale constants cancel under the diurnalize normalization f(t)/mean(f):
+## an overall multiplicative constant leaves the normalized shape unchanged.
+lt1 <- lt.factor(Tk2); lt2 <- 7.3 * lt1
+check("lt.factor: constant prefactor cancels in f/mean(f)",
+      close.all(lt1/mean(lt1), lt2/mean(lt2), tol = 1e-12))
+check("lt.factor operates element-wise on a matrix",
+      is.matrix(lt.factor(Tm)) && all(dim(lt.factor(Tm)) == c(3, 4)))
+
 if (.fail > 0L) {
   cat(sprintf("\n%d FAILED\n", .fail))
   quit(status = 1L)

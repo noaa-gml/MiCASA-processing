@@ -206,6 +206,59 @@ Takeaway: the soil-temp driver's largest, most defensible corrections land in
 the cold winter hemisphere high latitudes — the seasons/regions where an
 air-temperature proxy for soil decomposition is least physical.
 
+## 5.3 Prototype #2 result — Lloyd-Taylor temperature response
+
+Implemented as `MICASA_RESP_TEMPFUN={q10|lloydtaylor}`, orthogonal to the
+driver-variable knob (so all four combinations are selectable). `q10` + `airtemp`
+is **byte-identical** to legacy — verified by `ncdiff` (max |Δ| = 0 for GPP, resp,
+NEE on July 2020), not just argued from source. Under the ratio-normalization the
+L&T `R_ref` and `T_ref` constants cancel, leaving only the shape
+`exp(−E0/(T−T0))`; `lt.factor()` is in `lib/diurnal.r` with 5 unit tests (21 total
+diurnal-transform checks pass).
+
+Holding the driver fixed at **soil temp**, Lloyd-Taylor vs fixed Q10=1.5
+changes the *respiration* diurnal amplitude substantially (ratio LT/Q10):
+
+| Region | July | January |
+|---|---|---|
+| Boreal 50-70N | 1.99 | **3.70** |
+| NH temperate 25-50N | 1.48 | 3.33 |
+| Tropics 25S-25N | 1.49 | 1.44 |
+| SH temperate 25-50S | 2.22 | 1.42 |
+| Global median range | 1.51 | 1.49 |
+
+- **LT amplifies the respiration cycle**, because its apparent Q10 (~2.5–4 across
+  the relevant range) exceeds the fixed 1.5, and the amplification is **strongest
+  in the cold** — LT's defining steep low-T sensitivity — reaching 3.3–3.7× in
+  NH-winter high latitudes. Phase is unchanged (same temperature variable).
+- **Net NEE is again negligible globally** (LT/Q10 ≈ 0.99 both months): GPP
+  dominates the NEE diurnal swing. The exception is, once more, **boreal winter**
+  — GPP ≈ 0 there, so NEE ≈ Rh and the boreal-January NEE diurnal amplitude moves
+  by **3.6×**.
+
+### Synthesis across both prototypes
+
+The respiration *treatment* — both the temperature variable (air↔soil) and the
+response function (Q10↔Lloyd-Taylor) — strongly controls the respiration diurnal
+amplitude, and the two effects **partly oppose**: soil-temp damps, Lloyd-Taylor
+re-amplifies. The July global-land respiration diurnal range spans
+1.68–2.53 ×10⁻⁷ mol m⁻² s⁻¹ (×1.5) across {Q10·air, Q10·soil, LT·soil}.
+
+But the **NEE the inversion actually sees is robust to all of it** (~1–2%
+globally), because GPP redistribution dominates the NEE diurnal cycle — *except*
+in the polar / boreal cold season, where GPP → 0 makes NEE track respiration
+directly and the choice matters (2–3.6×).
+
+**Recommendation.** Adopt prototype #1 (soil-temp driver) as the
+default-candidate: it is the physically-correct variable, costs nothing, and
+moves NEE only ~2% (in the right direction). Keep Lloyd-Taylor implemented and
+**opt-in but not default**: it changes respiration amplitude a lot yet NEE almost
+nowhere except boreal winter, and its steep low-T sensitivity is the most
+uncertain piece. The test that would actually discriminate Q10=1.5 from
+Lloyd-Taylor is the **observed diurnal amplitude of ecosystem respiration**
+(eddy covariance) — a validation, not another model run — and is the natural next
+step before flipping any default.
+
 ## 6. References
 
 - Best et al. (2011), *The Joint UK Land Environment Simulator (JULES)*, GMD 4:677–699, doi:10.5194/gmd-4-677-2011.

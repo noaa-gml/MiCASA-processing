@@ -293,9 +293,22 @@ for (mon in mon.range) {
                        soiltemp = mets$stl1,
                        stop(sprintf("MICASA_RESP_DRIVER='%s' not in {airtemp, soiltemp}",
                                     resp.driver)))
-  cat(sprintf("Respiration temperature driver: %s\n", resp.driver))
-  q10    <- q10.factor(resp.tempK)
+  ## Respiration temperature-response FUNCTION (prototype #2), orthogonal to the
+  ## driver variable above. MICASA_RESP_TEMPFUN:
+  ##   q10         (default) -- fixed Q10=1.5 power law (legacy)
+  ##   lloydtaylor           -- Lloyd & Taylor (1994), steeper low-T sensitivity
+  ## Default q10 + airtemp is byte-identical to the legacy path. The weighting
+  ## array is normalized by its monthly mean below, so only its shape matters.
+  resp.tempfun <- Sys.getenv("MICASA_RESP_TEMPFUN", "q10")
+  cat(sprintf("Respiration temperature driver: %s, response function: %s\n",
+              resp.driver, resp.tempfun))
+  q10 <- switch(resp.tempfun,
+                q10         = q10.factor(resp.tempK),
+                lloydtaylor = lt.factor(resp.tempK),
+                stop(sprintf("MICASA_RESP_TEMPFUN='%s' not in {q10, lloydtaylor}",
+                             resp.tempfun)))
   q10.mn <- apply(q10,         c(1, 2), mean)
+  q10.mn <- pmax(q10.mn, 1e-300)  # guard all-frozen cells (Lloyd-Taylor underflow)
   ssr.mn <- apply(mets$ssrd,   c(1, 2), mean)
 
   ## ERA5 SSRD is identically 0 above ~70°N — guard against div-by-zero.
@@ -475,6 +488,7 @@ for (mon in mon.range) {
   ## Respiration temperature driver provenance (prototype #1). "airtemp" is the
   ## canonical Olsen & Randerson path; "soiltemp" drives Q10 off 0-7cm stl1.
   ncatt_put(ncf, 0, "respiration_temperature_driver", attval = resp.driver, prec = "text")
+  ncatt_put(ncf, 0, "respiration_temperature_function", attval = resp.tempfun, prec = "text")
   if (partial.month) {
     ncatt_put(ncf, 0, "status", attval = "provisional", prec = "text")
     ncatt_put(ncf, 0, "meteo_partial",
