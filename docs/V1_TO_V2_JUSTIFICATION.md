@@ -85,6 +85,53 @@ integral, C⁰ at knots. Two disqualifying problems for an NRT product:
 cumulative integral F(t), differentiated analytically to the flux f = F′ as a
 piecewise quadratic (same `(a,b,c)` storage as PIQS).
 
+### Equations
+
+Both fitters store, per cell and month *i*, a quadratic on `t ∈ [tᵢ, tᵢ₊₁]` of
+width `hᵢ`, and both impose **mass preservation** — the piece integral equals the
+MiCASA monthly mean `ȳᵢ` (this *is* the master invariant of §0):
+
+```
+fᵢ(t) = aᵢ (t−tᵢ)² + bᵢ (t−tᵢ) + cᵢ
+(1/hᵢ) ∫[tᵢ→tᵢ₊₁] fᵢ dt = aᵢhᵢ²/3 + bᵢhᵢ/2 + cᵢ = ȳᵢ
+```
+
+**PIQS** (Rasmussen 1991) fixes the remaining freedom by a **single global solve**:
+each piece preserves its integral *and* adjacent pieces share the knot value (C⁰),
+`fᵢ(tᵢ₊₁) = fᵢ₊₁(tᵢ₊₁)`. That continuity system couples *every* month to every
+other → non-local; nothing constrains the quadratic's sign, so it overshoots
+through zero in sharply seasonal cells.
+
+**PCHIP-on-cumulative** (Fritsch & Carlson 1980; `lib/pchip_fit.r`) instead works
+on the cumulative integral and is **local**:
+
+```
+Fₖ = Σ_{i<k} ȳᵢ hᵢ           (F₀ = 0; monotone when the ȳᵢ share a sign)
+secants     mₖ = ȳₖ
+F-C knot slopes dₖ:  dₖ = 0 at a secant sign change,
+                     else |dₖ| ≤ 3·min(|mₖ₋₁|, |mₖ|)   ← monotonicity limiter
+```
+
+The flux is the derivative of the monotone cubic Hermite on `F`; on segment *k*
+with `s = (t−xₖ)/hₖ`,
+
+```
+f(s) = (6s−6s²)·mₖ + (3s²−4s+1)·dₖ + (3s²−2s)·dₖ₊₁
+```
+
+which in the stored `(a,b,c)` form is, with `Q = −6mₖ+3dₖ+3dₖ₊₁`,
+`L = 6mₖ−4dₖ−2dₖ₊₁`, `K = dₖ`:
+
+```
+aᵢ = Q/hₖ²,   bᵢ = L/hₖ,   cᵢ = K          (signs negated for GPP ≤ 0)
+```
+
+Mass is automatic (`∫₀¹ f ds = mₖ = ȳₖ`). **The contrast in one line:** PIQS sets
+`(a,b,c)` by a *global* C⁰ system (→ non-local, sign-unconstrained → overshoot);
+PCHIP sets them from *local* Fritsch-Carlson knot slopes `dₖ` (→ ~1-month
+revision footprint, sign-definite *at the knots* by the limiter). Both yield the
+identical `ȳᵢ` — hence the budget-invariance (§0).
+
 **Claims, stated to their exact scope:**
 1. **Budget-invariant at the fit level** — monthly+ means identical by
    construction (each piece's integral = the monthly mean; mass-preserving). The
