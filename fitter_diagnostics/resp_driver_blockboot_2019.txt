@@ -1,0 +1,48 @@
+loaded 201901: 15558 land cells
+loaded 201902: 15585 land cells
+loaded 201903: 15614 land cells
+loaded 201904: 15606 land cells
+loaded 201905: 15590 land cells
+loaded 201906: 15592 land cells
+loaded 201907: 15627 land cells
+loaded 201908: 15645 land cells
+loaded 201909: 15625 land cells
+loaded 201910: 15567 land cells
+loaded 201911: 15574 land cells
+loaded 201912: 15575 land cells
+
+================ SPATIAL BLOCK BOOTSTRAP (full-year 2019) ================
+
+[resp] area-weighted median soil/air amplitude ratio = 0.8022
+   naive i.i.d.-cell  95% CI [0.8010, 0.8033]  (width 0.0023)  <- OLD METHOD
+   block  5deg       95% CI [0.7891, 0.8152]  (width 0.0260)  blocks~938
+   block 10deg       95% CI [0.7813, 0.8262]  (width 0.0449)  blocks~309
+   block 20deg       95% CI [0.7712, 0.8411]  (width 0.0699)  blocks~110
+
+[NEE] area-weighted median soil/air amplitude ratio = 1.0226
+   naive i.i.d.-cell  95% CI [1.0225, 1.0228]  (width 0.0002)  <- OLD METHOD
+   block  5deg       95% CI [1.0217, 1.0236]  (width 0.0019)  blocks~938
+   block 10deg       95% CI [1.0210, 1.0242]  (width 0.0032)  blocks~309
+   block 20deg       95% CI [1.0202, 1.0246]  (width 0.0044)  blocks~110
+
+---- latitude bands (resp, block 10deg, annual) ----
+   boreal 50-70N    0.6069  95% CI [0.5811, 0.6278]
+   NH-temp 25-50N   0.8104  95% CI [0.7786, 0.8505]
+   tropics 25S-25N  0.8545  95% CI [0.8120, 0.8952]
+   SH-temp 50-25S   0.9377  95% CI [0.8566, 1.0684]
+
+---- per-month NEE ratio (block 10deg) : seasonal coverage ----
+   201901: NEE ratio 1.0165  95% CI [1.0114, 1.0207]
+   201902: NEE ratio 1.0158  95% CI [1.0086, 1.0199]
+   201903: NEE ratio 1.0187  95% CI [1.0148, 1.0222]
+   201904: NEE ratio 1.0251  95% CI [1.0225, 1.0272]
+   201905: NEE ratio 1.0266  95% CI [1.0248, 1.0285]
+   201906: NEE ratio 1.0246  95% CI [1.0231, 1.0260]
+   201907: NEE ratio 1.0225  95% CI [1.0208, 1.0241]
+   201908: NEE ratio 1.0208  95% CI [1.0192, 1.0226]
+   201909: NEE ratio 1.0239  95% CI [1.0216, 1.0261]
+   201910: NEE ratio 1.0269  95% CI [1.0244, 1.0294]
+   201911: NEE ratio 1.0241  95% CI [1.0209, 1.0267]
+   201912: NEE ratio 1.0207  95% CI [1.0163, 1.0237]
+
+DONE
