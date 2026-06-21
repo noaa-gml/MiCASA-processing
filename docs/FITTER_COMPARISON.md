@@ -261,7 +261,7 @@ Reproducible from `fitter_diagnostics/` (§7). Uncertainty shown where it matter
 |---|---|---|---|---|---|
 | Mass-conserving | ✓ | ✓ | ✓ | ✓ | ✓ |
 | Overshoot peak/env (med / max) | 0.93 / **~10¹⁸** | 0.83 / **1.50** | 0.78 / **1.00** | / 1.00 | / 1.00 |
-| GPP sign-flips, 2020 product (cell-hours, max mo) | **~11%** | 0.1–0.7% | **0%** | 0% | 0% |
+| GPP sign-flips, 2020 product (cell-hours, max mo) | **~11%** | 0.1–0.9% | **0%** | 0% | 0% |
 | Daily-fidelity RMSE/env, GPP — med [IQR] (mean)¹ | 0.086 (18.6)² | 0.081 [.041,.148] (0.151) | 0.079 [.039,.147] (0.149) | 0.094 (0.159) | (0.181) |
 | Daily-fidelity RMSE/env, RESP (mean) | 0.128 | 0.128 | 0.125 | 0.130 | 0.145 |
 | Within-month structure (grad/env, med) | high | 0.111 | 0.060 | 0.031 | 0 |
@@ -286,7 +286,7 @@ PIQS's global solve couples the whole record; MSS (banded QP) is ≤1.
 ⁴ The 0.2% PCHIP/PPM budget difference is **not** a fitter mass-leak (the fits
 conserve to ~1e-16). It is the **diurnalize** discretization: `qmod` sampled at
 discrete hours + the polar-night `GPP=0` clip + the SSRD/Q10 weighting perturb
-the product's monthly mean ~0.1–0.7%/month. Same effect for all fitters.
+the product's monthly mean ~0.1–0.9%/month. Same effect for all fitters.
 
 **Two framing clarifications the table needs:**
 - **"Overshoot" is not one thing.** The enemy is **wrong-sign** flux and
@@ -458,12 +458,13 @@ sign-safe minmod-linear (`fitter_diagnostics/piqs_hybrid.r`):
 | smoothness (knot deriv-jump·D/env) | **PIQS 0.000 vs PCHIP 0.290** — PIQS's global solve is near-C¹ in the flux (the genuine motivation) |
 | sign-safety after fallback | **0.000% wrong-sign** |
 | fidelity (2020 daily RMSE/env) | hybrid 0.079 med / 0.139 mean ≈ PCHIP 0.081 / 0.141 (fixes PIQS's 15.7 mean blow-up; tied) |
-| **discontinuity at patched edges** | **median ~5× the envelope** — PIQS overshoots by *large* amounts, so the patch sits far from its neighbour values → severe jumps at the ~30% patched edges |
+| **discontinuity at patched edges** | **absolute budget 0.97 mol m⁻² s⁻¹** over 1.44 M patched edges vs PCHIP's exact 0 (C⁰). Env-normalized: finite-envelope median only **0.25× env**, but **38% of patched edges sit in near-zero-envelope transition months** where jump/env diverges by dividing by ~0 — so the absolute budget is the honest cross-method metric, not the inflated "~5× env" an earlier draft quoted (that median included the env≈0 → ∞ edges) |
 | NRT locality | **inherits PIQS's global solve** — a revised month rewrites the whole record |
 
 **Verdict: not adopted.** It is sign-safe and recovers PIQS's smoothness in the
-easy ~70% of pieces, but injects *large* discontinuities (median ~5× envelope)
-at exactly the hard transition pieces — far worse than PPM's small edge jumps —
+easy ~70% of pieces, but injects a genuine discontinuity (absolute budget 0.97 mol
+m⁻² s⁻¹ vs PCHIP's 0) at exactly the hard transition pieces — and, unlike PPM's
+small bounded edge jumps, many of those patches land in near-zero-envelope months —
 and still inherits PIQS's global non-locality, while only tying PCHIP on fidelity.
 Dominated by PCHIP. The PIQS smoothness advantage is real but cannot be captured
 without either the overshoot (PIQS) or the patch discontinuities (this hybrid).
@@ -533,7 +534,7 @@ PIQS to PCHIP. Two PIQS properties are disqualifying for an NRT product:
 1. **Overshoot through zero.** Measured 2026-06-18 on the same 2020 diurnalize:
    up to **~11% of GPP cell-hours wrong-sign** (plant emitting CO₂), and a
    fidelity mean wrecked by ~10¹⁸ overshoot-tail cells. The local sign-definite
-   methods remove this: PCHIP 0.1–0.7%, PPM/minmod 0%.
+   methods remove this: PCHIP 0.1–0.9%, PPM/minmod 0%.
 2. **Global solve ⇒ NRT non-reproducibility.** PIQS couples every knot to every
    month, so appending/revising the latest vNRT month (which MiCASA's stream does
    in place) re-solves and changes **all 303 historical months** — the published
@@ -549,7 +550,7 @@ These are the grounds; both are already addressed by the V2 (PCHIP) default.
 1. **Keep PCHIP as the default.** It is local, sign-definite, mass-conserving,
    and the **only** method with zero flux jumps (continuity is the smoother's
    raison d'être). Its blemishes — a bounded ≤1.5× bump (shown physical) and a
-   ~0.1–0.7% residual sign-flip rate — are minor.
+   ~0.1–0.9% residual sign-flip rate — are minor.
 2. **PPM and minmod are selectable alternatives, not improvements.** PPM trades
    PCHIP's small residual for zero overshoot, but **reintroduces month-edge
    discontinuities at ~70% of boundaries** (the steps the smoother exists to

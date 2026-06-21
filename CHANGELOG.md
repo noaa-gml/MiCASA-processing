@@ -391,8 +391,10 @@ one wrote it. `diurnalize-ERA5.r` consumes any of the three transparently.
 
 Bake-off scripts: `bakeoff_pchip.py`, `bakeoff_mss.py` test on 6
 representative cells (Manaus, Hyytiälä, Sahel, Arctic Tundra,
-semi-arid Texas, AK Tundra). PCHIP gives 0% flip rate by construction
-vs PIQS up to 30.91%, with absolute flux differences <2e-11.
+semi-arid Texas, AK Tundra). PCHIP gives 0% flips *on those 6 cells*
+(not 0 by construction — PCHIP is sign-definite at the knots only; the
+full-grid residual is ≤0.94% of GPP cell-hours, mopped up by the
+polar-night clip) vs PIQS up to 30.91%, with absolute flux differences <2e-11.
 
 ## 2026-04-29 — ATMC integration tried and reverted; polar-night clip lands
 

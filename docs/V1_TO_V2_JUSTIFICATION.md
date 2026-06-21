@@ -40,7 +40,8 @@ dated logs but are not needed to follow the argument below.
   is already loaded). The one outstanding gate is eddy-covariance amplitude
   validation. Lloyd-Taylor stays opt-in. **Awaiting your sign-off** (§2).
 - **Standing verification base:** `verify_v2` (60 checks, 2026-06-21: all
-  science/product checks §§1–23 pass) + `tests/` (153 checks, all green) + committed
+  science/product checks §§1–23 pass) + `tests/` (153 on Orion; 143 reproduced
+  green locally, 10 `quadprog`-gated) + committed
   diagnostic scripts and figures (§6).
 
 ## 0. How to read this — two categories and one invariant
@@ -89,10 +90,13 @@ So the change Andy flagged does not move the science signal — it changes the
 sub-monthly shape, removing most of an unphysical artifact.
 
 **Standing evidence base.** Two independent harnesses back the claims below:
-- `verify_v2` — **60 distinct checks across 24 sections** (enumerated in §6),
-  committed at `fitter_diagnostics/verify_v2_summary_20260621.txt`
-  (**51 PASS / 1 WARN / 9 INFO**). **All science / product / provenance checks
-  (§§1–23) PASS and reproduce the numbers used below.** The two **§24 items are
+- `verify_v2` — **60 numbered checks across 24 sections** (enumerated in §6; Check
+  2.1 appears as two sub-lines `2.1.gpp`/`2.1.rtot` in the summary, so the committed
+  file shows 61 result lines), committed at
+  `fitter_diagnostics/verify_v2_summary_20260621.txt`
+  (**51 PASS / 1 WARN / 9 INFO / 1 FAIL** — the single FAIL is Check 24.1, explained
+  below). **All science / product / provenance checks (§§1–23) PASS and reproduce
+  the numbers used below.** The two **§24 items are
   manifest / observability meta-checks on a shared working-directory log — not
   assertions about the product.** That run's lone FAIL was Check 24.1
   (run-manifest integrity): **concurrent-append corruption** of `jobs/run_manifest.tsv`
@@ -236,8 +240,9 @@ implementation-broken tie for PCHIP over Rymes–Myers.
    by construction: Fritsch-Carlson constrains the cubic's *knot* slopes, and the
    derivative quadratic can still dip mid-segment even on strictly single-signed
    input. We reproduced this — worst interior flux **−0.042 on strictly positive
-   monthly means** (≈2% of the median), see
-   [`fitter_diagnostics/pchip_sign_definiteness.r`](../fitter_diagnostics/pchip_sign_definiteness.r).
+   monthly means** (0.1% of 20,000 synthetic series carry any wrong-sign dip), see
+   [`fitter_diagnostics/pchip_sign_definiteness.r`](../fitter_diagnostics/pchip_sign_definiteness.r)
+   and its committed output `pchip_sign_definiteness_20260621.txt`.
    What PCHIP buys is a 1–2 order-of-magnitude *reduction* vs PIQS, leaving a small
    bounded residual: GPP **6.55% → 0.11%** mean (~60×), 14.70% → **0.94%** max
    (16×); Rh 0.122% → 0.0000% mean, 0.444% → 0.002% max (Check 3.1,
@@ -384,8 +389,9 @@ area; `lib/test_ingest_bitident.r` confirms the read path. Justification is not
 ### 3.2 Polar-night GPP = 0 clip
 Physical: no incoming shortwave ⇒ no photosynthesis. The clip zeros GPP wherever
 `ssrd == 0`, removing the small residual the sub-monthly quadratic otherwise
-leaks into dark hours (~2.6% of cells in `fluxes_202512.nc`, max |GPP| =
-9.4e-9 mol m⁻² s⁻¹). Cost: a ~1.5% mass-conservation gap at partial-polar-night
+leaks into dark hours (a spot check of `fluxes_202512.nc`: ~2.6% of cells touched,
+max |GPP| = 9.4e-9 mol m⁻² s⁻¹ — illustrative, not a verify_v2 check; Check 12.2
+verifies >75 N GPP = 0). Cost: a ~1.5% mass-conservation gap at partial-polar-night
 latitudes (Check 2.2 threshold relaxed 1% → 5% to acknowledge it) — this gap is
 the reason the shipped product is not exactly mass-preserving (§0). Under PCHIP
 this clip is now **largely redundant** — the fit's residual interior dips are
@@ -470,8 +476,10 @@ derivative-smoothness on the ~71% of sign-safe pieces and patch only the rest. T
 is the strongest case for it, and it is real.
 
 We implemented and measured it (`fitter_diagnostics/piqs_hybrid.r`,
-`linear_fallback_quantify.r`) and **did not adopt** it, because that C¹ advantage is
-inconsequential for *this* product and is outweighed on locality and continuity:
+`linear_fallback_quantify.r`; committed output
+`linear_fallback_quantify_20260621.txt`) and **did not adopt** it, because that C¹
+advantage is inconsequential for *this* product and is outweighed on locality and
+continuity:
 
 0. **The C¹ edge does not reach the delivered prior.** The shipped hourly NEE is
    the fit's monthly mean redistributed by ERA5 hourly meteo; the smoother sets
@@ -525,12 +533,14 @@ Flux Inversion (LoFI) empirical sink, `S_m = α_yr·max(T_m−T_{m-1},0)/10·HR_
 α scaled **each year so the global biospheric total matches the observed
 atmospheric CO₂ growth rate** (~3 PgC/yr, concentrated NH-extratropics JJA).
 
-**The stakes are not cosmetic.** Subtracting ATMC flips the sign of the prior's
-long-term trend: CASA-only NEE trends **+0.0447 PgC/yr/yr**, and with ATMC it is
-**−0.0067** — i.e. essentially flat. Over the 25-yr record the CASA-only trend
-compounds to ≈ **+1.1 PgC/yr** of drift in the net flux, which is *of order the
-mean biospheric sink magnitude itself* (a few PgC/yr) — so this is a first-order
-property of the prior, not a rounding term. We are not waving it away.
+**The stakes are not cosmetic — and they hit both the level and the trend.**
+Subtracting ATMC more than *doubles the mean biospheric sink*, from **−2.45 to
+−5.99 PgC/yr** (the ~3 PgC/yr ATMC magnitude), and *flips the sign of the long-term
+trend*: CASA-only NEE trends **+0.0413 PgC/yr/yr**, with ATMC **−0.0067** (i.e.
+essentially flat). The trend alone compounds to ≈ **+1.1 PgC/yr** of drift over the
+25-yr record — itself of order the mean sink. So ATMC is a first-order change to
+both the magnitude and the time-evolution of the prior, not a rounding term. We are
+not waving it away.
 
 **Why we still do not subtract it — and this holds whether the trend is real or a
 CASA bias.** These fluxes are a **prior to a CO₂ inversion that itself assimilates
@@ -573,7 +583,7 @@ biome cells + trends (12.1–12.2, 13.1–13.2, 14.1–14.3, 15.1–15.3 trend/E
 additional biomes, 20 cross-product, 21 robustness, 22 performance, 23 provenance,
 24 manifest (§24 = observability meta-checks on the run log, *not* product
 assertions). Committed run `verify_v2_summary_20260621.txt` (**51 PASS / 1 WARN /
-9 INFO**); its lone FAIL is Check 24.1 — concurrent-append corruption of the shared
+9 INFO / 1 FAIL**); the lone FAIL is Check 24.1 — concurrent-append corruption of the shared
 `run_manifest.tsv`, a logging artifact (Check 24.2 "no failed steps" PASSED in the
 same run). The log was then **losslessly recovered** (0 malformed rows remain —
 Check 24.1's exact criterion). All §§1–23 product / science / provenance checks
