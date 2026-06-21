@@ -2,21 +2,27 @@
 # Drive the full MiCASA_v1 pipeline for a single year.
 #
 # Usage:
-#     ./run_year.sh YEAR [VERSION] [--skip-download] [--skip-ingest]
-#                                  [--skip-aggregate] [--skip-piqs]
-#                                  [--skip-diurnalize] [--skip-daysplit]
-#                                  [--dry-run]
+#     ./run_year.sh YEAR [VERSION] [--fitter NAME] [--skip-download]
+#                                  [--skip-ingest] [--skip-aggregate]
+#                                  [--skip-piqs] [--skip-diurnalize]
+#                                  [--skip-daysplit] [--dry-run]
+#
+#   --fitter NAME  sub-monthly smoother for stage 4 (default: pchip).
+#                  pchip (V2 default) | piqs (legacy V1; global solve, auto-sets
+#                  MICASA_PIQS_PAD_RIGHT=2) | ppm | linmm | mss | atpk. All write
+#                  fit.piqs.rda, which the diurnalize stage reads.
 #
 # Example:
-#     ./run_year.sh 2026                    # full v1 pipeline for 2026
-#     ./run_year.sh 2026 vNRT               # near-real-time stream
-#     ./run_year.sh 2026 v1 --skip-download # data already on disk
+#     ./run_year.sh 2026                      # full v2 pipeline (PCHIP) for 2026
+#     ./run_year.sh 2026 vNRT                 # near-real-time stream
+#     ./run_year.sh 2026 v1 --skip-download   # data already on disk
+#     ./run_year.sh 2026 v1 --fitter piqs     # PIQS-fitted, V1-style product
 #
 # Stages (matching README flowchart):
 #   1. Download           — wget MiCASA daily + monthly for YEAR
 #   2. Ingest             — 0.1° → 1° aggregation (daily + monthly)
 #   3. Aggregate / clim   — concat, NPP/Rh climatologies, daily climatology
-#   4. PIQS fit           — fit smooth seasonal cycles
+#   4. Fitter             — fit smooth seasonal cycles (--fitter; default pchip)
 #   5. Diurnalize         — apply ERA5 hourly meteo to get hourly NEE
 #   6. Day-split          — split hourly monthly files to daily NEE files
 #
@@ -29,7 +35,7 @@ set -o pipefail
 # ---- Args -------------------------------------------------------------------
 
 if [ $# -lt 1 ]; then
-    sed -n '2,18p' "$0"
+    sed -n '2,27p' "$0"
     exit 1
 fi
 
@@ -44,8 +50,11 @@ fi
 skip_download=0; skip_ingest=0; skip_aggregate=0
 skip_piqs=0;     skip_diurnalize=0; skip_daysplit=0
 dry_run=0
+fitter=pchip          # production default; --fitter swaps the stage-4 smoother
+expect_fitter=0       # set when the previous token was a bare "--fitter"
 
 for arg in "$@"; do
+    if [ "$expect_fitter" -eq 1 ]; then fitter="$arg"; expect_fitter=0; continue; fi
     case "$arg" in
         --skip-download)   skip_download=1   ;;
         --skip-ingest)     skip_ingest=1     ;;
@@ -53,10 +62,29 @@ for arg in "$@"; do
         --skip-piqs)       skip_piqs=1       ;;
         --skip-diurnalize) skip_diurnalize=1 ;;
         --skip-daysplit)   skip_daysplit=1   ;;
+        --fitter)          expect_fitter=1   ;;   # "--fitter piqs"
+        --fitter=*)        fitter="${arg#*=}" ;;  # "--fitter=piqs"
         --dry-run)         dry_run=1         ;;
         *) echo "Unknown flag: $arg"; exit 2 ;;
     esac
 done
+if [ "$expect_fitter" -eq 1 ]; then echo "--fitter needs a value"; exit 2; fi
+
+# Map --fitter to its writer. All writers emit fit.piqs.rda (recording the
+# fitter in piqsfit.meta), which the diurnalize stage reads by default.
+case "$fitter" in
+    pchip) fitter_script=write_pchip.r ;;
+    piqs)  fitter_script=write_piqs.r
+           # PIQS is a global solve over the whole record (proposal #1, #17):
+           # pad the trailing edge for NRT stability. NOTE: a PIQS refit
+           # rewrites every historical month — re-diurnalize the affected tail.
+           export MICASA_PIQS_PAD_RIGHT="${MICASA_PIQS_PAD_RIGHT:-2}" ;;
+    ppm)   fitter_script=write_ppm.r   ;;
+    linmm) fitter_script=write_linmm.r ;;
+    mss)   fitter_script=write_mss.r   ;;
+    atpk)  fitter_script=write_atpk.r  ;;
+    *) echo "Unknown --fitter: '$fitter' (pchip|piqs|ppm|linmm|mss|atpk)"; exit 2 ;;
+esac
 
 # ---- Config -----------------------------------------------------------------
 
@@ -127,6 +155,7 @@ echo "========================================================================"
 echo "MiCASA pipeline run"
 echo "  YEAR        ${MICASA_YEAR}"
 echo "  VERSION     ${MICASA_VERSION}"
+echo "  FITTER      ${fitter}  (stage 4: ${fitter_script})"
 echo "  WORK_DIR    ${WORK_DIR}"
 echo "  MAIL_USER   ${MAIL_USER}"
 [ "$dry_run" -eq 1 ] && echo "  *** DRY RUN — nothing will execute ***"
@@ -163,12 +192,12 @@ else
     echo "==> [skip] aggregate stage"
 fi
 
-# ---- Stage 4: PIQS fit ------------------------------------------------------
+# ---- Stage 4: fitter (sub-monthly smoother; --fitter, default pchip) --------
 
 if [ "$skip_piqs" -eq 0 ]; then
-    run Rscript write_pchip.r
+    run Rscript "$fitter_script"
 else
-    echo "==> [skip] pchip stage"
+    echo "==> [skip] fitter stage ($fitter)"
 fi
 
 # ---- Stage 5: Diurnalize (ERA5 hourly) -------------------------------------

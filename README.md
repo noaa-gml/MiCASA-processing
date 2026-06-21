@@ -60,6 +60,7 @@ Work on `main`. Use `legacy` only to reproduce a v1-vintage product.
 | [`docs/METHODOLOGY.md`](docs/METHODOLOGY.md) | PIQS / PCHIP / MSS fitter theory; diurnalization with ERA5; why NEE = Rh − NPP and not Rh − NPP − ATMC |
 | [`docs/FITTER_COMPARISON.md`](docs/FITTER_COMPARISON.md) | Full sub-monthly-fitter bake-off (PIQS/PCHIP/PPM/minmod/MSS/ATP), equations, scorecard, uncertainty; why PCHIP is the default |
 | [`docs/DIURNALIZATION_ALTERNATIVES.md`](docs/DIURNALIZATION_ALTERNATIVES.md) | Diurnal-redistribution survey + soil-temp / Lloyd-Taylor respiration prototypes (opt-in), with shadow-diff results |
+| [`docs/PRODUCING_A_PIQS_UPDATE.md`](docs/PRODUCING_A_PIQS_UPDATE.md) | Runbook: produce a PIQS-fitted product update on the V2 pipeline via `run_year.sh --fitter piqs` (incl. the global-refit / re-diurnalize-the-tail caveat) |
 | [`docs/PROPOSALS.md`](docs/PROPOSALS.md) | Architecture decision records: 18 numbered notes covering landed / proposed / rejected design changes, with rationale |
 | [`CHANGELOG.md`](CHANGELOG.md) | Dated engineering entries: latent-bug sweep, performance tuning, ATMC integration arc, PCHIP promotion |
 | [`README.notes`](README.notes) | Historical author log (Pera, Jacobson, Weir) — kept for provenance |
