@@ -45,11 +45,13 @@ dated logs but are not needed to follow the argument below.
   is already loaded). The one outstanding gate is eddy-covariance amplitude
   validation. Lloyd-Taylor stays opt-in. **Awaiting your sign-off** (§2).
 - **Standing verification base:** `verify_v2` (60 checks, 2026-06-21: §§1–23 all
-  **PASS or INFO**; the one WARN (11.1) was stale diagnostic crash-logs, since
-  **root-fixed + archived** (§6); the §24 FAIL is a manifest logging artifact; and
-  the §20 cross-product checks are **deferred/not-yet-run** — §6) + `tests/` (153 on
-  Orion; 143 reproduced green
-  locally, 10 `quadprog`-gated) + committed diagnostic scripts and figures (§6).
+  **PASS or INFO**; the formerly-WARN 11.1 and the two formerly-deferred §20
+  cross-product checks are now **PASS** — 11.1's atpk crash-logs were stale
+  diagnostics (production fitter guarded + tested), archived; §20.1 v2-vs-v1
+  per-band NEE agrees to 0.04%, §20.2 global-NBE budget context computed; the only
+  remaining non-PASS is the §24 manifest FAIL, a logging artifact — §6) + `tests/`
+  (153 on Orion; 143 reproduced green locally, 10 `quadprog`-gated) + committed
+  diagnostic scripts and figures (§6).
 
 ## 0. How to read this — two categories and one invariant
 
@@ -630,6 +632,20 @@ plus a few self-referential verify-run logs (whose names slipped past the scan's
 widened to match "verify" anywhere in the log name (commit `f6439ba`); the scan now
 reads **0 flagged** (Check 11.1 → PASS).
 
+The two **§20 cross-product checks**, previously INFO/deferred stubs, are now
+implemented and **PASS** (commit `b3b9d72`; `fitter_diagnostics/check_20_crossproduct.py`
++ committed output): **20.1** aggregates the V2 corrected-aggregation `monthly_1x1`
+product per latitude band and compares to V1 over 2001–2024 — max per-band rel diff
+**0.04%** (threshold 5%), confirming the §3.1 aggregation fix shifts no mass between
+bands (the boreal band's 0.04%, the largest, matches §3.1's poleward-growing
+prediction; diurnalize preserves monthly means, so this equals the shipped per-band
+annual NEE to the polar-clip residual). **20.2** computes MiCASA global annual NBE
+(Rh−NPP+FIRE+FUEL) = **+0.99 PgC/yr** (2001–2024), a physically plausible near-neutral
+CASA-only flux; its **~3.6 PgC/yr offset** from the GCB land sink (Friedlingstein et
+al. 2023) is of order the ~3 PgC/yr ATMC term — a quantitative confirmation that the
+CASA-only prior does **not** self-close the growth-rate budget (by design — the
+inversion supplies it; §5.2). Reported as budget *context*, not a closure.
+
 **Unit tests — all green on Orion (R 4.4.0 / Python, 2026-06-21); the 143
 non-`quadprog` R checks reproduced green locally (R 4.6.0) for this revision:**
 
@@ -719,3 +735,4 @@ behavior-preserving item maps to a proof in the §4 table.
 - Denning, Fung & Randall (1995), *Latitudinal gradient of atmospheric CO₂ … (the rectifier)*, Nature 376:240–243, doi:10.1038/376240a0.
 - Weir et al. (2021), *Bias-correcting carbon fluxes* (LoFI / ATMC), ACP 21:9609–9628, doi:10.5194/acp-21-9609-2021.
 - Zhu et al. (2016), *Greening of the Earth and its drivers*, Nature Climate Change 6:791–795, doi:10.1038/nclimate3004.
+- Friedlingstein et al. (2023), *Global Carbon Budget 2023*, Earth Syst. Sci. Data 15:5301–5369, doi:10.5194/essd-15-5301-2023.
