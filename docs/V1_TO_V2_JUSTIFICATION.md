@@ -120,8 +120,8 @@ piecewise quadratic (same `(a,b,c)` storage as PIQS).
    diff-tested.)
 
 **Verification:** Checks 2.1, 3.1, 6.1, 18.1, 18.2; `tests/test_pchip_fit.r`
-(12 checks, green); `bakeoff_pchip.py` (6 biome cells, 0% flips vs PIQS up to
-30.91%, |Δ flux| < 2e-11).
+(12 checks, green); `bakeoff_pchip.py` (6 biome cells: 0% flips *on those cells*
+vs PIQS up to 30.91% — the full-grid residual is the ≤0.94% in claim 2, |Δ flux| < 2e-11).
 
 **Selectable alternatives** (not defaults): PPM, minmod/MUSCL, ATP-kriging, MSS,
 PIQS all remain selectable via `MICASA_FIT_RDA`; PPM was briefly defaulted then
