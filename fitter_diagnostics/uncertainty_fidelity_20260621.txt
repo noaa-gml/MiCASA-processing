@@ -1,0 +1,11 @@
+GPP daily RMSE/env (cell-months):
+  PCHIP  med 0.081  IQR[0.041,0.148]  mean 0.151
+  PPM    med 0.079  IQR[0.039,0.147]  mean 0.149
+  minmod med 0.094  IQR[0.046,0.163]  mean 0.159
+PAIRED PCHIP-PPM per cell-month (positive => PPM better):
+  median Δ 0.0006  IQR[-0.0058,0.0091]  % cell-months PPM better 54.3%  (median |rmse| ~0.08 so Δ is ~0.7% of level)
+Per-biome median RMSE/env (PCHIP / PPM / minmod) and PPM-better %:
+  tropics       n= 55040  0.056 / 0.052 / 0.057   PPM-better 55.6%
+  temperate     n= 59580  0.108 / 0.104 / 0.116   PPM-better 57.5%
+  boreal/polar  n= 50083  0.075 / 0.075 / 0.095   PPM-better 49.2%
+DONE
