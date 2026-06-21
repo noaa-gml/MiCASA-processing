@@ -14,6 +14,13 @@ this file is for "what landed when, and what numbers it moved."
   ratio **1.023, 95% CI [1.021, 1.024]** (block-10°); survives block-20° [1.020,1.025];
   all 12 months exclude 1. Resp amplitude ratio 0.80 [0.78,0.83] (boreal 0.61). The 3
   resp-driver figures regenerated on full-year 2019.
+- **Mass-conserving polar-night clip option** (`lib/diurnal.r:polar.night.renorm` +
+  `MICASA_POLAR_CLIP=conserve` hook in `diurnalize-ERA5.r`). The plain clip zeros
+  dark-hour GPP, dropping flux the fit assigned there → a small high-latitude GPP
+  monthly-mean gap (Check 2.2: ~0.16% median, ~2% p99 cell-month; globally
+  negligible). The opt-in redistributes the clipped uptake onto each cell's lit hours,
+  restoring the monthly mean exactly where there are lit hours (full polar night
+  stays zeroed). Default off → byte-identical; unit-tested (`tests/test_diurnal.r`).
 - **verify_v2 §20 cross-product checks implemented** (were INFO/deferred stubs;
   `fitter_diagnostics/check_20_crossproduct.py`). **20.1** v2-vs-v1 lat-band annual NEE:
   max per-band rel diff **0.04%** → PASS (the §3.1 aggregation fix shifts no band-level
