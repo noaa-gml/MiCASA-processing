@@ -44,14 +44,21 @@ dated logs but are not needed to follow the argument below.
   by spatial block bootstrap — all 12 months exclude 1), and free (the soil field
   is already loaded). The one outstanding gate is eddy-covariance amplitude
   validation. Lloyd-Taylor stays opt-in. **Awaiting your sign-off** (§2).
-- **Standing verification base:** `verify_v2` (60 checks, 2026-06-21: §§1–23 all
-  **PASS or INFO**; the formerly-WARN 11.1 and the two formerly-deferred §20
-  cross-product checks are now **PASS** — 11.1's atpk crash-logs were stale
-  diagnostics (production fitter guarded + tested), archived; §20.1 v2-vs-v1
-  per-band NEE agrees to 0.04%, §20.2 global-NBE budget context computed; the only
-  remaining non-PASS is the §24 manifest FAIL, a logging artifact — §6) + `tests/`
-  (153 on Orion; 143 reproduced green locally, 10 `quadprog`-gated) + committed
-  diagnostic scripts and figures (§6).
+- **Standing verification base:** `verify_v2` (60 checks). The committed snapshot
+  `verify_v2_summary_20260621.txt` shows **51 PASS / 1 WARN / 9 INFO / 1 FAIL** — all
+  §§1–23 product/science/provenance checks PASS or INFO. **That snapshot predates
+  three out-of-band fixes** made afterward (so it still shows them un-resolved): the
+  Check 11.1 WARN (stale atpk diagnostic crash-logs — production fitter guarded +
+  tested) was fixed and the logs archived (commit `f6439ba`); and the two §20
+  cross-product checks (committed there as deferred INFO stubs) were implemented
+  (commit `b3b9d72`) and verified by the standalone `check_20_crossproduct.py`
+  (per-band NEE agrees v2↔v1 to 0.04%; global NBE +0.99 PgC/yr). A *consolidated*
+  fresh re-run is **deliberately withheld** — this session's separate PIQS-release
+  builds have since written to the shared `jobs/` logs that §3.1/§11.1/§24 read, so a
+  re-run would reflect that unrelated activity, not the product (§6). On current code
+  the only product-level non-PASS is the §24.1 manifest FAIL (a logging artifact,
+  losslessly recovered — §6). Plus `tests/` (153 on Orion; 143 reproduced green
+  locally, 10 `quadprog`-gated) + committed diagnostic scripts and figures (§6).
 
 ## 0. How to read this — two categories and one invariant
 
@@ -362,8 +369,10 @@ months; script `fitter_diagnostics/resp_driver_blockboot.py`, committed output
   [1.020, 1.025], and **every one of the 12 months excludes 1 individually**
   (range 1.016–1.027) — a consistent all-season effect, not a single-month
   artifact. *(The 10° block respects spatial autocorrelation; a naive i.i.d.-cell
-  resample would give a ~16×-tighter, invalid CI — [1.0225, 1.0228] — by treating
-  ~15.6k correlated cells as independent.)*
+  resample would give a ~16×-tighter, invalid CI — block-bootstrap width 0.0032 vs
+  i.i.d. width 0.0002 — by treating ~15.6k correlated cells as independent. Both
+  widths are from `resp_driver_blockboot_2019.txt`; the 3-dp CIs printed above round
+  them, so recompute the ratio from these widths, not the rounded bounds.)*
 - **Respiration is materially damped, most where air temp is least physical.** The
   respiration amplitude ratio soil/air is **0.80, 95% CI [0.78, 0.83]** (10° block,
   annual), pulled down by the **boreal band 0.61 [0.58, 0.63]** — snow-insulated or
@@ -476,10 +485,12 @@ Documenting what was *not* changed, and why, is part of the justification:
   reverted same day. This is the most consequential "rejected" choice — it changes
   the sign of the prior's long-term trend — so it gets its own treatment in **§5.2**.
 - **PPM as default** — briefly defaulted 2026-06-18, reverted: daily fidelity is
-  near-identical (a by-cell bootstrap puts PCHIP negligibly but *significantly* ahead,
-  Δ≈0.7% of level, CI excludes 0; PPM better in 54% of cell-months on the pooled
-  metric) but PPM reintroduces month-edge discontinuities at ~70% of edges
-  (CHANGELOG 2026-06-18; FITTER_COMPARISON §4.6).
+  near-identical (PCHIP negligibly but *significantly* ahead — **Δ≈0.7%** of the
+  pooled-cell-month median level, or **~0.3%** of RMSE on the by-cell product
+  bootstrap of `FITTER_COMPARISON.md` §4.6; same conclusion, different denominator;
+  both CIs exclude 0; PPM better in 54% of cell-months on the pooled metric) but PPM
+  reintroduces month-edge discontinuities at ~70% of edges (CHANGELOG 2026-06-18;
+  FITTER_COMPARISON §4.6).
 - **MSS** (overshoots despite the name, ~24% wrong-sign GPP knots, ~hours/grid),
   **linear-recursion PIQS** (unstable), **constrained-quadratic PIQS** (dominated
   by PCHIP), **CCGCRV** (not pursued) — FITTER_COMPARISON.md §4.1/§5, PROPOSALS
@@ -618,8 +629,14 @@ Check 24.1's exact criterion). All §§1–23 product / science / provenance che
 pass. (We don't post a fresh re-run: this session's separate isolated PIQS-release
 builds have since written to the shared `jobs/` logs §3.1/§24 read — see §0.)
 
-The run's single **WARN (Check 11.1, job-log error scan)** was likewise a
-logging-hygiene item, now resolved. It flagged 10 recent `jobs/*.o*` logs containing
+**Read the rest of this section against that caveat:** the committed snapshot's one
+WARN (11.1) and its two deferred §20 INFO stubs were resolved *after* it, out-of-band
+(commits `f6439ba` / `b3b9d72` + the standalone `check_20_crossproduct.py`), so the
+snapshot file still shows them un-fixed — the consolidated re-run that would fold
+them in is withheld for the log-contamination reason above. The resolutions:
+
+The run's single **WARN (Check 11.1, job-log error scan)** was a
+logging-hygiene item, since resolved. It flagged 10 recent `jobs/*.o*` logs containing
 "Execution halted": superseded one-off **diagnostic** crashes — the ATP-kriging
 fitter (`write_atpk.r`, a *non-default selectable* option) hitting a singular
 kriging system on dormant / near-zero-variance cells (e.g. boreal +71.5). **The
@@ -629,12 +646,14 @@ unit-tested (`tests/test_atpk_fit.r` dormant-cell checks) and live-verified (a
 singular-inducing cell returns `dormant=TRUE`, no error). Those stale crash logs
 plus a few self-referential verify-run logs (whose names slipped past the scan's
 `verify*` self-exclusion) were archived to `jobs/archive/`, and the exclusion was
-widened to match "verify" anywhere in the log name (commit `f6439ba`); the scan now
-reads **0 flagged** (Check 11.1 → PASS).
+widened to match "verify" anywhere in the log name (commit `f6439ba`); re-running
+the scan logic on the current tree reads **0 flagged** (Check 11.1 → PASS — the
+committed snapshot, taken before the archival + exclusion fix, still shows the WARN).
 
-The two **§20 cross-product checks**, previously INFO/deferred stubs, are now
-implemented and **PASS** (commit `b3b9d72`; `fitter_diagnostics/check_20_crossproduct.py`
-+ committed output): **20.1** aggregates the V2 corrected-aggregation `monthly_1x1`
+The two **§20 cross-product checks** (deferred INFO stubs in the committed snapshot)
+were implemented (commit `b3b9d72`) and verified via
+`fitter_diagnostics/check_20_crossproduct.py` + committed output — on current code
+they **PASS**: **20.1** aggregates the V2 corrected-aggregation `monthly_1x1`
 product per latitude band and compares to V1 over 2001–2024 — max per-band rel diff
 **0.04%** (threshold 5%), confirming the §3.1 aggregation fix shifts no mass between
 bands (the boreal band's 0.04%, the largest, matches §3.1's poleward-growing
