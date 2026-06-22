@@ -341,8 +341,13 @@ corner — see the trilemma note above; PCHIP wins on closed form + native forma
 MiCASA *ships* daily NPP/Rh (`daily_1x1`) — the sub-monthly truth the monthly→fit step
 discards — so we evaluated both production fits at daily resolution and compared to
 that actual daily product, in the fitter's own space, over all 1° land (2020;
-**5.97 M cell-days**; `fitter_diagnostics/piqs_vs_pchip_daily_truth.r`). No scale,
-quantity, weather, or partitioning confound — it's the model's own output at the
+**5.97 M cell-days**; `fitter_diagnostics/piqs_vs_pchip_daily_truth.r`). Crucially
+this is **not circular**: `daily_1x1` is MiCASA's *native* daily model output regridded
+0.1°→1° by the ingest, **not** interpolated from monthly means — and our monthly means
+(which the fit ingests) are the monthly *means* of that same daily stream, so it is a
+genuine independent target. It is also smooth within-month (~4% day-to-day, not
+weather noise), so the comparison is a clean interpolation test, free of scale,
+quantity, weather, or partitioning confounds — the model's own output at the
 production scale. Result: the two fitters reconstruct the daily NEE with **equal
 fidelity** (median RMSE within 0.5%; PCHIP closer at 59% of cells) — PCHIP costs no
 accuracy — but **PIQS reaches that fidelity only by reconstructing wrong-sign (source)

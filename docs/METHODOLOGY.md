@@ -178,6 +178,54 @@ Within the month:
 Fire and fuel-wood emissions bypass the smoothing entirely and are
 taken straight from the MiCASA daily product.
 
+### Why not diurnalize the daily product directly?
+
+MiCASA ships a daily 0.1° NPP/Rh product. A natural question is why we
+aggregate it to monthly, fit a sub-monthly spline, and re-impose
+structure — rather than diurnalizing the daily fields directly. There
+are two layers.
+
+**The daily product can't feed the inversion as-is.** It is a daily
+total with no diurnal cycle, and CarbonTracker assimilates afternoon-
+biased observations against hourly transport. The day/night structure of
+NEE — GPP only in daylight, respiration around the clock — is first-
+order: a flat daily flux aliases badly against the sampling. So a
+diurnalization step to hourly is mandatory regardless of fitter.
+
+**Given that, why the monthly-mean intermediate rather than diurnalizing
+the daily fields?** For the historical record (where the daily data
+exist) one *could* diurnalize them directly, preserving daily totals and
+imposing only the diurnal shape. That is a defensible alternative; we do
+not take it, for three reasons:
+
+1. **Meteorological consistency.** MiCASA's day-to-day variability is
+   driven by *its* meteorology (MERRA-2). CarbonTracker's transport runs
+   on a *different* meteorology (ERA5). Baking MiCASA's daily wiggles
+   into the prior introduces a weather inconsistency the inversion cannot
+   reconcile — e.g. an NPP dip on a MERRA-2-cloudy day that ERA5 thinks
+   was clear. Taking the robust monthly mean and re-imposing sub-monthly
+   and diurnal structure from the assimilation system's *own* meteo keeps
+   the prior internally consistent with transport.
+
+2. **NRT homogeneity.** The current month's daily data do not exist at
+   production time; the fit's purpose is to extend the product to "now"
+   from monthly means (PCHIP's ~1-month footprint). Building the
+   historical record by a *different* method than the NRT present would
+   plant a discontinuity exactly where trend detection is most sensitive.
+   One method across the whole record keeps it homogeneous.
+
+3. **The monthly mean is the trusted quantity.** It integrates out
+   MiCASA's internal daily model noise; the inversion needs the seasonal-
+   plus-diurnal *shape* layered on reliable monthly totals, not MiCASA's
+   day-to-day model weather.
+
+This is also why the daily-truth comparison (evaluating the fit at daily
+resolution against MiCASA's native daily product;
+[`V1_TO_V2_JUSTIFICATION.md`](V1_TO_V2_JUSTIFICATION.md) §1) is a fair
+*check on the fitter's fidelity* rather than an argument to abandon it:
+it confirms the reconstruction recovers MiCASA's sub-monthly shape
+without importing MiCASA's meteorology into the prior.
+
 ## Why NEE = Rh − NPP, not Rh − NPP − ATMC
 
 NCCS publishes an "atmospheric correction" (`ATMC`) field alongside
