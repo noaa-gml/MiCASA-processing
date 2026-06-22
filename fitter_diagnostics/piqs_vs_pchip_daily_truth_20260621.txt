@@ -1,0 +1,18 @@
+[R]     machine  orion-login-3.hpc.msstate.edu
+[R]        home  /home/apera
+[R]        arch  linux-x86_64
+[R] system time  Mon Jun 22 01:38:38 2026
+[R]         cwd  /work2/noaa/co2/GFED-CASA/2025/MiCASA_v2
+ptime: n=303 median dt=2678400 (≈2.6e6 -> seconds)
+
+=== PIQS vs PCHIP vs MiCASA daily truth (2020, 16325 land cells, 5970627 cell-days) ===
+daily NEE reconstruction RMSE (fitter vs true daily), median over land cells:
+  PIQS  : 6.0051e-06
+  PCHIP : 6.0341e-06
+  PCHIP/PIQS ratio : 1.005  (<1 = PCHIP closer to the true daily shape)
+  cells where PCHIP RMSE < PIQS RMSE : 9653/16325 (59%)
+  mean RMSE (area-unweighted): PIQS 6.0707e-06  PCHIP 6.1043e-06
+
+wrong-sign GPP in the reconstruction (should be 0): PIQS 12.674% of cell-days ; PCHIP 0.117%
+DONE
+[R]  Exiting at system time Mon Jun 22 01:39:15 2026; session elapsed time 37 seconds.
