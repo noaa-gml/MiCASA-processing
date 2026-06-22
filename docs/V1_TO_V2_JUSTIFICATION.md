@@ -395,9 +395,12 @@ its temperature driver — so that self-consistency confirms the implementation 
 soil temperature; it is **not** independent evidence that soil temperature is the
 *correct* driver. That last step is what an **eddy-covariance diurnal-amplitude
 check** settles, and it is the one gate still open. The production default is
-therefore **not** flipped: we seek sign-off either to (a) adopt soil-temp once EC
-confirms, or (b) treat the EC check as confirmatory and adopt now, given the
-physics and the all-season robustness above. **Lloyd-Taylor** (the alternative
+therefore **not** flipped, and our recommendation is the conservative path:
+**run the EC diurnal-amplitude validation first, then flip** — soil-temp is free and
+opt-in today (`MICASA_RESP_DRIVER=soiltemp`), so it loses nothing by waiting for the
+one piece of evidence (correctness, not just consistency) that the physics and the
+all-season robustness above cannot themselves supply. This is independent of the V2
+switch and need not hold it up. **Lloyd-Taylor** (the alternative
 temperature-response *function*, orthogonal to the driver choice) stays opt-in: it
 swings respiration amplitude 1.5–3.7× but moves NEE only ~1% outside boreal winter,
 and its steep low-temperature sensitivity is the uncertain piece — flip it only
