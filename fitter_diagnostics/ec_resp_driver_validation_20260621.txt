@@ -1,0 +1,14 @@
+=== EC respiration-driver validation (AmeriFlux) ===
+
+TEST B — nighttime respiration vs temperature (non-circular): 14 sites
+  median R^2 vs AIR temp  : 0.295
+  median R^2 vs SOIL temp : 0.315
+  sites where SOIL explains nighttime respiration better : 11/14 (79%)
+  median ΔR^2 (soil − air): +0.018
+
+TEST A — observed RECO diurnal amplitude vs air/soil Q10: 2 sites (RECO_PI only; partitioning caveat)
+  median observed amp / air-Q10 amp : 0.86  (1=tracks air, <1=damped toward soil)
+  median soil-Q10 amp / air-Q10 amp : 0.36
+
+per-site night table -> fitter_diagnostics/ec_resp_driver_validation_sites.csv
+DONE
