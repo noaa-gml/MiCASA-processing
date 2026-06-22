@@ -336,39 +336,70 @@ AmeriFlux half-hourly; **14** sites after a u\*>0.2 turbulence filter and raw �
 non-gap-filled — flux only; at night NEE ≈ respiration, no GPP, no partitioning model).
 The first pass conflated two questions; separated, with by-night block-bootstrap CIs:
 
-| Test | Question | Result | Verdict |
-|---|---|---|---|
-| A — seasonal | which temp tracks the *seasonal magnitude* of respiration | soil wins **12/13** decisive sites, median ΔR² +0.042, binomial **p=0.003** | **soil** |
-| B — within-day | which temp drives the *sub-daily shape* (what diurnalization sets) | within-night anomaly R² ≈ **0.003 for both**; soil 2 / air 2 / tie 10, **p=1.0** | **neither** |
+(Tests A/B/C are tabulated in the §5.4 opening above.) The decisive point: the
+diurnalization **rescales respiration to the monthly mean**, so Test A (seasonal) does
+not bear on the driver choice — only the within-day shape does, and there Test C shows
+soil is **too damped** (observed forest amplitude ~0.45 ≈ air 0.40 ≫ soil 0.22; pooled
+shape RMSE air 0.107 < soil 0.118). The original "soil wins 16/20" was Test A in
+disguise. Caveats from the runs: r(TA,TS)=0.87 / VIF 4.1 (the seasonal competitive
+betas are variance-inflated → one evidence line with Test A, not two); 3/14 sites show
+unphysical soil Q10>3.5 (seasonal-range compression, not gap-fill); 108 sites dropped
+for lacking a raw soil sensor.
 
-The diurnalization **rescales respiration to the monthly mean**, so the seasonal skill
-(Test A) does not bear on the driver choice — only the within-day shape does, and Test
-B shows the sub-daily temperature–respiration signal is **below the EC noise floor**
-for *both* drivers. The original "soil wins 16/20" was Test A (the seasonal cycle) in
-disguise. Caveats from the run: r(TA,TS)=0.87 / VIF 4.1 (competitive betas
-variance-inflated → one evidence line with Test A, not two); 3/14 sites show
-unphysical soil Q10>3.5 (seasonal-range compression in the whole-record fit, not
-gap-fill — raw-only here); 108 candidate sites dropped for lacking a raw soil sensor
-(selection toward soil-instrumented towers).
-
-**Cost and risk** are nil: zero new inputs (`stl1` already loaded), every monthly total
-conserved, and reversible to the bit — `airtemp` + `MICASA_POLAR_CLIP=plain` is
-byte-identical to legacy (`fitter_diagnostics/bytecheck_resp_driver_default.txt`,
-max |Δ| = 0). So I recommend
-**defaulting to soil**: the within-day tie means no measured downside, while soil is the
-seasonally better and mechanistically correct variable (respiration occurs in the soil;
-its damped 0.80 / +1 h imposed cycle is the *conservative* choice given respiration
-shows no strong within-night temperature response of either kind). The argument is
-"principled default with no measured within-day penalty," **not** a claim of a
-demonstrated within-day improvement — there isn't one in the tower data.
-
-**Lloyd-Taylor stays opt-in:** it swings respiration amplitude 1.5–3.7× but NEE
-only ~1% (§5.3), its within-day effect is likewise unvalidated, and its steep low-T
-sensitivity is the uncertain piece — it needs its own gate before any flip.
+**So the default stays `airtemp`; soil and Lloyd-Taylor remain opt-in.** Cost/risk of
+the *opt-in* soil path is nil (zero new inputs, mass-conserving, reversible to the bit —
+`airtemp`+`MICASA_POLAR_CLIP=plain` is byte-identical to legacy,
+`fitter_diagnostics/bytecheck_resp_driver_default.txt` max |Δ| = 0); it is simply not
+the better diurnal driver. **Lloyd-Taylor** likewise stays opt-in (swings respiration
+amplitude 1.5–3.7× but NEE only ~1%, §5.3; within-day effect unvalidated; steep low-T
+sensitivity uncertain).
 
 **Implementation:** the knob exists (`MICASA_RESP_DRIVER={airtemp|soiltemp}`); the
 production default stays `airtemp` (soil opt-in). v2.1.0 briefly defaulted soil and was
 superseded by v2.2.0 after the within-day (Test C) EC check; see CHANGELOG.
+
+## 5.5 What would actually be better — and why we are not building it yet
+
+Test C is also a negative result for *temperature as the diurnal driver at all*, not
+just for soil. Two facts from the EC overlay point past temperature:
+
+- **Within a night, RECO does not track temperature** (Test B: anomaly R²≈0.003) — the
+  per-night signal is below the noise.
+- **Yet the mean nighttime cycle has a real evening-high → pre-dawn-low shape**, with
+  amplitude (~0.45) *larger* than even the air-driven Q10 (0.40) and far larger than
+  soil (0.22).
+
+That is the signature of **substrate supply, not temperature**: a large part of
+ecosystem respiration (autotrophic + rhizosphere) is fuelled by *recent photosynthate*.
+After a day of assimilation, early-evening substrate is abundant → respiration is high;
+through the night it depletes → respiration declines to a dawn minimum. The control is a
+*lagged function of recent GPP*, not of temperature. Air temperature works as well as it
+does mainly by coincidence — it also falls overnight, so it is a passable proxy for the
+substrate-depletion *timing*.
+
+**So the genuinely better model** would drive the sub-daily respiration shape partly off
+**recent GPP with an hours-scale lag** — i.e. split Reco into a temperature-driven
+heterotrophic part plus a GPP-primed autotrophic part (the Migliavacca / Reichstein
+"Reco depends on GPP" family). That would reproduce the evening peak and the
+steeper-than-temperature overnight decline that *no* temperature driver captures.
+
+**Why it is not in V2:**
+
+1. **The payoff is small.** GPP dominates the NEE diurnal swing (~12× the respiration
+   swing), so the respiration diurnal *shape* moves the NEE the inversion sees by only
+   ~2% — **except** in polar / boreal winter where GPP→0 and NEE is respiration alone.
+   That cold-season, rectifier-sensitive regime is the one place it would matter.
+2. **It is a real model addition,** not an env flag: an autotrophic/heterotrophic split,
+   a lag parameter, and probably PFT dependence.
+3. **Validating it honestly needs partitioned RECO** (FLUXNET2015 / ONEFlux), testing a
+   recent-GPP-lag predictor against temperature by PFT and season — a larger analysis
+   than the nighttime-NEE test here, which can only see the night arc of the cycle.
+
+**Recommendation:** keep air-temp Q10 as the default (best simple option, EC-supported,
+small residual where GPP is present) and treat **GPP-primed respiration as a future
+refinement gated on a boreal-winter-rectifier use case** — pursue it only if that regime
+is shown to matter for a target inversion, starting with the partitioned-RECO-vs-GPP-lag
+test on FLUXNET2015. Do not build it speculatively.
 
 ## 6. References
 
@@ -381,6 +412,7 @@ superseded by v2.2.0 after the within-day (Test C) EC check; see CHANGELOG.
 - Jung et al. (2020), *Scaling carbon fluxes from eddy covariance sites to globe (FLUXCOM)*, Biogeosciences 17:1343–1365, doi:10.5194/bg-17-1343-2020.
 - Lasslop et al. (2010), *Separation of net ecosystem exchange into assimilation and respiration using a light response curve approach*, GCB 16:187–208, doi:10.1111/j.1365-2486.2009.02041.x.
 - Lloyd & Taylor (1994), *On the temperature dependence of soil respiration*, Functional Ecology 8(3):315–323, doi:10.2307/2389824.
+- Migliavacca et al. (2011), *Semiempirical modeling of abiotic and biotic factors controlling ecosystem respiration across eddy-covariance sites*, GCB 17:390–409, doi:10.1111/j.1365-2486.2010.02243.x.
 - Nelson et al. (2024), *X-BASE: a global high-resolution carbon and water flux product (FLUXCOM-X)*, Biogeosciences 21:5079–5115, doi:10.5194/bg-21-5079-2024.
 - Olsen & Randerson (2004), *Differences between surface and column atmospheric CO2 and implications for carbon cycle research*, JGR 109:D02301, doi:10.1029/2003JD003968.
 - Potter et al. (1993), *Terrestrial ecosystem production: a process model based on global satellite and surface data (CASA)*, Global Biogeochem. Cycles 7(4):811–841, doi:10.1029/93GB02725.
