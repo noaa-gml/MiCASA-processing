@@ -337,6 +337,19 @@ C⁰-continuous, *and* NRT-local** — the good corner (see the §5.1 tradeoff s
 (The bounded-iterative Rymes–Myers scheme, not tabulated here, also reaches that
 corner — see the trilemma note above; PCHIP wins on closed form + native format.)
 
+**Validated against MiCASA's own daily product.** The cleanest possible fitter test:
+MiCASA *ships* daily NPP/Rh (`daily_1x1`) — the sub-monthly truth the monthly→fit step
+discards — so we evaluated both production fits at daily resolution and compared to
+that actual daily product, in the fitter's own space, over all 1° land (2020;
+**5.97 M cell-days**; `fitter_diagnostics/piqs_vs_pchip_daily_truth.r`). No scale,
+quantity, weather, or partitioning confound — it's the model's own output at the
+production scale. Result: the two fitters reconstruct the daily NEE with **equal
+fidelity** (median RMSE within 0.5%; PCHIP closer at 59% of cells) — PCHIP costs no
+accuracy — but **PIQS reaches that fidelity only by reconstructing wrong-sign (source)
+GPP at 12.7% of cell-days, vs PCHIP's 0.12%** (~108× fewer). The true daily flux
+essentially never shows source GPP; PIQS's overshoot invents it, PCHIP doesn't. So the
+PCHIP case, against ground truth, is **sign-physicality at equal accuracy**.
+
 **Selectable alternatives** (not defaults): PPM, minmod/MUSCL, ATP-kriging, MSS,
 PIQS all remain selectable via `MICASA_FIT_RDA`; PPM was briefly defaulted then
 reverted (continuity — see §5). The on-disk format and all monthly+ budgets are

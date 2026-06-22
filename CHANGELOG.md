@@ -23,6 +23,13 @@ this file is for "what landed when, and what numbers it moved."
   Strongest in forests (ENF 88%, DBF 100%) where insulating litter decouples soil from
   air; ambiguous in water-buffered wetlands. Supports the soil-temp driver; §2 +
   DIURNALIZATION_ALTERNATIVES updated to recommend the flip.
+- **PIQS vs PCHIP validated against MiCASA's own daily product**
+  (`fitter_diagnostics/piqs_vs_pchip_daily_truth.r`): evaluate both production fits at
+  daily resolution vs the actual `daily_1x1` NPP/Rh (the sub-monthly truth the
+  monthly→fit step discards), 2020 global / 5.97M land cell-days. Daily-NEE
+  reconstruction RMSE is a near-tie (within 0.5%, PCHIP closer at 59% of cells), but
+  PIQS reaches it with wrong-sign GPP at 12.7% of cell-days vs PCHIP 0.12% (~108×
+  fewer) — sign-physicality at equal accuracy, against the model's own ground truth.
 - **Direct PIQS↔PCHIP product diff** (`fitter_diagnostics/piqs_vs_pchip_section15.py`):
   global annual NEE over 2001-2024 — trend Δ 2e-5 PgC/yr/yr, ENSO/COVID Δ <1e-3 PgC,
   absolute annual ≤0.5% (polar-clip × sub-monthly shape). Converts the §0 budget-invariance
