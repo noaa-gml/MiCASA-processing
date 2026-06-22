@@ -1,32 +1,12 @@
-Byte-identity check: default-path diurnalize vs canonical production product
-============================================================================
-Date:    2026-06-21 (Orion, R 4.4.0, NCO ncdiff)
-Purpose: prove the respiration-driver / q10.factor / lt.factor changes
-         (commits f526abb, 6d1aa5d) are byte-identical to the canonical V2
-         product when run at DEFAULTS (MICASA_RESP_DRIVER=airtemp,
-         MICASA_RESP_TEMPFUN=q10) -- backing the byte-identity claim in
-         docs/V1_TO_V2_JUSTIFICATION.md (S2) and DIURNALIZATION_ALTERNATIVES.md.
-         RUN-and-diffed, not argued from source (per the project's
-         byte-identity rule).
-
-Method:  re-diurnalized 2020-07 with the current default-path code into
-         ERA5_bytecheck/, ncdiff'd against the canonical production output
-         ERA5_2020_pchip/fluxes_202007.nc (produced 2026-06-18, pre-prototype).
-
-Commands:
-  diurn_year=2020 MICASA_DIURN_ONLY_MONTH=7 MICASA_DIURN_OUT_DIR=ERA5_bytecheck \
-    Rscript diurnalize-ERA5.r              # defaults: airtemp / q10
-  ncdiff -O ERA5_bytecheck/fluxes_202007.nc ERA5_2020_pchip/fluxes_202007.nc bd.nc
-  ncwa   -O -y mabs -v GPP,resp,NEE,QGPP,qresp bd.nc bdmax.nc
-  ncdump -v GPP,resp,NEE,QGPP,qresp bdmax.nc
-
-Result (max |delta| per variable; 0 = byte-identical):
-  GPP   = 0
-  resp  = 0
-  NEE   = 0
-  QGPP  = 0
-  qresp = 0
-
-Conclusion: BYTE-IDENTICAL. The only differences are the additive provenance
-global attributes (respiration_temperature_driver / _function), which carry no
-flux data and are ignored by the data-variable diff above.
+# Byte-identity check: MICASA_RESP_DRIVER=airtemp vs V1 canonical (post-v2.1.0 flip)
+# Regenerated 2026-06-21. Selecting the legacy airtemp driver must reproduce the
+# canonical airtemp PCHIP product bit-for-bit (only the DEFAULT changed to soiltemp).
+#   new : ERA5_airtemp_check/fluxes_202007.nc  (MICASA_RESP_DRIVER=airtemp)
+#   ref : ERA5_2020_pchip/fluxes_202007.nc     (V1 canonical, airtemp)
+# driver attr new=airtemp
+max|delta| GPP    = 0.000e+00
+max|delta| resp   = 0.000e+00
+max|delta| NEE    = 0.000e+00
+max|delta| QGPP   = 0.000e+00
+max|delta| qresp  = 0.000e+00
+RESULT: BYTE-IDENTICAL (max|delta|=0 for all flux vars)
