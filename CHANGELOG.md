@@ -29,6 +29,11 @@ this file is for "what landed when, and what numbers it moved."
   ratio **0.831**; global annual NEE unchanged (~−1e-8 mol m⁻² s⁻¹, 2010/2015/2020).
   Selecting `MICASA_RESP_DRIVER=airtemp` reproduces the byte-identical legacy product
   (`fitter_diagnostics/bytecheck_resp_driver_default.txt`, max |Δ| = 0).
+- **Daily NEE split product regenerated.** The downstream per-day files
+  (`ERA5/MiCASA_v2.nee.YYYYMMDD.nc`, 9221 days) were re-split from the soil hourly
+  (26 per-year `daysplitter.sh` jobs); `ncks` carries `NEE` and the source global
+  attributes through, so each daily file now inherits
+  `respiration_temperature_driver = soiltemp`.
 
 ## 2026-06-21 — V1→V2 justification hardening; verify_v2 §20 + 11.1; block-bootstrap CIs
 
