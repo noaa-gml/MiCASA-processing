@@ -151,9 +151,9 @@ test harness — no change to the production path to measure the candidate.
 > the 0.83 quoted here for July) — these single-month figures are kept for the
 > shadow-diff record but are superseded by §5.4.
 
-Implemented as `MICASA_RESP_DRIVER={airtemp|soiltemp}` (default `airtemp`,
-byte-identical to legacy; `q10.factor()` extracted to `lib/diurnal.r` and
-unit-tested). July 2020 was diurnalized both ways into shadow dirs with the
+Implemented as `MICASA_RESP_DRIVER={airtemp|soiltemp}` (V2 default `soiltemp`;
+selecting `airtemp` is byte-identical to legacy; `q10.factor()` extracted to
+`lib/diurnal.r` and unit-tested). July 2020 was diurnalized both ways into shadow dirs with the
 identical fit, and the global-land area-weighted diurnal cycles compared
 (`fitter_diagnostics/resp_driver_shadowdiff.r`). Findings:
 
@@ -176,9 +176,9 @@ identical fit, and the global-land area-weighted diurnal cycles compared
 
 The soil-temp driver is more physical, costs nothing (data already loaded),
 conserves every monthly mean exactly, and changes the product modestly (~2% NEE
-diurnal amplitude). Default is `airtemp` today; §5.4 (the eddy-covariance gate)
-makes the case for flipping it to `soiltemp` — seasonally + mechanistically correct,
-with the within-day relationship a tie, so no measured downside.
+diurnal amplitude). **V2 defaults to `soiltemp`** (the case is §5.4 — seasonally +
+mechanistically correct, with the within-day relationship a tie, so no measured
+downside); selecting `airtemp` reproduces the byte-identical legacy path.
 
 ## 5.2 Cold-season contrast — January 2020 shadow-diff
 
@@ -277,8 +277,8 @@ returns a **split verdict**: soil is the better *seasonal* respiration driver, w
 soil explains nighttime respiration, R²≈0.003, below the EC noise floor). Since the
 diurnalization preserves the monthly mean, the within-day tie means a flip carries **no
 measured downside**, and soil is seasonally + mechanistically the correct variable.
-Recommendation: **make `MICASA_RESP_DRIVER=soiltemp` the default; keep Lloyd-Taylor
-opt-in**. (`resp_driver_blockboot.py` + `ec_resp_driver_validation.py`; committed
+Decision (shipped, v2.1.0): **`MICASA_RESP_DRIVER=soiltemp` is the default; Lloyd-Taylor
+stays opt-in**. (`resp_driver_blockboot.py` + `ec_resp_driver_validation.py`; committed
 outputs alongside.)
 
 **(1) The effect is real, sign-correct, and robust across seasons** — *spatial*
@@ -343,7 +343,7 @@ gap-fill — raw-only here); 108 candidate sites dropped for lacking a raw soil 
 (selection toward soil-instrumented towers).
 
 **Cost and risk** are nil: zero new inputs (`stl1` already loaded), every monthly total
-conserved, default-off byte-identical
+conserved, and reversible to the bit — selecting `airtemp` is byte-identical to legacy
 (`fitter_diagnostics/bytecheck_resp_driver_default.txt`, max |Δ| = 0). So I recommend
 **defaulting to soil**: the within-day tie means no measured downside, while soil is the
 seasonally better and mechanistically correct variable (respiration occurs in the soil;
@@ -356,9 +356,9 @@ demonstrated within-day improvement — there isn't one in the tower data.
 only ~1% (§5.3), its within-day effect is likewise unvalidated, and its steep low-T
 sensitivity is the uncertain piece — it needs its own gate before any flip.
 
-**Implementation:** a one-line default change
-(`MICASA_RESP_DRIVER` default `airtemp`→`soiltemp`), pending sign-off; until then the
-production default is unchanged and byte-identical.
+**Implementation:** the default is flipped in `diurnalize-ERA5.r`
+(`MICASA_RESP_DRIVER` default `airtemp`→`soiltemp`, shipped v2.1.0); selecting
+`MICASA_RESP_DRIVER=airtemp` reproduces the byte-identical legacy path.
 
 ## 6. References
 

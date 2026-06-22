@@ -4,6 +4,27 @@ Dated engineering entries for the active (`main`) branch. Conceptual /
 methodological reasoning lives in [`docs/PROPOSALS.md`](docs/PROPOSALS.md);
 this file is for "what landed when, and what numbers it moved."
 
+## 2026-06-21 — v2.1.0: default respiration driver flipped to soil temperature
+
+- **`MICASA_RESP_DRIVER` default `airtemp` → `soiltemp`** (`diurnalize-ERA5.r`). V2 now
+  evaluates the respiration Q10 on 0–7 cm soil temperature (`stl1`) rather than 2-m air
+  temperature (`t2m`). This is the one V2 change to the default diurnal cycle; the
+  framework (Olsen & Randerson Q10 redistribution) is otherwise unchanged. Effect:
+  respiration diurnal amplitude ratio soil/air **0.80** (boreal **0.61**); NEE diurnal
+  amplitude **+2.3%**; every monthly mean conserved exactly (pure within-day
+  redistribution). Basis: AmeriFlux EC gate — soil the better *seasonal* driver (12/13
+  sites, p=0.003), within-day shape a tie (R²≈0.003 both, below the EC noise floor), so
+  the flip is a principled default with no measured within-day downside (DIURNALIZATION_
+  ALTERNATIVES §5.4, V1_TO_V2 §2).
+- **Reversible to the bit:** selecting `MICASA_RESP_DRIVER=airtemp` reproduces the
+  byte-identical legacy diurnal cycle (`fitter_diagnostics/bytecheck_resp_driver_default.txt`,
+  max |Δ| = 0). Comments in `diurnalize-ERA5.r` and `tests/test_diurnal.r` updated; the
+  `q10.factor` unit tests are unaffected (they test the response function, not the
+  default). `CITATION.cff` → 2.1.0.
+- **Note:** existing diurnalized product files under `ERA5_*` predate the flip and carry
+  `respiration_temperature_driver = airtemp`; they are regenerated as soil on the next
+  production `run_year.sh` pass (no retroactive rewrite in this release).
+
 ## 2026-06-21 — V1→V2 justification hardening; verify_v2 §20 + 11.1; block-bootstrap CIs
 
 - **Spatial block-bootstrap diurnalization CIs** (`fitter_diagnostics/resp_driver_blockboot.py`

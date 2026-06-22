@@ -280,14 +280,18 @@ for (mon in mon.range) {
   times <- epoch.seconds.to.POSIX(times) + 1800   # shift to mid-hour
   nslots <- length(times)
 
-  ## Respiration temperature driver (prototype #1; docs/DIURNALIZATION_ALTERNATIVES.md).
+  ## Respiration temperature driver (docs/DIURNALIZATION_ALTERNATIVES.md §5.4).
   ## MiCASA Rh is heterotrophic soil decomposition, physically driven by SOIL
   ## temperature, not 2-m air temperature. MICASA_RESP_DRIVER selects the var:
-  ##   airtemp  (default) -- 2-m air temperature t2m (legacy Olsen & Randerson)
-  ##   soiltemp           -- 0-7 cm soil temperature stl1 (already loaded)
-  ## Default is byte-identical to the legacy path. stl1 is damped & phase-lagged
-  ## vs t2m, so this reduces the respiration diurnal amplitude and lags its phase.
-  resp.driver <- Sys.getenv("MICASA_RESP_DRIVER", "airtemp")
+  ##   soiltemp (default) -- 0-7 cm soil temperature stl1 (already loaded)
+  ##   airtemp            -- 2-m air temperature t2m (legacy Olsen & Randerson)
+  ## V2 defaults to soiltemp: it is the mechanistically correct variable and the
+  ## better seasonal respiration driver (AmeriFlux EC, 12/13 sites, p=0.003), and
+  ## the within-day shape is a tie vs airtemp (below the EC noise floor), so the
+  ## flip carries no measured downside. stl1 is damped & phase-lagged vs t2m, so
+  ## this reduces the respiration diurnal amplitude and lags its phase. Selecting
+  ## MICASA_RESP_DRIVER=airtemp reproduces the byte-identical legacy path.
+  resp.driver <- Sys.getenv("MICASA_RESP_DRIVER", "soiltemp")
   resp.tempK <- switch(resp.driver,
                        airtemp  = mets$t2m,
                        soiltemp = mets$stl1,
@@ -297,8 +301,9 @@ for (mon in mon.range) {
   ## driver variable above. MICASA_RESP_TEMPFUN:
   ##   q10         (default) -- fixed Q10=1.5 power law (legacy)
   ##   lloydtaylor           -- Lloyd & Taylor (1994), steeper low-T sensitivity
-  ## Default q10 + airtemp is byte-identical to the legacy path. The weighting
-  ## array is normalized by its monthly mean below, so only its shape matters.
+  ## Selecting q10 + airtemp together reproduces the byte-identical legacy path
+  ## (the V2 default is q10 + soiltemp). The weighting array is normalized by its
+  ## monthly mean below, so only its shape matters.
   resp.tempfun <- Sys.getenv("MICASA_RESP_TEMPFUN", "q10")
   cat(sprintf("Respiration temperature driver: %s, response function: %s\n",
               resp.driver, resp.tempfun))
@@ -496,8 +501,8 @@ for (mon in mon.range) {
             attval = if (any(day.source[available.days] != names(era5dirs)[1]))
                        "yes" else "no",
             prec = "text")
-  ## Respiration temperature driver provenance (prototype #1). "airtemp" is the
-  ## canonical Olsen & Randerson path; "soiltemp" drives Q10 off 0-7cm stl1.
+  ## Respiration temperature driver provenance. "soiltemp" (V2 default) drives Q10
+  ## off 0-7cm stl1; "airtemp" is the legacy Olsen & Randerson 2-m air path.
   ncatt_put(ncf, 0, "respiration_temperature_driver", attval = resp.driver, prec = "text")
   ncatt_put(ncf, 0, "respiration_temperature_function", attval = resp.tempfun, prec = "text")
   if (partial.month) {

@@ -18,8 +18,8 @@ authors:
 repository-code: "https://github.com/noaa-gml/MiCASA-processing"
 url: "https://github.com/noaa-gml/MiCASA-processing"
 license: CC0-1.0
-version: "2.0.0"
-date-released: "2026-05-16"
+version: "2.1.0"
+date-released: "2026-06-21"
 keywords:
   - carbon flux
   - net ecosystem exchange

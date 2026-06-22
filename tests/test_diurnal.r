@@ -81,7 +81,8 @@ check("clip operates on a matrix",
 
 ## ---- q10.factor (respiration temperature driver) -------------------------
 ## Legacy formula: q10.factor(T) must reproduce 1.5^((T-273.15)/10) exactly,
-## so the default airtemp path is byte-identical to the pre-prototype code.
+## so the q10 + airtemp combination is byte-identical to the pre-prototype code
+## (V2 now defaults the driver to soiltemp; airtemp remains selectable).
 Tk <- 273.15 + c(-20, -5, 0, 10, 15, 25, 35)
 check("q10.factor reproduces legacy 1.5^((T-273.15)/10)",
       close.all(q10.factor(Tk), 1.5 ^ ((Tk - 273.15) / 10.0), tol = 1e-12))
