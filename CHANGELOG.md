@@ -4,7 +4,31 @@ Dated engineering entries for the active (`main`) branch. Conceptual /
 methodological reasoning lives in [`docs/PROPOSALS.md`](docs/PROPOSALS.md);
 this file is for "what landed when, and what numbers it moved."
 
-## 2026-06-21 — default polar-night clip → mass-conserving (staged for v2.2.0)
+## 2026-06-21 — v2.2.0: respiration driver default reverted to AIR (within-day EC); conserve clip default
+
+Supersedes v2.1.0 (which briefly defaulted the respiration driver to soil). A third EC
+test — the **mean nighttime respiration diurnal SHAPE** (`fitter_diagnostics/ec_diurnal_shape_overlay.py`),
+which averages out the night-to-night weather noise that made the within-night anomaly
+test (B) a tie — showed soil does **not** fit the within-day shape better:
+- Pooled over 8 clean forest sites, observed mean nighttime amplitude **~0.45** ≈
+  air-driven Q10 **0.40**, and ~2× the soil-driven **0.22**; observed respiration
+  declines to a dawn minimum the air model tracks and **soil is too damped** to reach.
+  Pooled shape RMSE air **0.107** < soil **0.118**; site tally 7/14 soil (p=1.0).
+- Since the diurnalization preserves the monthly mean, the *within-day shape* is the only
+  thing the driver sets — and there EC mildly favours **air**. Soil's only clear win
+  (seasonal magnitude, Test A) is on the axis the diurnalization does not use.
+
+**`MICASA_RESP_DRIVER` default reverted `soiltemp` → `airtemp`** (`diurnalize-ERA5.r`);
+soil + Lloyd-Taylor remain opt-in. The mass-conserving polar-night clip
+(`MICASA_POLAR_CLIP=conserve`, below) is **retained** as the default — it is independent
+of the driver and uncontested. So the V2 default diurnal cycle is **airtemp + conserve**:
+the respiration driver is V1's air choice (now with within-day EC support), and the one
+diurnal change vs V1 is the mass-conserving clip. Legacy byte-identical product =
+`MICASA_RESP_DRIVER=airtemp MICASA_POLAR_CLIP=plain`. Product re-diurnalized to
+airtemp + conserve; docs (V1_TO_V2 §2, DIURNALIZATION_ALTERNATIVES §5, CHANGELOG)
+reconciled; CITATION → 2.2.0. New EC figure `figures/ec_diurnal_shape_overlay.png`.
+
+## 2026-06-21 — default polar-night clip → mass-conserving (folded into v2.2.0)
 
 - **`MICASA_POLAR_CLIP` default `plain` → `conserve`** (`diurnalize-ERA5.r`). The plain
   zero-clip dropped dark-hour GPP, leaving a small high-latitude GPP monthly-mean gap

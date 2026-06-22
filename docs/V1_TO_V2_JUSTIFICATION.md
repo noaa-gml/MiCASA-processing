@@ -2,17 +2,18 @@
 
 **Status:** decision / review document · **Date:** 2026-06-21 · **Purpose:** make the
 case that it is worth switching the MiCASA pipeline feeding CarbonTracker from **V1**
-— the long-running, verified production line — to **V2** (`main`, tagged `v2.1.0`).
+— the long-running, verified production line — to **V2** (`main`, tagged `v2.2.0`).
 The default position is "stay on V1": it works
 and has years of track record, so the burden is on V2 to earn the change. Every
 change from V1 is justified below with its rationale, quantified impact, and
 verification, so the case can be audited change by change.
 
 > **Decision requested:** adopt **V2** as the MiCASA pipeline feeding CarbonTracker,
-> replacing V1. V2 is built, tagged (`v2.1.0`), and verified; everything below is the
-> case that the switch is worth it, with the receipts to check it. *(V2 also flips the
-> respiration driver default to **soil** temperature, §2 — a small (+2.3% NEE diurnal
-> amplitude), validated change, reversible to the bit; independent of the fitter switch.)*
+> replacing V1. V2 is built, tagged (`v2.2.0`), and verified; everything below is the
+> case that the switch is worth it, with the receipts to check it. *(The diurnal
+> respiration driver stays V1's **air** temperature — a soil-temperature alternative was
+> tested against eddy covariance and kept opt-in, §2; the one diurnal change is a
+> mass-conserving polar-night clip.)*
 
 **This document is self-contained** — the
 load-bearing scorecard, equations, figures, and references are inlined here; the
@@ -38,10 +39,11 @@ dated logs but are not needed to follow the argument below.
 - **What it risks.** Essentially only revalidation effort — mitigated by the evidence
   this document is built on: bit-identical proofs for the no-ops (§4), the
   budget-invariance guarantee (§0), and the verification base (§6). V2 *departs* from
-  V1's history in two deliberate places: **correcting** the 0.1°→1° aggregation bug
-  (<0.01% typical, §3.1) and **defaulting the respiration driver to soil** temperature
-  (+2.3% NEE diurnal amplitude, §2) — both validated, and the latter reversible to the
-  bit (`MICASA_RESP_DRIVER=airtemp`). Neither adds open-ended risk.
+  V1's delivered history in two small, deliberate places: **correcting** the 0.1°→1°
+  aggregation bug (<0.01% typical, §3.1) and the **mass-conserving polar-night clip**
+  (closes a ~0.16%-median high-latitude GPP gap, §3.2) — both reversible to the bit
+  (the clip via `MICASA_POLAR_CLIP=plain`). The respiration diurnal driver stays V1's
+  air temperature. Neither adds open-ended risk.
 
 **Bottom line: V2 preserves everything V1 got right and corrects the little it got
 wrong — and the cost of switching is quantified here, not asserted.**
@@ -60,18 +62,15 @@ The rest of this summary follows the document's structure, one bullet per sectio
   This matters because the **sub-monthly shape is what the inversion ingests**; it is
   *safe* because every fitter is integral-preserving, so the monthly-and-longer budget
   — annual totals, trend, IAV, ENSO/COVID — is **identical by construction** (§0).
-- **§2 — Diurnalization framework is V1's, unchanged; V2's one diurnal change is to
-  default the respiration driver to soil temperature.** Driving respiration off soil
-  rather than 2-m air is physically motivated and free (`stl1` already loaded), and damps
-  the imposed respiration diurnal cycle (amplitude ratio **0.80**, boreal **0.61**;
-  NEE-level effect small, **+2.3%**). The eddy-covariance gate, run properly, splits
-  into two questions: soil is the better **seasonal** respiration driver (12/13
-  AmeriFlux sites, p=0.003), and the **within-day** relationship the diurnalization
-  actually sets is a **tie** (R²≈0.003 for both, below the EC noise floor). So the flip
-  has no measured within-day downside and is seasonally + mechanistically correct.
-  The legacy air path stays selectable (`MICASA_RESP_DRIVER=airtemp`), reversible to the
-  bit (byte-identical to the full legacy product together with `MICASA_POLAR_CLIP=plain`,
-  §3.2). Independent of the V1→V2 fitter switch.
+- **§2 — Diurnalization framework *and* its air-temperature respiration driver are
+  V1's, unchanged; the one diurnal change is a mass-conserving polar-night clip.** A
+  soil-temperature driver was evaluated against eddy covariance and kept **opt-in**:
+  soil is the better *seasonal* respiration driver (12/13 AmeriFlux sites, p=0.003), but
+  the diurnalization preserves the monthly mean, so only the **within-day shape** matters
+  — and there EC mildly favours **air** (observed mean nighttime amplitude ~0.45 ≈ air
+  0.40, ≫ soil's over-damped 0.22). So air stays the default. The conserve clip (§3.2)
+  closes a small high-latitude GPP gap; the legacy product is reproduced bit-for-bit by
+  `MICASA_RESP_DRIVER=airtemp MICASA_POLAR_CLIP=plain`. Independent of the V1→V2 fitter switch.
 - **§3 — The other number-moving changes are small and correct:** the 0.1°→1°
   aggregation latitude-weight bug fix (V1 mis-weighted; <0.01% typical, larger toward
   poles), the polar-night clip now **mass-conserving by default** (closes the ~0.16%
@@ -99,12 +98,12 @@ The rest of this summary follows the document's structure, one bullet per sectio
 
 Every V1→V2 change, classified **(A)** moves output numbers or **(B)** proven no-op.
 The two changes that move the default product beyond V1's record — the fitter swap and
-the respiration-driver flip — are bold.
+the mass-conserving polar-night clip — are bold.
 
 | # | Change | Type | Impact / status | Where |
 |---|---|---|---|---|
 | 1 | Fitter **PIQS → PCHIP** | A | budget unchanged (integral-preserving); sub-monthly sign-flips ~11% → ≤0.9%; NRT-local | §1 |
-| 2 | **Respiration driver: 2-m air → soil temp** | A (shipped) | **default flipped to soil** — soil better *seasonally* (12/13, p=0.003); within-day (what diurnalization sets) a tie (R²≈0.003 both) so no downside; +2.3% NEE diurnal amp; airtemp selectable & byte-identical | §2 |
+| 2 | Respiration driver stays **2-m air** (soil temp = opt-in) | not a change | soil evaluated vs EC: better *seasonally* (12/13, p=0.003) but the diurnalization sets only the within-day shape, where EC mildly favours air (obs amp 0.45 ≈ air 0.40 ≫ soil 0.22). Kept opt-in | §2 |
 | 3.1 | 0.1°→1° aggregation latitude-weight bug fix | A | V1 mis-weighted; <0.01% typical, larger toward poles | §3.1 |
 | 3.2 | Polar-night clip — **mass-conserving by default** | A | closes the ~0.16% median high-latitude GPP gap (redistributes onto lit hours); legacy zero-clip = `MICASA_POLAR_CLIP=plain` | §3.2 |
 | 3.3 | ERA5 FastTrack dual-tree fallback | A | NRT trailing months only; per-day provenance | §3.3 |
@@ -114,7 +113,7 @@ the respiration-driver flip — are bold.
 
 **How this document is organized.** The executive summary and the register above are
 the whole story at a glance; the rest is for auditing. **§§1–3** detail each change
-that moves numbers (including the respiration-driver default flip, §2); **§4** the proven
+that moves numbers (and the opt-in respiration-driver evaluation, §2); **§4** the proven
 no-ops; **§5** what was considered and rejected; **§6–7** the evidence and
 limitations; **Appendix A** the fitter equations. Skip the equations and the full
 scorecard (§1) if you trust the headline.
@@ -374,106 +373,62 @@ identical across them.
 
 ---
 
-## 2. Diurnalization — framework unchanged; V2 defaults the respiration driver to soil
+## 2. Diurnalization — framework and air-temperature driver are V1's; one mass-conserving refinement
 
-**The diurnal *framework* is V1's, unchanged** — GPP ∝ ERA5 shortwave, respiration ∝
-Q10 of temperature (Olsen & Randerson 2004). **The one V2 change is the respiration
-driver variable: V2 evaluates that Q10 on 0–7 cm soil temperature (`stl1`) rather than
-2-m air temperature (`t2m`).** This is a deliberate, validated change to the default
-product (justified below), not the byte-identical no-op the rest of §2–§4 are; its
-effect is small at the NEE level (+2.3% diurnal amplitude) and concentrated in the
-boreal cold season where the air-temperature proxy is least physical.
-
-The full hourly product has been regenerated on the soil default: the entire record
-(`ERA5/fluxes_YYYYMM.nc`, **303 months, 2001-01 … 2026-03**) was re-diurnalized in place
-on 2026-06-21, and every file now carries `respiration_temperature_driver = soiltemp`.
-The regeneration is mass-preserving (GPP monthly mean unchanged to the bit; resp/NEE
-monthly means conserved to ~1e-6 vs the airtemp reference, resp July diurnal amplitude
-ratio **0.831**) and leaves the global annual NEE budget unchanged (§0).
-
-The legacy diurnal product remains fully reproducible by selecting the two legacy
-defaults together — `MICASA_RESP_DRIVER=airtemp MICASA_POLAR_CLIP=plain` — which is
-**byte-identical to the V1 canonical product**, verified by a committed `ncdiff` run
+**The diurnal framework and its respiration driver are V1's, unchanged.** GPP ∝ ERA5
+shortwave, respiration ∝ Q10(**2-m air temperature**) — Olsen & Randerson (2004). The
+**one** V2 change to the default diurnal cycle is the **mass-conserving polar-night
+clip** (§3.2), which closes a small high-latitude GPP monthly-mean gap without touching
+the bulk flux and is reversible to the legacy zero-clip via `MICASA_POLAR_CLIP=plain`.
+So the legacy diurnal product is reproduced bit-for-bit by `MICASA_RESP_DRIVER=airtemp
+MICASA_POLAR_CLIP=plain` — verified by a committed `ncdiff` run
 ([`fitter_diagnostics/bytecheck_resp_driver_default.txt`](../fitter_diagnostics/bytecheck_resp_driver_default.txt):
-max |Δ| = 0 for GPP/resp/NEE, the airtemp-selected code vs the canonical
-`ERA5_2020_pchip/fluxes_202007.nc`), run-and-diffed, not argued from source. So the V2
-diurnal changes (the soil driver here, the conserve clip in §3.2) are **reversible to
-the bit** by env var — both are new defaults because the evidence supports them, but
-nothing about V1's behaviour is lost.
-(The **Lloyd-Taylor** response function `MICASA_RESP_TEMPFUN` stays **opt-in,
-default-off** — its within-day effect is unvalidated; see that doc §5.3, §5.1–5.2 for
-the measured shadow-diffs.)
+max |Δ| = 0 for GPP/resp/NEE vs the canonical `ERA5_2020_pchip/fluxes_202007.nc`),
+run-and-diffed, not argued from source.
 
-**Decision (shipped in this release): soil temperature is the default respiration
-driver.** The case rests on the *seasonal* eddy-covariance result plus mechanism, with
-the within-day relationship a wash — so the flip is at worst neutral and at best correct
-(below). The
-*measurable* effect of the driver, on the matched full-year-2019 PCHIP air-vs-soil pair
-(all 12 months; `fitter_diagnostics/resp_driver_blockboot.py`, committed output
-`fitter_diagnostics/resp_driver_blockboot_2019.txt`), is a **damping and phase-lag of
-the imposed respiration diurnal cycle**:
+**A soil-temperature driver was evaluated and kept opt-in** (`MICASA_RESP_DRIVER=soiltemp`).
+Heterotrophic respiration physically responds to *soil* temperature, so this is an
+appealing alternative; `stl1` is already loaded, the path is mass-conserving, and it is
+byte-reversible. I tested it against eddy covariance on three axes
+(`fitter_diagnostics/ec_resp_driver_validation.py` and `ec_diurnal_shape_overlay.py`,
+AmeriFlux nighttime, u\*>0.2, raw flux). The result is **mixed, and on the axis that
+matters for diurnalization it does not beat air:**
 
-- The global area-weighted **respiration** amplitude ratio soil/air is **0.80, 95% CI
-  [0.78, 0.83]** (10° spatial block bootstrap, annual), pulled down by the **boreal
-  band 0.61 [0.58, 0.63]** — snow-insulated/frozen soil decoupled from swinging winter
-  air. (SH-temperate 0.94 [0.86, 1.07] is the one band whose CI spans 1.) The **NEE**
-  effect is small: amplitude ratio **1.023, 95% CI [1.021, 1.024]** (every month
-  excludes 1; survives a conservative 20°-block CI). *(The 10° block respects spatial
-  autocorrelation; a naive i.i.d.-cell resample gives a ~16×-tighter, invalid CI —
-  block-bootstrap width 0.0032 vs i.i.d. 0.0002, both from the committed output.)*
+| Test | Question | Verdict |
+|---|---|---|
+| A — seasonal magnitude | which temp tracks the *seasonal* RECO magnitude | **soil** (12/13 decisive sites, p=0.003, median ΔR² +0.042) |
+| B — within-night anomaly | per-night RECO vs temp anomaly | **tie** (R²≈0.003 both, below the EC noise floor) |
+| C — mean diurnal **shape** | the within-day shape the driver *actually sets* | **marginally air** (pooled forest RMSE 0.107 air vs 0.118 soil; 7/14 sites soil, p=1.0) |
 
-**Crucially, this amplitude ratio is not evidence that soil is the *right* driver** —
-respiration is a monotone function of its driver, so the ratio merely tracks the
-`stl1`/`t2m` amplitude ratio (a self-consistency check on the implementation, not an
-observation). The independent test is eddy covariance, and I have now run it
-(`fitter_diagnostics/ec_resp_driver_validation.py`, **14** AmeriFlux sites after a
-u\*>0.2 turbulence filter and raw — non-gap-filled — flux only; at night NEE ≈
-ecosystem respiration). It separates two questions the first pass conflated:
+The decisive point: the diurnalization **rescales respiration to the monthly mean**, so
+the *seasonal* magnitude (Test A) is set by the fit, not the driver — Test A is
+irrelevant to the driver choice. What the driver sets is the **within-day shape**, and
+there the observed mean nighttime respiration cycle (8 clean forest sites) has amplitude
+**~0.45**, close to the air-driven Q10 (**0.40**) and about **2× the soil-driven** one
+(**0.22**): observed respiration declines to a dawn minimum the air model tracks and the
+**soil model is too damped** to reach. So soil's only clear win is on the axis the
+diurnalization doesn't use, and on the axis it does use the data mildly favour air. (The
+earlier "soil wins 16/20" was Test A — the seasonal cycle — in disguise, a metric-vs-use
+mismatch flagged in adversarial review.)
 
-- **Seasonal driver** (which temperature tracks the *seasonal magnitude* of
-  respiration): soil wins decisively at **12 of 13 decisive sites** (1 air, 1 tie;
-  binomial p = 0.003; median ΔR² +0.042), robust to the u\* filter and a by-night
-  block bootstrap.
-- **Within-day driver** (which temperature drives the *sub-daily shape* — the only
-  thing the diurnalization controls, since it rescales respiration to the monthly
-  mean): **neither.** Removing each night's mean, the within-night respiration anomaly
-  is explained at **R² ≈ 0.003 by both** air and soil temperature (soil 2 / air 2 /
-  tie 10 across sites; p = 1.0). The sub-daily temperature–respiration signal is
-  **below the eddy-covariance noise floor.**
+![Mean nighttime respiration cycle: observed (AmeriFlux) vs air- vs soil-driven — soil is too damped](figures/ec_diurnal_shape_overlay.png)
 
-So the EC data confirm soil is the better *seasonal* driver, and at the within-day
-timescale the driver actually controls — the diurnalization **preserves the monthly
-mean** — the two are statistically indistinguishable. The earlier "soil wins 16/20"
-was the seasonal cycle in disguise (a metric-vs-use mismatch an adversarial review
-flagged); the honest within-day verdict is a tie, not a soil win.
-
-**Why soil is the default.** The within-day tie means switching to soil carries
-**no measured penalty** to the diurnal shape — the only thing the driver sets. On every
-axis where the two drivers *can* be distinguished, soil is at least as good: it is the
-seasonally better descriptor of the temperature–respiration relationship (12/13,
-p=0.003), it is the mechanistically correct variable (decomposition responds to soil,
-not air, temperature), and its damped, lagged imposed cycle (0.80 amplitude ratio,
-+1 h) is the more conservative choice given respiration shows no strong within-night
-temperature response of either kind. The switch is free (`stl1` already loaded), mass-
-conserving, and reversible to the bit (`MICASA_RESP_DRIVER=airtemp`, plus
-`MICASA_POLAR_CLIP=plain` for the full legacy product). So V2 defaults to
-soil. I do **not** overclaim a within-day improvement — there isn't one in the tower
-data; the argument is "principled default, with no measured downside." Caveats, all in the script output: r(TA,TS)=0.87 /
-VIF 4.1, so the competitive-regression betas are variance-inflated and count as **one**
-evidence line with the seasonal separate-fit test, not two; **3 of 14** sites show an
-unphysical soil Q10 > 3.5 (the signature of seasonal-range compression in the
-whole-record fit, not gap-fill — this run is raw-only); and **108** candidate sites
-were dropped for lacking a raw soil-temperature sensor, biasing the sample toward
-soil-instrumented towers. **Lloyd-Taylor** stays opt-in — unlike the driver variable,
-it materially changes respiration amplitude (1.5–3.7×) on an uncertain low-T
-sensitivity, and its within-day effect is likewise unvalidated, so it needs its own
-gate before any flip.
+**So air remains the default; soil stays opt-in.** Soil's measured effect, if selected,
+is a damping of the imposed respiration diurnal cycle (full-year-2019 spatial
+block-bootstrap, `fitter_diagnostics/resp_driver_blockboot.py`): respiration amplitude
+ratio soil/air **0.80** [0.78, 0.83] (boreal **0.61**), NEE amplitude **1.023**
+[1.021, 1.024] — small and sign-correct, but the EC overlay above shows that damping
+moves the diurnal shape *away* from observations, not toward them. (Caveats from the EC
+runs: r(TA,TS)=0.87/VIF 4.1, so the seasonal competitive-regression betas are
+variance-inflated and count as one evidence line with Test A; 3/14 sites show an
+unphysical soil Q10>3.5 — seasonal-range compression, not gap-fill. The amplitude ratio
+itself is near-tautological — respiration is monotone in its driver — so it is a
+self-consistency check, not evidence soil is *right*.) **Lloyd-Taylor**
+(`MICASA_RESP_TEMPFUN`) likewise stays opt-in, default-off.
 
 ![ERA5 forcing: 0–7 cm soil temp lags & (per-cell) damps vs 2-m air](figures/resp_forcing_t2m_vs_stl1.png)
 
 ![Respiration diurnal cycle: soil driver damps & lags the air driver](figures/resp_diurnal_air_vs_soil.png)
-
-![Per-cell respiration diurnal amplitude ratio soil/air (< 1 = damped)](figures/resp_amplitude_ratio_hist.png)
 
 ---
 
@@ -774,16 +729,15 @@ behavior-preserving item maps to a proof in the §4 table.
   16–60× vs PIQS but leaves a small bounded residual (≤0.94% of GPP cell-hours;
   reproduced in `fitter_diagnostics/pchip_sign_definiteness.r`), mopped up by the
   clip. "Eliminated by construction" would be an overstatement (§1).
-- **Respiration driver — soil is now the V2 default.** Its eddy-covariance gate was run
-  properly: soil is the better *seasonal* respiration driver (12/13 AmeriFlux sites,
-  p=0.003), and the *within-day* relationship the diurnalization actually sets is a tie
-  (R²≈0.003 both, below the EC noise floor; §2). With no measured within-day downside
-  and soil seasonally + mechanistically correct, V2 defaults to it — and the validation
-  is explicitly that it is a **principled default with no measured downside**, not a
-  demonstrated within-day improvement (the honest limit of what the tower data show).
-  The legacy air path stays selectable and byte-identical (`MICASA_RESP_DRIVER=airtemp`).
-  **Lloyd-Taylor** stays opt-in pending its own gate (it materially moves respiration
-  amplitude on an uncertain low-T sensitivity).
+- **Respiration driver stays air; soil kept opt-in.** Soil is the better *seasonal*
+  respiration driver (12/13 AmeriFlux sites, p=0.003) and is mechanistically appealing,
+  but the diurnalization preserves the monthly mean, so only the *within-day shape*
+  matters — and there EC mildly favours air: the observed mean nighttime respiration
+  amplitude (~0.45) tracks the air-driven Q10 (0.40) and the soil cycle (0.22) is too
+  damped (§2). So air remains the default and soil stays opt-in
+  (`MICASA_RESP_DRIVER=soiltemp`); the honest limit of the tower data is that soil's
+  only clear win (seasonal) is on the axis the diurnalization doesn't use.
+  **Lloyd-Taylor** likewise stays opt-in.
 - **Prior uncertainty is constructed, not native.** MiCASA ships **no per-pixel
   uncertainty** (a single deterministic realization — vars `NPP/Rh/FIRE/FUEL/ATMC/NEE`
   only), so any prior σ is one I build. I can bound **two distinct, small

@@ -153,8 +153,8 @@ test harness — no change to the production path to measure the candidate.
 > the 0.83 quoted here for July) — these single-month figures are kept for the
 > shadow-diff record but are superseded by §5.4.
 
-Implemented as `MICASA_RESP_DRIVER={airtemp|soiltemp}` (V2 default `soiltemp`;
-selecting `airtemp` is byte-identical to legacy; `q10.factor()` extracted to
+Implemented as `MICASA_RESP_DRIVER={airtemp|soiltemp}` (default `airtemp`,
+byte-identical to legacy; `soiltemp` opt-in; `q10.factor()` extracted to
 `lib/diurnal.r` and unit-tested). July 2020 was diurnalized both ways into shadow dirs with the
 identical fit, and the global-land area-weighted diurnal cycles compared
 (`fitter_diagnostics/resp_driver_shadowdiff.r`). Findings:
@@ -178,9 +178,9 @@ identical fit, and the global-land area-weighted diurnal cycles compared
 
 The soil-temp driver is more physical, costs nothing (data already loaded),
 conserves every monthly mean exactly, and changes the product modestly (~2% NEE
-diurnal amplitude). **V2 defaults to `soiltemp`** (the case is §5.4 — seasonally +
-mechanistically correct, with the within-day relationship a tie, so no measured
-downside); selecting `airtemp` reproduces the byte-identical legacy path.
+diurnal amplitude). It stays **opt-in**: §5.4's eddy-covariance check finds that on the
+*within-day shape* — the only thing the driver sets — soil is too damped vs observed
+(amplitude 0.22 vs observed ~0.45), so the default stays `airtemp`.
 
 ## 5.2 Cold-season contrast — January 2020 shadow-diff
 
@@ -257,31 +257,38 @@ globally), because GPP redistribution dominates the NEE diurnal cycle — *excep
 in the polar / boreal cold season, where GPP → 0 makes NEE track respiration
 directly and the choice matters (2–3.6×).
 
-**Recommendation.** Adopt prototype #1 (soil-temp driver) as the **default**. It is the
-physically-correct variable, costs nothing, and conserves every monthly mean. The
-eddy-covariance gate (§5.4) shows the *within-day* relationship the driver actually
-sets is a **tie** (neither air nor soil explains it, R²≈0.003) — so the flip has no
-measured downside — while soil is the better *seasonal* driver and the mechanistically
-correct one. Keep Lloyd-Taylor opt-in, not default: its within-day effect is likewise
-unvalidated and its steep low-T sensitivity is the most uncertain piece. The test that
-would *discriminate* the drivers within a day — the observed diurnal amplitude of
-ecosystem respiration — is below the eddy-covariance noise floor (§5.4(4)), which is
-why the case for soil rests on the seasonal result and mechanism, not a within-day fit.
+**Recommendation.** Keep prototype #1 (soil-temp driver) **implemented and opt-in, not
+default**. It is the physically-appealing variable, costs nothing, conserves every
+monthly mean, and is the better *seasonal* driver — but the diurnalization preserves the
+monthly mean, so only the *within-day shape* matters, and the eddy-covariance check
+(§5.4) shows soil is **too damped** there: the observed mean nighttime respiration
+amplitude (~0.45) tracks the air-driven Q10 (0.40), not soil's (0.22). So the default
+stays **air**. Keep Lloyd-Taylor opt-in too. The seasonal soil advantage is real but
+does not transfer to the diurnal cycle the driver controls.
 
-## 5.4 Decision: recommend soil-temp as the default driver (seasonal + mechanism; within-day a tie)
+## 5.4 Decision: air stays the default; soil-temp kept opt-in (within-day EC favours air)
 
-A full-year-2019 spatial-block-bootstrap analysis (all 12 months, matched PCHIP
-air-vs-soil pair) shows the soil driver *damps* the imposed respiration diurnal cycle
-in a sign-correct, all-season way (1). That amplitude shift is **not** itself evidence
-the driver is right (2); the independent eddy-covariance gate, run properly (4),
-returns a **split verdict**: soil is the better *seasonal* respiration driver, while the
-*within-day* relationship the diurnalization actually sets is a **tie** (neither air nor
-soil explains nighttime respiration, R²≈0.003, below the EC noise floor). Since the
-diurnalization preserves the monthly mean, the within-day tie means a flip carries **no
-measured downside**, and soil is seasonally + mechanistically the correct variable.
-Decision (shipped, v2.1.0): **`MICASA_RESP_DRIVER=soiltemp` is the default; Lloyd-Taylor
-stays opt-in**. (`resp_driver_blockboot.py` + `ec_resp_driver_validation.py`; committed
-outputs alongside.)
+A full-year-2019 spatial-block-bootstrap analysis shows the soil driver *damps* the
+imposed respiration diurnal cycle in a sign-correct way (1), but that amplitude shift is
+**not** evidence the driver is right (2). The independent eddy-covariance gate, run on
+three axes, is **mixed — and on the axis that matters it favours air**:
+- **A, seasonal magnitude:** soil wins (12/13 sites, p=0.003) — but the diurnalization
+  rescales to the monthly mean, so the seasonal magnitude is set by the *fit*, not the
+  driver. Test A is irrelevant to the driver choice.
+- **B, within-night anomaly:** tie (R²≈0.003 both, below the EC noise floor).
+- **C, mean nighttime diurnal *shape* (the within-day shape the driver actually sets):**
+  the observed mean nighttime respiration cycle over 8 clean forest sites has amplitude
+  **~0.45**, close to the air-driven Q10 (**0.40**) and ~2× the soil-driven one
+  (**0.22**); the observed dawn minimum is the air model's, not soil's (soil too damped).
+  Pooled shape RMSE air **0.107** < soil **0.118**; site tally 7/14 soil (p=1.0).
+  (`fitter_diagnostics/ec_diurnal_shape_overlay.py`.)
+
+Since C — the only axis the diurnalization uses — mildly favours air and shows soil
+*under-predicts* the observed nighttime swing, **the default stays `airtemp`; soil and
+Lloyd-Taylor remain opt-in**. The "soil wins 16/20" of the first pass was Test A (the
+seasonal cycle) in disguise — a metric-vs-use mismatch.
+(`resp_driver_blockboot.py`, `ec_resp_driver_validation.py`, `ec_diurnal_shape_overlay.py`;
+committed outputs alongside.)
 
 **(1) The effect is real, sign-correct, and robust across seasons** — *spatial*
 block bootstrap (resampling unit = 10° block, so the CI respects the field's
@@ -359,9 +366,9 @@ demonstrated within-day improvement — there isn't one in the tower data.
 only ~1% (§5.3), its within-day effect is likewise unvalidated, and its steep low-T
 sensitivity is the uncertain piece — it needs its own gate before any flip.
 
-**Implementation:** the default is flipped in `diurnalize-ERA5.r`
-(`MICASA_RESP_DRIVER` default `airtemp`→`soiltemp`, shipped v2.1.0); selecting
-`MICASA_RESP_DRIVER=airtemp` reproduces the byte-identical legacy path.
+**Implementation:** the knob exists (`MICASA_RESP_DRIVER={airtemp|soiltemp}`); the
+production default stays `airtemp` (soil opt-in). v2.1.0 briefly defaulted soil and was
+superseded by v2.2.0 after the within-day (Test C) EC check; see CHANGELOG.
 
 ## 6. References
 
