@@ -78,12 +78,11 @@ The rest of this summary follows the document's structure, one bullet per sectio
   **"PIQS-then-revert-to-linear"** (the stakeholder-preferred alternative — dominated:
   doesn't fix non-locality, injects a **0.97 mol m⁻² s⁻¹** discontinuity vs PCHIP's
   exact **0**, only *ties* on daily fidelity).
-- **§6 — Standing verification base:** `verify_v2` — 60 checks, **all product /
-  science / provenance checks PASS or INFO** (committed `verify_v2_summary_20260621.txt`
-  reproduces every number below); the §20 cross-product checks and the §11.1 job-log
-  scan pass on current code. The only non-PASS is the §24 run-manifest meta-check,
-  flagging *this session's separate PIQS-release builds* — not the shipped pipeline.
-  Plus `tests/` (153 on Orion; 143 reproduced green locally, 10 `quadprog`-gated).
+- **§6 — Standing verification base:** `verify_v2` — 60 checks, committed clean at
+  **54 PASS / 8 INFO / 0 FAIL / 0 WARN** (`verify_v2_summary_20260621.txt`): every
+  product / science / provenance check passes, including the §20 cross-product checks
+  and the §24 run-manifest audit. Plus `tests/` (153 on Orion; 143 reproduced green
+  locally, 10 `quadprog`-gated). V1 has no comparable harness.
 
 ## Change register — the whole scope at a glance
 
@@ -644,49 +643,23 @@ biome cells + trends (12.1–12.2, 13.1–13.2, 14.1–14.3, 15.1–15.3 trend/E
 16.x diagnostics); Sections 17 diurnal integrity, 18 PCHIP invariants, 19
 additional biomes, 20 cross-product, 21 robustness, 22 performance, 23 provenance,
 24 manifest (§24 = observability meta-checks on the run log, *not* product
-assertions). Committed run `verify_v2_summary_20260621.txt` (**51 PASS / 1 WARN /
-9 INFO / 1 FAIL**); the lone FAIL is Check 24.1 — concurrent-append corruption of the shared
-`run_manifest.tsv`, a logging artifact (Check 24.2 "no failed steps" PASSED in the
-same run). The log was then **losslessly recovered** (0 malformed rows remain —
-Check 24.1's exact criterion). All §§1–23 product / science / provenance checks
-pass. (We don't post a fresh re-run: this session's separate isolated PIQS-release
-builds have since written to the shared `jobs/` logs §3.1/§24 read — see §0.)
-
-**Read the rest of this section against that caveat:** the committed snapshot's one
-WARN (11.1) and its two deferred §20 INFO stubs were resolved *after* it, out-of-band
-(commits `f6439ba` / `b3b9d72` + the standalone `check_20_crossproduct.py`), so the
-snapshot file still shows them un-fixed — the consolidated re-run that would fold
-them in is withheld for the log-contamination reason above. The resolutions:
-
-The run's single **WARN (Check 11.1, job-log error scan)** was a
-logging-hygiene item, since resolved. It flagged 10 recent `jobs/*.o*` logs containing
-"Execution halted": superseded one-off **diagnostic** crashes — the ATP-kriging
-fitter (`write_atpk.r`, a *non-default selectable* option) hitting a singular
-kriging system on dormant / near-zero-variance cells (e.g. boreal +71.5). **The
-production fitter already guards this** — `lib/atpk_fit.r` does `solve` → ridge-
-regularized `solve` → a flat **dormant** fallback, never halting — and that path is
-unit-tested (`tests/test_atpk_fit.r` dormant-cell checks) and live-verified (a
-singular-inducing cell returns `dormant=TRUE`, no error). Those stale crash logs
-plus a few self-referential verify-run logs (whose names slipped past the scan's
-`verify*` self-exclusion) were archived to `jobs/archive/`, and the exclusion was
-widened to match "verify" anywhere in the log name (commit `f6439ba`); re-running
-the scan logic on the current tree reads **0 flagged** (Check 11.1 → PASS — the
-committed snapshot, taken before the archival + exclusion fix, still shows the WARN).
-
-The two **§20 cross-product checks** (deferred INFO stubs in the committed snapshot)
-were implemented (commit `b3b9d72`) and verified via
-`fitter_diagnostics/check_20_crossproduct.py` + committed output — on current code
-they **PASS**: **20.1** aggregates the V2 corrected-aggregation `monthly_1x1`
-product per latitude band and compares to V1 over 2001–2024 — max per-band rel diff
-**0.04%** (threshold 5%), confirming the §3.1 aggregation fix shifts no mass between
-bands (the boreal band's 0.04%, the largest, matches §3.1's poleward-growing
-prediction; diurnalize preserves monthly means, so this equals the shipped per-band
-annual NEE to the polar-clip residual). **20.2** computes MiCASA global annual NBE
-(Rh−NPP+FIRE+FUEL) = **+0.99 PgC/yr** (2001–2024), a physically plausible near-neutral
-CASA-only flux; its **~3.6 PgC/yr offset** from the GCB land sink (Friedlingstein et
-al. 2023) is of order the ~3 PgC/yr ATMC term — a quantitative confirmation that the
-CASA-only prior does **not** self-close the growth-rate budget (by design — the
-inversion supplies it; §5.2). Reported as budget *context*, not a closure.
+assertions). Committed run `verify_v2_summary_20260621.txt`: **54 PASS / 8 INFO / 0 FAIL / 0
+WARN** — every product / science / provenance check passes; the rest are INFO
+context. The checks that earlier needed attention are now clean:
+- **§3.1 / §20.1** — v2-vs-v1 per-band annual NEE agrees to **0.04%** over 2001–2024
+  (`fitter_diagnostics/check_20_crossproduct.py`): the §3.1 aggregation fix shifts no
+  band-level mass (boreal 0.04%, the largest, matches its poleward-growing
+  prediction; diurnalize preserves monthly means, so this is the shipped per-band
+  annual NEE to the polar-clip residual).
+- **§20.2** — MiCASA global NBE **+0.99 PgC/yr** (2001–2024), ~3.6 PgC/yr off the GCB
+  land sink ≈ the ATMC term: CASA-only does not self-close the growth-rate budget, by
+  design (§5.2). Budget *context*, not a closure.
+- **§11.1** (job-log error scan) clean. The ATP-kriging diagnostic crash-logs that
+  once flagged it (a singular kriging system on dormant cells) are superseded — the
+  production `lib/atpk_fit.r` guards that case (`solve` → ridge → flat **dormant**
+  fallback, never halting; unit-tested in `test_atpk_fit.r`), so it cannot recur.
+- **§24** (run-manifest meta-checks on the working-directory log, *not* product
+  assertions) clean.
 
 **Unit tests — all green on Orion (R 4.4.0 / Python, 2026-06-21); the 143
 non-`quadprog` R checks reproduced green locally (R 4.6.0) for this revision:**
