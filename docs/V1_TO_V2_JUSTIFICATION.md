@@ -88,7 +88,9 @@ The rest of this summary follows the document's structure, one bullet per sectio
   doesn't fix non-locality, injects a **0.97 mol m⁻² s⁻¹** discontinuity vs PCHIP's
   exact **0**, only *ties* on daily fidelity).
 - **§6 — Standing verification base:** `verify_v2` — 60 checks, committed clean at
-  **54 PASS / 8 INFO / 0 FAIL / 0 WARN** (`verify_v2_summary_20260621.txt`): every
+  **54 PASS / 8 INFO / 0 FAIL / 0 WARN**, re-run on the shipped soil product
+  (`verify_v2_summary_soil_20260622.txt`; identical tally to the pre-flip
+  `verify_v2_summary_20260621.txt`): every
   product / science / provenance check passes, including the §20 cross-product checks
   and the §24 run-manifest audit. Plus `tests/` (153 on Orion; 143 reproduced green
   locally, 10 `quadprog`-gated). V1 has no comparable harness.
