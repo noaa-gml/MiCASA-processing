@@ -49,3 +49,7 @@ __pycache__/
 # committed documentation figures (override the *.png ignore)
 !docs/figures/
 !docs/figures/*.png
+
+# Generated stakeholder PDFs (build via `make -C docs`) + cached logo render
+docs/*.pdf
+docs/assets/.noaa-logo-hires.png

@@ -435,16 +435,34 @@ self-consistency check, not evidence soil is *right*.) **Lloyd-Taylor**
 ## 3. Other product-number changes (A) — each justified
 
 ### 3.1 Aggregation latitude-weight bug fix — V1 was wrong, V2 is correct
-V1's 0.1°→1° aggregator (`lib/ingest_common.r:aggregate.to.1x1`) recycled the
-cos-latitude area weights **column-major**, applying them along the *longitude*
-axis instead of latitude (with a dead ×10/÷10 inner loop). V2 builds a flat
-length-100 weight vector that assigns each sub-cell its correct latitude weight.
-This is a **genuine bug**: V1 area-weighted the wrong axis. Impact is small for
-smooth fields (typically < 0.01%) and grows toward the poles where the cos-lat
-gradient across a 1° block is largest. **Verification:** `tests/test_aggregate.r`
-(regression test) pins the corrected weighting against the analytic spherical
-area; `lib/test_ingest_bitident.r` confirms the read path. Justification is not
-"I prefer V2" but "V1 mis-weighted; V2 matches the analytic cos-lat area."
+
+**What the step does.** The ingest averages each 10×10 block of native 0.1° cells
+into one 1° output cell. The average must be **area-weighted by cos(latitude)**,
+because grid cells shrink toward the poles — a 0.1° cell at 70°N covers far less
+area than one at the equator, so it should count less in the block mean.
+
+**The bug.** V1's aggregator (`aggregate.to.1x1`) built the cos-latitude weights as a
+length-10 vector and let R **recycle it across the 10×10 sub-block**. Because R fills
+matrices *column-major*, that recycling laid the latitude weights down the **longitude**
+axis instead of latitude — so each sub-cell was weighted by the cos-lat value of a cell
+at the *wrong* position in the block. (An inner `for (inlon in inlons)` loop compounded
+nothing useful — it multiplied by 10 and divided by 10, dead code.) In effect V1
+area-weighted the wrong axis.
+
+**Why it mostly hid.** Within a single 1° block the scrambled weights still sum over the
+same 100 cells, so where the field is nearly uniform across the block the error is tiny
+(~1×10⁻⁵ relative for a smooth field). It grows where the field varies across the block,
+and is largest **toward the poles**, where the cos-lat weight itself changes most across
+1° of latitude — exactly where the mis-assignment bites hardest.
+
+**The fix.** V2 builds a flat length-100 weight vector that gives every sub-cell its own
+latitude's cos-lat weight, matching the analytic spherical-cap area. Typical impact on
+the 1° product is **< 0.01%**, larger at high latitudes.
+
+**Verification.** `tests/test_aggregate.r` pins the corrected weighting against the
+analytic cos-lat area (4 tests — the 4th is a regression check that the *old* formula
+fails); `lib/test_ingest_bitident.r` confirms the read path. The justification is not "I
+prefer V2" but "V1 area-weighted the wrong axis; V2 matches the analytic area."
 
 ### 3.2 Polar-night GPP = 0 clip — now mass-conserving by default
 Physical: no incoming shortwave ⇒ no photosynthesis. The clip zeros GPP wherever
