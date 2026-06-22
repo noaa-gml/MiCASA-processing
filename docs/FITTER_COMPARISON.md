@@ -209,11 +209,16 @@ on the cumulative / limited parabola) where f>=0 is automatic, not constrained.
   monotone-cubic-on-cumulative, not the FC rule. No gain.
 - **Unlimited parabolic** (PPM edges, limiter off): overshoots ≤1.25× (vs PPM
   1.00) — shows the limiter does real work. Dominated by PPM.
-- **Unconstrained cubic histospline** (natural cubic on `F`; the Boneva/PIQS
-  *parent class*, [Boneva, Kendall & Stefanov 1971](https://academic.oup.com/jrsssb/article/33/1/1/7027042)):
+- **Unconstrained cubic histospline** (natural cubic on `F` — the unconstrained
+  area-preserving spline, [Boneva, Kendall & Stefanov 1971](https://academic.oup.com/jrsssb/article/33/1/1/7027042)):
   **measured peak/env median 11.4, max 5.7×10⁵, 67.7% wrong-sign** (Runge
-  oscillation). The usable histospline members are exactly PIQS/PCHIP/MSS/PPM,
-  which we did test; the unconstrained foundation is dominated by everything.
+  oscillation). All of PIQS/PCHIP/MSS/PPM are shape-controlled members of this same
+  *area-preserving / integral-spline* family (fit a spline to the cumulative `F`,
+  differentiate); the unconstrained foundation is dominated by everything.
+  *(Caveat on lineage: this is a mathematical grouping, not a citation chain — PIQS
+  (Rasmussen 1991) frames itself purely as "piecewise integral splines" and cites
+  only deBoor 1978 and Holladay 1957, not Boneva; it reaches the same family
+  independently, via the minimum-curvature spline tradition.)*
 - **Bounded iterative mean-preserving** (Rymes & Myers 2001,
   doi:[10.1016/S0038-092X(01)00052-4](https://doi.org/10.1016/S0038-092X(01)00052-4);
   Wang & Bartlein 2022,
