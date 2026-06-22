@@ -1,83 +1,99 @@
 #!/usr/bin/env python3
-"""Eddy-covariance validation of the respiration temperature driver (soil vs air)
-— the open gate for the soil-temp diurnalization flip (§2).
+"""Eddy-covariance validation of the respiration temperature driver (soil vs air),
+deepened. Open gate for the soil-temp diurnalization flip (§2).
 
-Does OBSERVED ecosystem respiration follow soil temperature or 2-m air temperature?
-
-  TEST B (primary, non-circular, broad coverage): at night SW<20 -> NEE≈RECO (no GPP,
-    no partitioning model). Fit ln(nighttime respiration) vs TA and vs TS; the
-    temperature with the higher R^2 (and a physical Q10) is the better driver.
-    Needs only NEE, TA, TS, SW -> available at most AmeriFlux BASE sites.
-  TEST A (secondary): for the few sites that ship partitioned RECO_PI, compare the
-    observed RECO diurnal-cycle amplitude to the air-Q10 vs soil-Q10 predictions.
-    Flagged because RECO_PI partitioning may itself use a temperature (circular).
-Data: /work2/noaa/co2/kaushik/drought/ameriflux_US/EC_sitedata/*/AMF_*_BASE_HH_*.csv
+At night SW<20 -> NEE ≈ ecosystem respiration (no GPP, no partitioning model). For
+each AmeriFlux site we test whether nighttime respiration is better explained by 2-m
+air temperature or by SHALLOW soil temperature, three ways:
+  1. R^2 of ln(resp) vs each temperature separately.
+  2. COMPETITIVE: multiple regression ln(resp) ~ z(TA) + z(TS); the larger |standardized
+     beta| is the temperature that wins when both compete (decisive, controls for the
+     air-soil correlation).
+  3. Q10 implied by each single fit (Q10 = exp(10*slope)); physical range ~1.5-3.
+Stratified by IGBP biome. Prefers RAW (non-gap-filled) flux and the SHALLOWEST soil
+temp (closest to ERA5 0-7 cm stl1).
 """
-import numpy as np, pandas as pd, glob, os, warnings
+import numpy as np, pandas as pd, glob, os, re, warnings
 warnings.simplefilter("ignore")
-ROOT = "/work2/noaa/co2/kaushik/drought/ameriflux_US/EC_sitedata"; Q10 = 1.5
+ROOT = "/work2/noaa/co2/kaushik/drought/ameriflux_US"
 
-def pick(cols, *cands):
-    for c in cands:
-        if c in cols: return c
+# IGBP biome per site
+igbp = {}
+try:
+    meta = pd.read_csv(f"{ROOT}/NAm_US_sites.csv", encoding="latin-1", engine="python", on_bad_lines="skip")
+    for _, r in meta.iterrows():
+        try: igbp[str(r["Site Id"]).strip()] = str(r["Vegetation Abbreviation (IGBP)"]).strip()
+        except Exception: pass
+except Exception as e:
+    print("biome metadata unavailable:", e)
+
+def pick_nee(hdr):
+    # prefer RAW turbulent NEE/FC over gap-filled (_F) to avoid temperature-based fill
+    for pref in ("NEE_PI_1_1_1","FC_1_1_1","NEE_1_1_1","NEE_PI_F_1_1_1","FC_PI_F_1_1_1"):
+        if pref in hdr: return pref
+    for c in hdr:
+        if re.match(r"^(NEE|FC)_(PI_)?\d", c) and "QC" not in c and "_F_" not in c: return c
+    for c in hdr:
+        if re.match(r"^(NEE|FC)_", c) and "QC" not in c: return c
     return None
-def diurnal(df, col): return df.groupby("hour")[col].mean().reindex(range(24)).values
-def amp(x): return np.nanmax(x)-np.nanmin(x)
+def pick_ta(hdr):
+    for pref in ("TA_1_1_1","TA_PI_F_1_1_1"):
+        if pref in hdr: return pref
+    return next((c for c in hdr if c.startswith("TA_") and "QC" not in c), None)
+def pick_ts(hdr):
+    # shallowest soil temp: TS[_PI_F]_H_V_R -> smallest V (vertical=depth index)
+    cands=[]
+    for c in hdr:
+        m=re.match(r"^TS(_PI_F)?_(\d+)_(\d+)_(\d+)$", c)
+        if m and "QC" not in c: cands.append((int(m.group(3)), 0 if m.group(1) else 1, c))  # (depth, prefer non-PI? no: prefer raw shallow)
+    if not cands: return None
+    cands.sort()  # shallowest first
+    return cands[0][2]
+def pick_sw(hdr): return next((c for c in hdr if c.startswith("SW_IN")), None)
 
-night_rows, diur_rows = [], []
-for f in sorted(glob.glob(f"{ROOT}/*/AMF_*_BASE_HH_*.csv")):
-    site = os.path.basename(f).split("_")[1]
+rows=[]
+for f in sorted(glob.glob(f"{ROOT}/EC_sitedata/*/AMF_*_BASE_HH_*.csv")):
+    site=os.path.basename(f).split("_")[1]
     try:
-        hdr = pd.read_csv(f, skiprows=2, nrows=0).columns.tolist()
-        ta = pick(hdr, "TA_PI_F_1_1_1", "TA_1_1_1")
-        ts = pick(hdr, "TS_PI_F_1_1_1", "TS_1_1_1", "TS_PI_F_2_1_1", "TS_2_1_1") \
-             or next((c for c in hdr if c.startswith("TS_") and "QC" not in c), None)
-        nee= pick(hdr, "NEE_PI_F_1_1_1", "NEE_PI_1_1_1", "FC_PI_F_1_1_1", "FC_1_1_1")
-        sw = pick(hdr, "SW_IN_PI_F_1_1_1", "SW_IN_1_1_1")
-        reco = pick(hdr, "RECO_PI_F_1_1_1", "RECO_PI_1_1_1")
-        if not (ta and ts and nee and sw): continue
-        use = [c for c in {"TIMESTAMP_START", ta, ts, nee, sw, reco} if c]
-        df = pd.read_csv(f, skiprows=2, usecols=use, na_values=[-9999, "-9999"])
-        ren = {ta:"TA", ts:"TS", nee:"NEE", sw:"SW"}
-        if reco: ren[reco] = "RECO"
-        df = df.rename(columns=ren)
-        df["hour"] = (df["TIMESTAMP_START"].astype("int64") // 100 % 100)
-        # --- TEST B: nighttime respiration vs TA / TS ---
-        n = df.dropna(subset=["NEE","TA","TS","SW"])
-        n = n[(n["SW"] < 20) & (n["NEE"] > 0)]
-        if len(n) > 200 and n["TS"].std() > 0.5 and n["TA"].std() > 0.5:
-            y = np.log(n["NEE"].values); r2 = {}
-            for T, k in ((n["TA"].values,"a"), (n["TS"].values,"s")):
-                b = np.polyfit(T, y, 1); pr = np.polyval(b, T)
-                r2[k] = 1 - np.sum((y-pr)**2)/np.sum((y-np.mean(y))**2)
-            night_rows.append(dict(site=site, n=len(n), r2_air=r2["a"], r2_soil=r2["s"]))
-        # --- TEST A: observed RECO diurnal amplitude (only if RECO present) ---
-        if reco:
-            d = df.dropna(subset=["RECO","TA","TS"])
-            if len(d) >= 5000:
-                rc, tac, tsc = diurnal(d,"RECO"), diurnal(d,"TA"), diurnal(d,"TS")
-                if np.all(np.isfinite(rc)) and amp(rc) > 0:
-                    rm = np.nanmean(rc)
-                    pa = Q10**(tac/10); pa *= rm/np.nanmean(pa)
-                    ps = Q10**(tsc/10); ps *= rm/np.nanmean(ps)
-                    diur_rows.append(dict(site=site, obs_over_air=amp(rc)/amp(pa),
-                                          soil_over_air=amp(ps)/amp(pa)))
+        hdr=pd.read_csv(f,skiprows=2,nrows=0).columns.tolist()
+        nee,ta,ts,sw=pick_nee(hdr),pick_ta(hdr),pick_ts(hdr),pick_sw(hdr)
+        if not (nee and ta and ts and sw): continue
+        df=pd.read_csv(f,skiprows=2,usecols=[nee,ta,ts,sw],na_values=[-9999,"-9999"])
+        df=df.rename(columns={nee:"NEE",ta:"TA",ts:"TS",sw:"SW"}).dropna()
+        n=df[(df.SW<20)&(df.NEE>0)]
+        if len(n)<150 or n.TA.std()<0.5 or n.TS.std()<0.5: continue
+        y=np.log(n.NEE.values); TA=n.TA.values; TS=n.TS.values
+        def r2(T):
+            b=np.polyfit(T,y,1); p=np.polyval(b,T)
+            return 1-np.sum((y-p)**2)/np.sum((y-y.mean())**2), float(np.exp(10*b[0]))
+        r2a,q10a=r2(TA); r2s,q10s=r2(TS)
+        # competitive: standardized multiple regression
+        za=(TA-TA.mean())/TA.std(); zs=(TS-TS.mean())/TS.std()
+        X=np.column_stack([za,zs,np.ones_like(za)])
+        beta,_,_,_=np.linalg.lstsq(X,y,rcond=None)
+        rows.append(dict(site=site, igbp=igbp.get(site,"?"), n=len(n),
+                         r2_air=r2a, r2_soil=r2s, q10_air=q10a, q10_soil=q10s,
+                         beta_air=beta[0], beta_soil=beta[1]))
     except Exception:
         continue
 
-NB = pd.DataFrame(night_rows); DA = pd.DataFrame(diur_rows)
-print(f"=== EC respiration-driver validation (AmeriFlux) ===\n")
-print(f"TEST B — nighttime respiration vs temperature (non-circular): {len(NB)} sites")
-if len(NB):
-    print(f"  median R^2 vs AIR temp  : {NB.r2_air.median():.3f}")
-    print(f"  median R^2 vs SOIL temp : {NB.r2_soil.median():.3f}")
-    w = (NB.r2_soil > NB.r2_air).sum()
-    print(f"  sites where SOIL explains nighttime respiration better : {w}/{len(NB)} ({100*w/len(NB):.0f}%)")
-    print(f"  median ΔR^2 (soil − air): {(NB.r2_soil-NB.r2_air).median():+.3f}")
-print(f"\nTEST A — observed RECO diurnal amplitude vs air/soil Q10: {len(DA)} sites (RECO_PI only; partitioning caveat)")
-if len(DA):
-    print(f"  median observed amp / air-Q10 amp : {DA.obs_over_air.median():.2f}  (1=tracks air, <1=damped toward soil)")
-    print(f"  median soil-Q10 amp / air-Q10 amp : {DA.soil_over_air.median():.2f}")
-NB.to_csv("fitter_diagnostics/ec_resp_driver_validation_sites.csv", index=False)
-print("\nper-site night table -> fitter_diagnostics/ec_resp_driver_validation_sites.csv")
+R=pd.DataFrame(rows)
+print(f"=== EC respiration-driver validation (AmeriFlux nighttime), {len(R)} sites ===\n")
+def frac(mask): return f"{mask.sum()}/{len(R)} ({100*mask.mean():.0f}%)"
+print("(1) SEPARATE R^2 of ln(nighttime resp) vs temperature:")
+print(f"    median R^2 air {R.r2_air.median():.3f} | soil {R.r2_soil.median():.3f} | "
+      f"median ΔR^2 (soil-air) {(R.r2_soil-R.r2_air).median():+.3f}")
+print(f"    soil R^2 > air R^2 : {frac(R.r2_soil>R.r2_air)}")
+print("(2) COMPETITIVE multiple regression (both temps, standardized) -- which wins:")
+print(f"    |beta_soil| > |beta_air| : {frac(R.beta_soil.abs()>R.beta_air.abs())}")
+print(f"    median |beta_soil| {R.beta_soil.abs().median():.3f} vs |beta_air| {R.beta_air.abs().median():.3f}")
+print("(3) implied Q10 (physical range ~1.5-3):")
+print(f"    median Q10 air {R.q10_air.median():.2f} | soil {R.q10_soil.median():.2f}")
+print(f"    soil Q10 in [1.3,4] : {frac(R.q10_soil.between(1.3,4))} ; air in [1.3,4] : {frac(R.q10_air.between(1.3,4))}")
+print("\n(4) by IGBP biome (soil R^2 > air, median ΔR^2):")
+for b,g in R.groupby("igbp"):
+    if len(g)>=3:
+        print(f"    {b:5s} n={len(g):2d}: soil-wins {100*(g.r2_soil>g.r2_air).mean():3.0f}%  medianΔR² {(g.r2_soil-g.r2_air).median():+.3f}")
+R.sort_values("r2_soil",ascending=False).to_csv("fitter_diagnostics/ec_resp_driver_validation_sites.csv",index=False)
+print(f"\nper-site table ({len(R)} sites) -> fitter_diagnostics/ec_resp_driver_validation_sites.csv")
 print("DONE")

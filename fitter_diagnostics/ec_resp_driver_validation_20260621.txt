@@ -1,14 +1,19 @@
-=== EC respiration-driver validation (AmeriFlux) ===
+=== EC respiration-driver validation (AmeriFlux nighttime), 20 sites ===
 
-TEST B — nighttime respiration vs temperature (non-circular): 14 sites
-  median R^2 vs AIR temp  : 0.295
-  median R^2 vs SOIL temp : 0.315
-  sites where SOIL explains nighttime respiration better : 11/14 (79%)
-  median ΔR^2 (soil − air): +0.018
+(1) SEPARATE R^2 of ln(nighttime resp) vs temperature:
+    median R^2 air 0.341 | soil 0.352 | median ΔR^2 (soil-air) +0.021
+    soil R^2 > air R^2 : 16/20 (80%)
+(2) COMPETITIVE multiple regression (both temps, standardized) -- which wins:
+    |beta_soil| > |beta_air| : 16/20 (80%)
+    median |beta_soil| 0.451 vs |beta_air| 0.261
+(3) implied Q10 (physical range ~1.5-3):
+    median Q10 air 2.06 | soil 2.80
+    soil Q10 in [1.3,4] : 14/20 (70%) ; air in [1.3,4] : 18/20 (90%)
 
-TEST A — observed RECO diurnal amplitude vs air/soil Q10: 2 sites (RECO_PI only; partitioning caveat)
-  median observed amp / air-Q10 amp : 0.86  (1=tracks air, <1=damped toward soil)
-  median soil-Q10 amp / air-Q10 amp : 0.36
+(4) by IGBP biome (soil R^2 > air, median ΔR^2):
+    DBF   n= 4: soil-wins 100%  medianΔR² +0.021
+    ENF   n= 8: soil-wins  88%  medianΔR² +0.041
+    WET   n= 3: soil-wins  67%  medianΔR² +0.000
 
-per-site night table -> fitter_diagnostics/ec_resp_driver_validation_sites.csv
+per-site table (20 sites) -> fitter_diagnostics/ec_resp_driver_validation_sites.csv
 DONE
