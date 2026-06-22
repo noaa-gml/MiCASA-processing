@@ -14,15 +14,24 @@ this file is for "what landed when, and what numbers it moved."
   ratio **1.023, 95% CI [1.021, 1.024]** (block-10°); survives block-20° [1.020,1.025];
   all 12 months exclude 1. Resp amplitude ratio 0.80 [0.78,0.83] (boreal 0.61). The 3
   resp-driver figures regenerated on full-year 2019.
-- **Eddy-covariance validation of the respiration driver** (`fitter_diagnostics/ec_resp_driver_validation.py`,
-  AmeriFlux half-hourly, 20 sites). The open gate on the soil-temp flip: at night
-  (NEE ≈ respiration, no GPP/partitioning), two converging non-circular tests favour
-  soil — separate fits soil>air at **16/20 (80%)** (ΔR² +0.02), and a **competitive**
-  multiple regression on both standardized temps gives soil **80%** with ~1.7× the
-  predictive weight (|β_soil| 0.45 vs |β_air| 0.26; Q10 physical, soil 2.8 / air 2.1).
-  Strongest in forests (ENF 88%, DBF 100%) where insulating litter decouples soil from
-  air; ambiguous in water-buffered wetlands. Supports the soil-temp driver; §2 +
-  DIURNALIZATION_ALTERNATIVES updated to recommend the flip.
+- **Eddy-covariance validation of the respiration driver, rebuilt after adversarial
+  review** (`fitter_diagnostics/ec_resp_driver_validation.py`, AmeriFlux half-hourly,
+  **14** sites after a u\*>0.2 turbulence filter and raw — non-gap-filled — flux only;
+  gap-filled NEE forbidden as a circular temperature-driven RECO model). Splits the two
+  questions the first pass conflated, with by-night block-bootstrap CIs: **Test A
+  (seasonal)** — soil wins 12/13 decisive sites, median ΔR² +0.042, binomial p=0.003;
+  **Test B (within-day, what the diurnalization actually sets** — it preserves the
+  monthly mean**)** — within-night anomaly R²≈0.003 for *both* air and soil (soil 2 /
+  air 2 / tie 10, p=1.0), i.e. below the EC noise floor. Since the diurnalization
+  preserves the monthly mean, the within-day tie means a default flip carries **no
+  measured downside**; combined with soil's seasonal win + mechanism, the recommendation
+  is to **default to `soiltemp`** (principled default, no within-day penalty — *not* a
+  claim of a demonstrated within-day improvement). The earlier "soil wins 16/20" was
+  Test A (the seasonal cycle) in disguise — the metric-vs-use mismatch the review
+  flagged. Caveats reported: r(TA,TS)=0.87/VIF 4.1 (competitive betas = one evidence
+  line, not two); 3/14 unphysical soil Q10>3.5 (seasonal-range compression, not
+  gap-fill); 108 sites dropped for no raw soil sensor. §2 + DIURNALIZATION_ALTERNATIVES
+  updated to recommend the flip on the corrected (seasonal + within-day-tie) basis.
 - **PIQS vs PCHIP validated against MiCASA's own daily product**
   (`fitter_diagnostics/piqs_vs_pchip_daily_truth.r`): evaluate both production fits at
   daily resolution vs the actual `daily_1x1` NPP/Rh (the sub-monthly truth the

@@ -10,9 +10,9 @@ verification, so the case can be audited change by change.
 
 > **Decision requested:** adopt **V2** as the MiCASA pipeline feeding CarbonTracker,
 > replacing V1. V2 is built, tagged (`v2.0.0`), and verified; everything below is the
-> case that the switch is worth it, with the receipts to check it. *(One sub-decision lives inside V2:
-> whether to also flip the respiration driver to soil temperature, §2 — that one can
-> be deferred without holding up the switch.)*
+> case that the switch is worth it, with the receipts to check it. *(One sub-decision
+> lives inside V2: I recommend defaulting the respiration driver to **soil**
+> temperature, §2 — independent of the switch, and deferrable without holding it up.)*
 
 **This document is self-contained** — the
 load-bearing scorecard, equations, figures, and references are inlined here; the
@@ -24,7 +24,7 @@ dated logs but are not needed to follow the argument below.
 
 **The case in brief — V1 is proven; here is why V2 is worth the switch:**
 
-- **What you keep.** V1's verified climate-signal history transfers — and we
+- **What you keep.** V1's verified climate-signal history transfers — and I
   **measured it**, not just argued it: a direct diff of the full PIQS and PCHIP
   products (§0) preserves the long-term **trend to Δ 2×10⁻⁵ PgC/yr/yr** and the
   ENSO/COVID anomalies to **< 0.001 PgC** (absolute annual budget within ≤0.5%), and
@@ -58,15 +58,17 @@ The rest of this summary follows the document's structure, one bullet per sectio
   This matters because the **sub-monthly shape is what the inversion ingests**; it is
   *safe* because every fitter is integral-preserving, so the monthly-and-longer budget
   — annual totals, trend, IAV, ENSO/COVID — is **identical by construction** (§0).
-- **§2 — Diurnalization is V1's, unchanged — but we recommend one flip (the one
-  decision requested).** Drive respiration off **soil** temperature rather than 2-m
-  air: physically correct, small and sign-correct at the NEE level (full-year 2019
-  diurnal-amplitude ratio **+2.3%, 95% CI [1.021, 1.024]**, all 12 months exclude 1),
-  and free (`stl1` already loaded). The eddy-covariance gate is now **addressed** — an
-  AmeriFlux night test (20 sites, two independent methods) finds soil temperature beats
-  air for nighttime respiration at **80% of sites**, strongest in forests where the
-  physics predicts — so we recommend the flip; Lloyd-Taylor stays opt-in. **Awaiting
-  your sign-off.**
+- **§2 — Diurnalization framework is V1's, unchanged; I recommend defaulting the
+  respiration driver to soil temperature.** Driving respiration off soil rather than
+  2-m air is physically motivated and free (`stl1` already loaded), and damps the
+  imposed respiration diurnal cycle (amplitude ratio **0.80**, boreal **0.61**;
+  NEE-level effect small, **+2.3%**). The eddy-covariance gate, run properly, splits
+  into two questions: soil is the better **seasonal** respiration driver (12/13
+  AmeriFlux sites, p=0.003), and the **within-day** relationship the diurnalization
+  actually sets is a **tie** (R²≈0.003 for both, below the EC noise floor). So the flip
+  has no measured within-day downside and is seasonally + mechanistically correct — I
+  recommend it (`MICASA_RESP_DRIVER=soiltemp`). Independent of the V2 switch, and
+  deferrable without holding it up.
 - **§3 — The other number-moving changes are small and correct:** the 0.1°→1°
   aggregation latitude-weight bug fix (V1 mis-weighted; <0.01% typical, larger toward
   poles), the polar-night GPP = 0 clip (~0.16% median high-latitude GPP gap;
@@ -95,7 +97,7 @@ The one item needing your decision is bold.
 | # | Change | Type | Impact / status | Where |
 |---|---|---|---|---|
 | 1 | Fitter **PIQS → PCHIP** | A | budget unchanged (integral-preserving); sub-monthly sign-flips ~11% → ≤0.9%; NRT-local | §1 |
-| 2 | **Respiration driver: 2-m air → soil temp** | A (proposed) | **DECISION REQUESTED** — NEE diurnal-amplitude +2.3% [1.021,1.024]; EC-validation gate open | §2 |
+| 2 | **Respiration driver: 2-m air → soil temp** | A (recommended) | **recommend default flip** — soil better *seasonally* (12/13, p=0.003); within-day (what diurnalization sets) a tie (R²≈0.003 both) so no downside; free, byte-identical until flipped | §2 |
 | 3.1 | 0.1°→1° aggregation latitude-weight bug fix | A | V1 mis-weighted; <0.01% typical, larger toward poles | §3.1 |
 | 3.2 | Polar-night GPP = 0 clip | A | ~0.16% median GPP gap (mass-conserving clip available opt-in) | §3.2 |
 | 3.3 | ERA5 FastTrack dual-tree fallback | A | NRT trailing months only; per-day provenance | §3.3 |
@@ -105,7 +107,7 @@ The one item needing your decision is bold.
 
 **How this document is organized.** The executive summary and the register above are
 the whole story at a glance; the rest is for auditing. **§§1–3** detail each change
-that moves numbers (including the one decision requested, §2); **§4** the proven
+that moves numbers (and the opt-in respiration-driver question, §2); **§4** the proven
 no-ops; **§5** what was considered and rejected; **§6–7** the evidence and
 limitations; **Appendix A** the fitter equations. Skip the equations and the full
 scorecard (§1) if you trust the headline.
@@ -148,7 +150,7 @@ two legs:
   integral (max-abs < 1e-9, max-rel < 1e-6). Equal monthly means ⇒ equal
   monthly-and-longer budget, so the PIQS↔PCHIP equality of the trend / ENSO / COVID
   signals follows by construction.
-- **Measured — diffed both ways, directly.** We ran the full PIQS product
+- **Measured — diffed both ways, directly.** I ran the full PIQS product
   (`MiCASA_v1_piqs`) and the shipped PCHIP product (`MiCASA_v2`) through the *same*
   global-annual-NEE computation, 2001–2024
   (`fitter_diagnostics/piqs_vs_pchip_section15.py`). The published climate signals
@@ -270,7 +272,7 @@ implementation-broken tie for PCHIP over Rymes–Myers.
    and overwhelmingly so in the interiors. It is **not** sign-definite *everywhere*
    by construction: Fritsch-Carlson constrains the cubic's *knot* slopes, and the
    derivative quadratic can still dip mid-segment even on strictly single-signed
-   input. We reproduced this — worst interior flux **−0.042 on strictly positive
+   input. I reproduced this — worst interior flux **−0.042 on strictly positive
    monthly means** (0.1% of 20,000 synthetic series carry any wrong-sign dip), see
    [`fitter_diagnostics/pchip_sign_definiteness.r`](../fitter_diagnostics/pchip_sign_definiteness.r)
    and its committed output `pchip_sign_definiteness_20260621.txt`.
@@ -318,7 +320,7 @@ for normalizing a sub-monthly excursion).
 | **NRT footprint** (months rewritten, +10% revision)³ | **all 303** | **0** | ≤2 | ≤1 | **all 303** |
 | Lineage | Rasmussen 1991 | Fritsch-Carlson 1980 | Colella-Woodward 1984 | van Leer 1979 | — |
 
-² We report the **median** RMSE/env because the *mean* is tail-sensitive: PIQS's
+² I report the **median** RMSE/env because the *mean* is tail-sensitive: PIQS's
 GPP mean is **18.6**, wrecked by cells where the global solve diverges to ~10¹⁸× the
 envelope (28% of GPP cell-months carry a wrong-sign knot), and even the local
 methods' means (PCHIP 0.151 / PPM 0.149 / minmod 0.159; committed in
@@ -339,11 +341,11 @@ corner — see the trilemma note above; PCHIP wins on closed form + native forma
 
 **Validated against MiCASA's own daily product.** The cleanest possible fitter test:
 MiCASA *ships* daily NPP/Rh (`daily_1x1`) — the sub-monthly truth the monthly→fit step
-discards — so we evaluated both production fits at daily resolution and compared to
+discards — so I evaluated both production fits at daily resolution and compared to
 that actual daily product, in the fitter's own space, over all 1° land (2020;
 **5.97 M cell-days**; `fitter_diagnostics/piqs_vs_pchip_daily_truth.r`). Crucially
 this is **not circular**: `daily_1x1` is MiCASA's *native* daily model output regridded
-0.1°→1° by the ingest, **not** interpolated from monthly means — and our monthly means
+0.1°→1° by the ingest, **not** interpolated from monthly means — and my monthly means
 (which the fit ingests) are the monthly *means* of that same daily stream, so it is a
 genuine independent target. It is also smooth within-month (~4% day-to-day, not
 weather noise), so the comparison is a clean interpolation test, free of scale,
@@ -375,69 +377,77 @@ the canonical product when off** — verified by a committed `ncdiff` run
 ([`fitter_diagnostics/bytecheck_resp_driver_default.txt`](../fitter_diagnostics/bytecheck_resp_driver_default.txt):
 max |Δ| = 0 for GPP/resp/NEE, new default-path code vs the canonical
 `ERA5_2020_pchip/fluxes_202007.nc`), run-and-diffed, not argued from source. They
-are evidence-backed *candidates*, not shipped
-changes; defaults will not move without explicit sign-off (the recommendation, and
-the one validation gate still open, are below). So they impose zero risk on the
-current product while making the next step defensible. (Measured effect when enabled: soil-temp NEE diurnal amplitude
+are evidence-backed *candidates*. The
+eddy-covariance gate (below) has now been run, and on its strength **I recommend
+flipping the default to soil temperature**; until that flip is signed off the path is
+byte-identical, so it imposes zero risk on the current product in the meantime.
+(Measured effect when enabled: soil-temp NEE diurnal amplitude
 +2% global, ×0.5 boreal winter; Lloyd-Taylor respiration ×1.5 global — see that
 doc §5.1–5.3.)
 
-**Recommendation (new — full-year 2019, spatial block-bootstrap CIs):** we
-recommend soil temperature as the default respiration driver, with **one explicit
-outstanding gate** (eddy-covariance amplitude validation, below). The case has
-three legs, measured on the matched full-year-2019 PCHIP air-vs-soil pair (all 12
-months; script `fitter_diagnostics/resp_driver_blockboot.py`, committed output
-`fitter_diagnostics/resp_driver_blockboot_2019.txt`):
+**Recommendation: make soil temperature the default respiration driver.** The case
+rests on the *seasonal* eddy-covariance result plus mechanism, with the within-day
+relationship a wash — so the flip is at worst neutral and at best correct (below). The
+*measurable* effect of the driver, on the matched full-year-2019 PCHIP air-vs-soil pair
+(all 12 months; `fitter_diagnostics/resp_driver_blockboot.py`, committed output
+`fitter_diagnostics/resp_driver_blockboot_2019.txt`), is a **damping and phase-lag of
+the imposed respiration diurnal cycle**:
 
-- **The NEE effect is small but robustly non-zero.** The global area-weighted NEE
-  diurnal-amplitude ratio soil/air is **1.023, 95% CI [1.021, 1.024]** by a
-  *spatial block bootstrap* — the resampling unit is a 10° block, so the interval
-  reflects the field's spatial autocorrelation rather than treating ~15.6k
-  correlated land cells as independent. It survives a conservative 20°-block CI
-  [1.020, 1.025], and **every one of the 12 months excludes 1 individually**
-  (range 1.016–1.027) — a consistent all-season effect, not a single-month
-  artifact. *(The 10° block respects spatial autocorrelation; a naive i.i.d.-cell
-  resample would give a ~16×-tighter, invalid CI — block-bootstrap width 0.0032 vs
-  i.i.d. width 0.0002 — by treating ~15.6k correlated cells as independent. Both
-  widths are from `resp_driver_blockboot_2019.txt`; the 3-dp CIs printed above round
-  them, so recompute the ratio from these widths, not the rounded bounds.)*
-- **Respiration is materially damped, most where air temp is least physical.** The
-  respiration amplitude ratio soil/air is **0.80, 95% CI [0.78, 0.83]** (10° block,
-  annual), pulled down by the **boreal band 0.61 [0.58, 0.63]** — snow-insulated or
-  frozen soil decoupled from swinging winter air, exactly where the air-temp proxy
-  is worst. (SH-temperate 0.94 [0.86, 1.07] is the one band whose CI spans 1.)
-- **It is physically motivated and free.** Soil decomposition responds to soil, not
-  air, temperature (Lloyd & Taylor 1994); `stl1` is already loaded; mass is
-  conserved and the default-off path is byte-identical (§2 above).
+- The global area-weighted **respiration** amplitude ratio soil/air is **0.80, 95% CI
+  [0.78, 0.83]** (10° spatial block bootstrap, annual), pulled down by the **boreal
+  band 0.61 [0.58, 0.63]** — snow-insulated/frozen soil decoupled from swinging winter
+  air. (SH-temperate 0.94 [0.86, 1.07] is the one band whose CI spans 1.) The **NEE**
+  effect is small: amplitude ratio **1.023, 95% CI [1.021, 1.024]** (every month
+  excludes 1; survives a conservative 20°-block CI). *(The 10° block respects spatial
+  autocorrelation; a naive i.i.d.-cell resample gives a ~16×-tighter, invalid CI —
+  block-bootstrap width 0.0032 vs i.i.d. 0.0002, both from the committed output.)*
 
-**What is *not* claimed.** The respiration amplitude ratio necessarily tracks the
-driver's own `stl1`/`t2m` amplitude ratio — respiration is a monotone function of
-its temperature driver — so that self-consistency confirms the implementation uses
-soil temperature; it is **not** independent evidence that soil temperature is the
-*correct* driver — that takes an independent observation. **We have now run that
-eddy-covariance check** (`fitter_diagnostics/ec_resp_driver_validation.py`, **20**
-AmeriFlux sites; at night NEE ≈ ecosystem respiration, no GPP, no partitioning model),
-and two converging non-circular tests both favour soil:
-- **Separate fits:** soil temperature explains nighttime respiration better than air
-  at **16/20 sites (80%)** (median R² 0.35 vs 0.34, ΔR² +0.02).
-- **Competitive** (multiple regression on *both* standardized temperatures, which
-  controls for the air–soil correlation): soil wins at **16/20 (80%)** and carries
-  **~1.7× the predictive weight** (median |β_soil| 0.45 vs |β_air| 0.26); implied Q10
-  is physical for both (soil 2.8, air 2.1).
+**Crucially, this amplitude ratio is not evidence that soil is the *right* driver** —
+respiration is a monotone function of its driver, so the ratio merely tracks the
+`stl1`/`t2m` amplitude ratio (a self-consistency check on the implementation, not an
+observation). The independent test is eddy covariance, and I have now run it
+(`fitter_diagnostics/ec_resp_driver_validation.py`, **14** AmeriFlux sites after a
+u\*>0.2 turbulence filter and raw — non-gap-filled — flux only; at night NEE ≈
+ecosystem respiration). It separates two questions the first pass conflated:
 
-The signal is **strongest exactly where the physics predicts** — evergreen-needleleaf
-forest (88%, ΔR² +0.04) and deciduous broadleaf (100%), where insulating litter and
-canopy decouple soil from swinging air — and ambiguous only in water-buffered
-wetlands. So the EC evidence **supports soil temperature**; the median margin is
-modest, consistent with the small (~2%) NEE-level effect, and the raw-nighttime-flux
-filter limits N to 20 of the 97 sites with the needed sensors (a FLUXNET2015 run would
-raise it). The gate that was open is addressed and points the right way:
-**we recommend flipping the default to soil.** The change is free, opt-in, and
-mass-conserving today (`MICASA_RESP_DRIVER=soiltemp`), independent of the V2 switch. **Lloyd-Taylor** (the alternative
-temperature-response *function*, orthogonal to the driver choice) stays opt-in: it
-swings respiration amplitude 1.5–3.7× but moves NEE only ~1% outside boreal winter,
-and its steep low-temperature sensitivity is the uncertain piece — flip it only
-after the same EC check.
+- **Seasonal driver** (which temperature tracks the *seasonal magnitude* of
+  respiration): soil wins decisively at **12 of 13 decisive sites** (1 air, 1 tie;
+  binomial p = 0.003; median ΔR² +0.042), robust to the u\* filter and a by-night
+  block bootstrap.
+- **Within-day driver** (which temperature drives the *sub-daily shape* — the only
+  thing the diurnalization controls, since it rescales respiration to the monthly
+  mean): **neither.** Removing each night's mean, the within-night respiration anomaly
+  is explained at **R² ≈ 0.003 by both** air and soil temperature (soil 2 / air 2 /
+  tie 10 across sites; p = 1.0). The sub-daily temperature–respiration signal is
+  **below the eddy-covariance noise floor.**
+
+So the EC data confirm soil is the better *seasonal* driver, and at the within-day
+timescale the driver actually controls — the diurnalization **preserves the monthly
+mean** — the two are statistically indistinguishable. The earlier "soil wins 16/20"
+was the seasonal cycle in disguise (a metric-vs-use mismatch an adversarial review
+flagged); the honest within-day verdict is a tie, not a soil win.
+
+**Why I still recommend the flip.** The within-day tie means switching to soil carries
+**no measured penalty** to the diurnal shape — the only thing the driver sets. On every
+axis where the two drivers *can* be distinguished, soil is at least as good: it is the
+seasonally better descriptor of the temperature–respiration relationship (12/13,
+p=0.003), it is the mechanistically correct variable (decomposition responds to soil,
+not air, temperature), and its damped, lagged imposed cycle (0.80 amplitude ratio,
++1 h) is the more conservative choice given respiration shows no strong within-night
+temperature response of either kind. The switch is free (`stl1` already loaded), mass-
+conserving, byte-identical until flipped, and independent of the V2 switch. So I
+recommend defaulting to `MICASA_RESP_DRIVER=soiltemp`. I do **not** overclaim a
+within-day improvement — there isn't one in the tower data; the argument is "principled
+default, with no measured downside." Caveats, all in the script output: r(TA,TS)=0.87 /
+VIF 4.1, so the competitive-regression betas are variance-inflated and count as **one**
+evidence line with the seasonal separate-fit test, not two; **3 of 14** sites show an
+unphysical soil Q10 > 3.5 (the signature of seasonal-range compression in the
+whole-record fit, not gap-fill — this run is raw-only); and **108** candidate sites
+were dropped for lacking a raw soil-temperature sensor, biasing the sample toward
+soil-instrumented towers. **Lloyd-Taylor** stays opt-in — unlike the driver variable,
+it materially changes respiration amplitude (1.5–3.7×) on an uncertain low-T
+sensitivity, and its within-day effect is likewise unvalidated, so it needs its own
+gate before any flip.
 
 ![ERA5 forcing: 0–7 cm soil temp lags & (per-cell) damps vs 2-m air](figures/resp_forcing_t2m_vs_stl1.png)
 
@@ -459,7 +469,7 @@ smooth fields (typically < 0.01%) and grows toward the poles where the cos-lat
 gradient across a 1° block is largest. **Verification:** `tests/test_aggregate.r`
 (regression test) pins the corrected weighting against the analytic spherical
 area; `lib/test_ingest_bitident.r` confirms the read path. Justification is not
-"we prefer V2" but "V1 mis-weighted; V2 matches the analytic cos-lat area."
+"I prefer V2" but "V1 mis-weighted; V2 matches the analytic cos-lat area."
 
 ### 3.2 Polar-night GPP = 0 clip
 Physical: no incoming shortwave ⇒ no photosynthesis. The clip zeros GPP wherever
@@ -561,7 +571,7 @@ Documenting what was *not* changed, and why, is part of the justification:
 This hybrid — keep PIQS's smooth global-solve quadratic where it is sign-safe and
 patch **only** the overshooting pieces with a sign-safe integral-preserving linear
 — was the stakeholder-preferred alternative to PCHIP, and it has a **genuine
-motivation we state plainly**: PIQS's global solve makes its flux **near-C¹**
+motivation I state plainly**: PIQS's global solve makes its flux **near-C¹**
 (continuous *slope*), whereas PCHIP-on-cumulative is only **C⁰ in the flux** — the
 flux carries a small slope kink at each month knot. Measured
 (`FITTER_COMPARISON.md` §4.5): the knot derivative-jump (×width/env) is **PIQS
@@ -569,7 +579,7 @@ flux carries a small slope kink at each month knot. Measured
 derivative-smoothness on the ~71% of sign-safe pieces and patch only the rest. That
 is the strongest case for it, and it is real.
 
-We implemented and measured it (`fitter_diagnostics/piqs_hybrid.r`,
+I implemented and measured it (`fitter_diagnostics/piqs_hybrid.r`,
 `linear_fallback_quantify.r`; committed output
 `linear_fallback_quantify_20260621.txt`) and **did not adopt** it, because that C¹
 advantage is inconsequential for *this* product and is outweighed on locality and
@@ -607,7 +617,7 @@ continuity:
 (*A distinct, weaker proposal — “use continuous linear **everywhere**”, PROPOSALS
 #9, which is **not** the selective fallback above — is worse than PIQS on its own
 terms: the recursion `yᵢ₊₁ = 2·mᵢ − yᵢ` flips sign at 36.9% of interior knots and
-rings with unbounded resonance (knot/env p99 ≈ 2.6×10⁵, a Nyquist pole). We note it
+rings with unbounded resonance (knot/env p99 ≈ 2.6×10⁵, a Nyquist pole). I note it
 only to close the option; it is not Andy's proposal.*)
 
 So against the *selective* fallback, PCHIP wins on locality and continuity while
@@ -636,7 +646,7 @@ essentially flat). The trend alone compounds to ≈ **+1.1 PgC/yr** of drift ove
 25-yr record — itself of order the mean sink. So ATMC is a first-order change to
 both the magnitude and the time-evolution of the prior, not a rounding term.
 
-**Why we still do not subtract it — and this holds whether the trend is real or a
+**Why I still do not subtract it — and this holds whether the trend is real or a
 CASA bias.** These fluxes are a **prior to a CO₂ inversion that itself assimilates
 atmospheric CO₂**, and ATMC was tuned to *that same observation class* (the global
 growth rate). Subtracting it pre-loads the prior with the very constraint the
@@ -645,7 +655,7 @@ inversion can no longer *independently* constrain the long-term sink, because th
 answer is already baked in. The growth-rate constraint belongs in the inversion's
 assimilation step, applied once, against a prior that reports what the offline
 biosphere model says **on its own**. Crucially this argument does **not** require
-us to claim the +0.0447 trend is physically correct:
+me to claim the +0.0447 trend is physically correct:
 - *If* it is real (e.g. CO₂-fertilization / greening strengthening NPP, which CASA
   represents through satellite-APAR forcing — Zhu et al. 2016), the inversion keeps
   it and the data confirm it.
@@ -653,7 +663,7 @@ us to claim the +0.0447 trend is physically correct:
   NPP), the inversion corrects it from the atmospheric data.
 
 Either way the prior's job is to carry CASA's *own* estimate; baking in ATMC
-forecloses the correction in both cases. So we ship the +0.0447 trend as a property
+forecloses the correction in both cases. So I ship the +0.0447 trend as a property
 of the CASA prior — **not** asserting it is a "real climate feature," only that
 pre-correcting it would be circular.
 
@@ -666,7 +676,7 @@ CASA-only trend; **+0.0447** is the later *PCHIP* Section-15 value (2026-05-04 r
 **+0.04** elsewhere is the same number rounded — one ~+0.04 PgC/yr/yr trend, three
 runs. The +0.0413→+0.0447 difference is between two **different-date pipeline runs**
 with other V2 changes intervening — *not* a fitter effect; the budget-invariance of
-§0 is a statement about a **pure fitter swap on a fixed pipeline**, which is why we
+§0 is a statement about a **pure fitter swap on a fixed pipeline**, which is why I
 do not claim the cross-date runs match to floating point.)
 
 ## 6. Evidence matrix
@@ -742,13 +752,17 @@ behavior-preserving item maps to a proof in the §4 table.
   reproduced in `fitter_diagnostics/pchip_sign_definiteness.r`), mopped up by the
   clip. "Eliminated by construction" would be an overstatement (§1).
 - **Diurnal respiration refinements** (soil-temp, Lloyd-Taylor) are implemented and
-  opt-in. The **soil-temp** driver's eddy-covariance gate has now been run and
-  supports it (80% of 20 AmeriFlux night-test sites by two methods, strongest in forests; §2) — flip pending
-  sign-off. **Lloyd-Taylor** stays opt-in pending its own EC check (its low-T
-  sensitivity is the uncertain piece).
+  opt-in today. The **soil-temp** driver's eddy-covariance gate has now been run
+  properly: soil is the better *seasonal* respiration driver (12/13 AmeriFlux sites,
+  p=0.003), and the *within-day* relationship the diurnalization actually sets is a tie
+  (R²≈0.003 both, below the EC noise floor; §2). With no measured within-day downside
+  and soil seasonally + mechanistically correct, **I recommend flipping the default to
+  soil** (free, byte-identical until flipped, independent of the V2 switch).
+  **Lloyd-Taylor** stays opt-in pending its own gate (it materially moves respiration
+  amplitude on an uncertain low-T sensitivity).
 - **Prior uncertainty is constructed, not native.** MiCASA ships **no per-pixel
   uncertainty** (a single deterministic realization — vars `NPP/Rh/FIRE/FUEL/ATMC/NEE`
-  only), so any prior σ is one we build. We can bound **two distinct, small
+  only), so any prior σ is one I build. I can bound **two distinct, small
   components — which should not be summed into a single "~3%"**: (i) 0.1° sub-grid
   heterogeneity within a 1° cell, which is strongly **biome-dependent, ~1% (boreal)
   to ~10% (temperate mosaic)**, median ~3.5%; and (ii) across-fitter structural
