@@ -62,8 +62,10 @@ The rest of this summary follows the document's structure, one bullet per sectio
   decision requested).** Drive respiration off **soil** temperature rather than 2-m
   air: physically correct, small and sign-correct at the NEE level (full-year 2019
   diurnal-amplitude ratio **+2.3%, 95% CI [1.021, 1.024]**, all 12 months exclude 1),
-  and free (`stl1` already loaded). The one open gate is eddy-covariance amplitude
-  validation; Lloyd-Taylor stays opt-in. **Awaiting your sign-off.**
+  and free (`stl1` already loaded). The eddy-covariance gate is now **addressed** —
+  an AmeriFlux night test finds soil temperature explains nighttime respiration
+  better than air at **79% of sites** (modest margin) — so we recommend the flip;
+  Lloyd-Taylor stays opt-in. **Awaiting your sign-off.**
 - **§3 — The other number-moving changes are small and correct:** the 0.1°→1°
   aggregation latitude-weight bug fix (V1 mis-weighted; <0.01% typical, larger toward
   poles), the polar-night GPP = 0 clip (~0.16% median high-latitude GPP gap;
@@ -393,14 +395,19 @@ months; script `fitter_diagnostics/resp_driver_blockboot.py`, committed output
 driver's own `stl1`/`t2m` amplitude ratio — respiration is a monotone function of
 its temperature driver — so that self-consistency confirms the implementation uses
 soil temperature; it is **not** independent evidence that soil temperature is the
-*correct* driver. That last step is what an **eddy-covariance diurnal-amplitude
-check** settles, and it is the one gate still open. The production default is
-therefore **not** flipped, and our recommendation is the conservative path:
-**run the EC diurnal-amplitude validation first, then flip** — soil-temp is free and
-opt-in today (`MICASA_RESP_DRIVER=soiltemp`), so it loses nothing by waiting for the
-one piece of evidence (correctness, not just consistency) that the physics and the
-all-season robustness above cannot themselves supply. This is independent of the V2
-switch and need not hold it up. **Lloyd-Taylor** (the alternative
+*correct* driver — that takes an independent observation. **We have now run that
+eddy-covariance check** (`fitter_diagnostics/ec_resp_driver_validation.py`, AmeriFlux
+half-hourly): at night, where NEE ≈ ecosystem respiration with no GPP and no
+partitioning model, **soil temperature explains nighttime respiration better than air
+at 11 of 14 sites (79%)** with soil-temp + nighttime flux (median R² 0.315 vs 0.295;
+ΔR² +0.02 to +0.05 on the stricter subset); the few sites that ship partitioned RECO
+also show the observed diurnal amplitude **damped** toward the soil prediction (0.86×
+the air-Q10 amplitude). So the EC evidence **supports soil temperature** — modestly,
+which is consistent with the small (~2%) NEE-level effect. The margin is not large
+and a fuller FLUXNET2015 test would sharpen it, but the gate that was open is now
+addressed and points the right way: **we recommend flipping the default to soil.**
+The change remains free, opt-in, and mass-conserving today
+(`MICASA_RESP_DRIVER=soiltemp`), and is independent of the V2 switch. **Lloyd-Taylor** (the alternative
 temperature-response *function*, orthogonal to the driver choice) stays opt-in: it
 swings respiration amplitude 1.5–3.7× but moves NEE only ~1% outside boreal winter,
 and its steep low-temperature sensitivity is the uncertain piece — flip it only
@@ -708,9 +715,11 @@ behavior-preserving item maps to a proof in the §4 table.
   16–60× vs PIQS but leaves a small bounded residual (≤0.94% of GPP cell-hours;
   reproduced in `fitter_diagnostics/pchip_sign_definiteness.r`), mopped up by the
   clip. "Eliminated by construction" would be an overstatement (§1).
-- **Diurnal respiration refinements** (soil-temp, Lloyd-Taylor) are implemented
-  and opt-in but **not yet validated against eddy-covariance** diurnal amplitudes
-  — the gate before any default flip (DIURNALIZATION_ALTERNATIVES.md §5.3).
+- **Diurnal respiration refinements** (soil-temp, Lloyd-Taylor) are implemented and
+  opt-in. The **soil-temp** driver's eddy-covariance gate has now been run and
+  supports it (79% of AmeriFlux night-test sites, modest margin; §2) — flip pending
+  sign-off. **Lloyd-Taylor** stays opt-in pending its own EC check (its low-T
+  sensitivity is the uncertain piece).
 - **Prior uncertainty is constructed, not native.** MiCASA ships **no per-pixel
   uncertainty** (a single deterministic realization — vars `NPP/Rh/FIRE/FUEL/ATMC/NEE`
   only), so any prior σ is one we build. We can bound **two distinct, small

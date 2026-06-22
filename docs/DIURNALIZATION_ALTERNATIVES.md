@@ -262,16 +262,16 @@ moves NEE only ~2% (in the right direction). Keep Lloyd-Taylor implemented and
 nowhere except boreal winter, and its steep low-T sensitivity is the most
 uncertain piece. The test that would actually discriminate Q10=1.5 from
 Lloyd-Taylor is the **observed diurnal amplitude of ecosystem respiration**
-(eddy covariance) — a validation, not another model run — and is the remaining
-confirmatory step for the soil-temp recommendation (§5.4).
+(eddy covariance) — a validation, not another model run — has now been run and
+supports soil (§5.4(4)).
 
 ## 5.4 Decision: recommend soil-temp as the default driver
 
 With a full-year-2019 spatial-block-bootstrap analysis (all 12 months, matched
 PCHIP air-vs-soil pair), the case for flipping the default from air to soil
-temperature is solid — with **one validation gate still open** (eddy covariance,
-(4)). Recommendation: **make `MICASA_RESP_DRIVER=soiltemp` the default; keep
-Lloyd-Taylor opt-in**, pending sign-off.
+temperature is solid, and the eddy-covariance validation gate has now been run and
+**supports soil** (4). Recommendation: **make `MICASA_RESP_DRIVER=soiltemp` the
+default; keep Lloyd-Taylor opt-in**, pending sign-off.
 (`fitter_diagnostics/resp_driver_blockboot.py`; committed output
 `fitter_diagnostics/resp_driver_blockboot_2019.txt`.)
 
@@ -317,12 +317,16 @@ the NEE amplitude is correspondingly reduced.
 
 **(4) Cost and risk.** Zero new inputs (`stl1` already loaded), every monthly
 total conserved exactly, default-off byte-identical to the current product
-(`fitter_diagnostics/bytecheck_resp_driver_default.txt`, max |Δ| = 0). **The one
-remaining validation gate is an eddy-covariance amplitude check** (the only
-independent test that soil temperature is the *correct* driver — (2) cannot supply
-it). Given the all-season robustness (1) and settled soil-respiration physics we
-consider it confirmatory rather than strictly blocking, but the default is **not**
-flipped without sign-off — consistent with §5.3.
+(`fitter_diagnostics/bytecheck_resp_driver_default.txt`, max |Δ| = 0). **The
+eddy-covariance validation — the one independent test that soil is the *correct*
+driver — has now been run** (`fitter_diagnostics/ec_resp_driver_validation.py`,
+AmeriFlux half-hourly): at night (NEE ≈ respiration, no GPP, no partitioning model),
+soil temperature explains nighttime respiration better than air at **11/14 sites
+(79%)** with soil-temp + nighttime flux (median R² 0.315 vs 0.295; ΔR² +0.02–0.05),
+and the partitioned-RECO diurnal amplitude is damped toward soil (0.86× the air-Q10).
+It **supports soil** — modestly, consistent with the small NEE effect; a fuller
+FLUXNET2015 test would sharpen it. The gate is addressed and points the right way;
+default flip pending sign-off.
 
 **Lloyd-Taylor stays opt-in:** it swings respiration amplitude 1.5–3.7× but NEE
 only ~1% (§5.3), and its steep low-T sensitivity is the uncertain piece — flip it

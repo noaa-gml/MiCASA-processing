@@ -14,6 +14,17 @@ this file is for "what landed when, and what numbers it moved."
   ratio **1.023, 95% CI [1.021, 1.024]** (block-10°); survives block-20° [1.020,1.025];
   all 12 months exclude 1. Resp amplitude ratio 0.80 [0.78,0.83] (boreal 0.61). The 3
   resp-driver figures regenerated on full-year 2019.
+- **Eddy-covariance validation of the respiration driver** (`fitter_diagnostics/ec_resp_driver_validation.py`,
+  AmeriFlux half-hourly). The open gate on the soil-temp flip: at night (NEE ≈ respiration,
+  no GPP/partitioning) soil temperature explains nighttime respiration better than air at
+  **11/14 sites (79%)** with soil-temp + nighttime flux (median R² 0.315 vs 0.295, ΔR²
+  +0.02–0.05); partitioned-RECO diurnal amplitude damped toward soil (0.86× air-Q10).
+  Supports the soil-temp driver (modest margin); §2 + DIURNALIZATION_ALTERNATIVES updated
+  to recommend the flip.
+- **Direct PIQS↔PCHIP product diff** (`fitter_diagnostics/piqs_vs_pchip_section15.py`):
+  global annual NEE over 2001-2024 — trend Δ 2e-5 PgC/yr/yr, ENSO/COVID Δ <1e-3 PgC,
+  absolute annual ≤0.5% (polar-clip × sub-monthly shape). Converts the §0 budget-invariance
+  claim from argued to measured. Clean consolidated verify_v2 run committed (54/8/0/0).
 - **Mass-conserving polar-night clip option** (`lib/diurnal.r:polar.night.renorm` +
   `MICASA_POLAR_CLIP=conserve` hook in `diurnalize-ERA5.r`). The plain clip zeros
   dark-hour GPP, dropping flux the fit assigned there → a small high-latitude GPP
