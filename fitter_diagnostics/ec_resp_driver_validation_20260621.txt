@@ -1,19 +1,29 @@
-=== EC respiration-driver validation (AmeriFlux nighttime), 20 sites ===
+=== EC respiration-driver validation v2 (AmeriFlux nighttime, u*>0.2) ===
+14 sites pass; 165 dropped
 
-(1) SEPARATE R^2 of ln(nighttime resp) vs temperature:
-    median R^2 air 0.341 | soil 0.352 | median ΔR^2 (soil-air) +0.021
-    soil R^2 > air R^2 : 16/20 (80%)
-(2) COMPETITIVE multiple regression (both temps, standardized) -- which wins:
-    |beta_soil| > |beta_air| : 16/20 (80%)
-    median |beta_soil| 0.451 vs |beta_air| 0.261
-(3) implied Q10 (physical range ~1.5-3):
-    median Q10 air 2.06 | soil 2.80
-    soil Q10 in [1.3,4] : 14/20 (70%) ; air in [1.3,4] : 18/20 (90%)
+--- TEST A: SEASONAL driver (whole-record nighttime ln NEE vs T) ---
+  median R2 air 0.358 | soil 0.386 | median dR2(soil-air) +0.042
+  block-bootstrap verdict: decisive soil 12 | air 1 | tie 1  (binomial soil-vs-air on 13 decisive sites p=0.0034)
+--- TEST B: WITHIN-DAY driver (within-night anomalies -- the diurnalization question) ---
+  median R2 air 0.003 | soil 0.003 | median dR2(soil-air) -0.000
+  block-bootstrap verdict: decisive soil 2 | air 2 | tie 10  (binomial soil-vs-air on 4 decisive sites p=1.0000)
+--- collinearity / competitive regression ---
+  median r(TA,TS) 0.87 | median VIF 4.1 (high => competitive betas variance-inflated; treat as ONE evidence line w/ Test A)
+  median |beta_soil| 0.479 vs |beta_air| 0.227
+--- Q10 sanity (physical ~1.5-3; >3.5 flagged) ---
+  median Q10 air 2.00 | soil 2.90
+  Q10_soil>3.5 (unphysical): 3/14  sites=['US-Ho1', 'US-Los', 'US-NR1']
+--- by IGBP biome (ALL biomes; seasonal soil-win fraction) ---
+  CRO   n= 1: seasonal soil 1/1 | within-day soil 0/1  (n<3, noisy)
+  DBF   n= 2: seasonal soil 2/2 | within-day soil 0/2  (n<3, noisy)
+  ENF   n= 6: seasonal soil 6/6 | within-day soil 2/6
+  GRA   n= 2: seasonal soil 1/2 | within-day soil 0/2  (n<3, noisy)
+  WET   n= 2: seasonal soil 1/2 | within-day soil 0/2  (n<3, noisy)
+  WSA   n= 1: seasonal soil 1/1 | within-day soil 0/1  (n<3, noisy)
+--- DROP REASONS ---
+  missing           : 164
+  few_pts           : 1
+  (of 'missing', 108 lack a usable raw TS sensor -- selection caveat)
 
-(4) by IGBP biome (soil R^2 > air, median ΔR^2):
-    DBF   n= 4: soil-wins 100%  medianΔR² +0.021
-    ENF   n= 8: soil-wins  88%  medianΔR² +0.041
-    WET   n= 3: soil-wins  67%  medianΔR² +0.000
-
-per-site table (20 sites) -> fitter_diagnostics/ec_resp_driver_validation_sites.csv
+per-site -> ec_resp_driver_validation_sites.csv ; drops -> ec_resp_driver_validation_drops.csv
 DONE
