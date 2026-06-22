@@ -21,9 +21,14 @@ this file is for "what landed when, and what numbers it moved."
   max |Δ| = 0). Comments in `diurnalize-ERA5.r` and `tests/test_diurnal.r` updated; the
   `q10.factor` unit tests are unaffected (they test the response function, not the
   default). `CITATION.cff` → 2.1.0.
-- **Note:** existing diurnalized product files under `ERA5_*` predate the flip and carry
-  `respiration_temperature_driver = airtemp`; they are regenerated as soil on the next
-  production `run_year.sh` pass (no retroactive rewrite in this release).
+- **Product regenerated (2026-06-21).** The full hourly record — `ERA5/fluxes_YYYYMM.nc`,
+  **303 months, 2001-01 … 2026-03** — was re-diurnalized in place with the soil default
+  (26 per-year SLURM jobs, no failures). Verified: all 303 carry
+  `respiration_temperature_driver = soiltemp`; monthly means conserved (GPP rel.diff 0,
+  resp/NEE rel.diff ~1e-6 vs the airtemp reference) with resp July diurnal amplitude
+  ratio **0.831**; global annual NEE unchanged (~−1e-8 mol m⁻² s⁻¹, 2010/2015/2020).
+  Selecting `MICASA_RESP_DRIVER=airtemp` reproduces the byte-identical legacy product
+  (`fitter_diagnostics/bytecheck_resp_driver_default.txt`, max |Δ| = 0).
 
 ## 2026-06-21 — V1→V2 justification hardening; verify_v2 §20 + 11.1; block-bootstrap CIs
 

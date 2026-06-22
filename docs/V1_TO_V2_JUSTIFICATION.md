@@ -377,6 +377,13 @@ product (justified below), not the byte-identical no-op the rest of §2–§4 ar
 effect is small at the NEE level (+2.3% diurnal amplitude) and concentrated in the
 boreal cold season where the air-temperature proxy is least physical.
 
+The full hourly product has been regenerated on the soil default: the entire record
+(`ERA5/fluxes_YYYYMM.nc`, **303 months, 2001-01 … 2026-03**) was re-diurnalized in place
+on 2026-06-21, and every file now carries `respiration_temperature_driver = soiltemp`.
+The regeneration is mass-preserving (GPP monthly mean unchanged to the bit; resp/NEE
+monthly means conserved to ~1e-6 vs the airtemp reference, resp July diurnal amplitude
+ratio **0.831**) and leaves the global annual NEE budget unchanged (§0).
+
 The legacy air-temperature path remains fully selectable
 (`MICASA_RESP_DRIVER=airtemp`) and is **byte-identical to the V1 canonical product** —
 verified by a committed `ncdiff` run
