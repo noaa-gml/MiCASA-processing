@@ -226,6 +226,40 @@ resolution against MiCASA's native daily product;
 it confirms the reconstruction recovers MiCASA's sub-monthly shape
 without importing MiCASA's meteorology into the prior.
 
+### Why calendar-month means, not a rolling mean?
+
+Calendar months are an arbitrary 28–31-day discretization, so a sliding
+(rolling) monthly mean as the quantity the fit targets is a natural
+thing to consider. We don't, for three reasons:
+
+1. **Integral preservation / mass conservation.** Calendar-month bins
+   *partition* time, so "the fit's per-piece integral equals the bin
+   mean" is well-posed, and `verify_v2` checks the product by
+   re-aggregating to those same months. A rolling mean is a low-pass
+   filter over *overlapping* windows that do not partition time, so
+   "preserve the rolling means" is over-determined and no longer
+   corresponds to a clean conserved monthly total — losing the exact
+   mass-conservation guarantee the inversion and the verify harness both
+   depend on.
+
+2. **NRT.** A *centered* rolling mean needs data on both sides of each
+   point, which does not exist at the trailing edge (the current month) —
+   exactly the case the fit is built to handle; a *trailing* rolling mean
+   lags by half a window. Calendar means + PCHIP have a clean ~1-month
+   NRT footprint with no lag.
+
+3. **No new information, and it partly defeats the purpose.** A rolling
+   mean is derived from the same daily data; retaining more sub-monthly
+   structure would smuggle *some* of MiCASA's MERRA-2 sub-monthly timing
+   back into a prior whose transport runs on ERA5 — the same meteo
+   inconsistency the monthly-mean step exists to remove (see above).
+
+The concern a rolling mean usually addresses — jagged month-to-month
+steps or a Dec→Jan boundary kink — is already handled: PCHIP-on-
+cumulative is C¹ at the knots by construction and uses true month-edge
+times, so it accounts for unequal month lengths and gives a smooth curve
+between month means without a sliding window.
+
 ## Why NEE = Rh − NPP, not Rh − NPP − ATMC
 
 NCCS publishes an "atmospheric correction" (`ATMC`) field alongside
