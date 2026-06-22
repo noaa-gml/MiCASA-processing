@@ -87,9 +87,9 @@ The rest of this summary follows the document's structure, one bullet per sectio
   doesn't fix non-locality, injects a **0.97 mol m⁻² s⁻¹** discontinuity vs PCHIP's
   exact **0**, only *ties* on daily fidelity).
 - **§6 — Standing verification base:** `verify_v2` — 60 checks, committed clean at
-  **54 PASS / 8 INFO / 0 FAIL / 0 WARN**, re-run on the shipped soil product
-  (`verify_v2_summary_soil_20260622.txt`; identical tally to the pre-flip
-  `verify_v2_summary_20260621.txt`): every
+  **55 PASS / 7 INFO / 0 FAIL / 0 WARN** on the shipped air+conserve product
+  (`verify_v2_summary_20260622.txt`; one more PASS than the pre-conserve run as the
+  conserve clip closes the high-latitude mass-gap check 2.2): every
   product / science / provenance check passes, including the §20 cross-product checks
   and the §24 run-manifest audit. Plus `tests/` (153 on Orion; 143 reproduced green
   locally, 10 `quadprog`-gated). V1 has no comparable harness.
@@ -666,8 +666,8 @@ biome cells + trends (12.1–12.2, 13.1–13.2, 14.1–14.3, 15.1–15.3 trend/E
 16.x diagnostics); Sections 17 diurnal integrity, 18 PCHIP invariants, 19
 additional biomes, 20 cross-product, 21 robustness, 22 performance, 23 provenance,
 24 manifest (§24 = observability meta-checks on the run log, *not* product
-assertions). Committed run `verify_v2_summary_20260621.txt`: **54 PASS / 8 INFO / 0 FAIL / 0
-WARN** — every product / science / provenance check passes; the rest are INFO
+assertions). Committed run `verify_v2_summary_20260622.txt` (air+conserve product):
+**55 PASS / 7 INFO / 0 FAIL / 0 WARN** — every product / science / provenance check passes; the rest are INFO
 context. The checks that earlier needed attention are now clean:
 - **§3.1 / §20.1** — v2-vs-v1 per-band annual NEE agrees to **0.04%** over 2001–2024
   (`fitter_diagnostics/check_20_crossproduct.py`): the §3.1 aggregation fix shifts no
