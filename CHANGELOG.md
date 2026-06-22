@@ -4,6 +4,24 @@ Dated engineering entries for the active (`main`) branch. Conceptual /
 methodological reasoning lives in [`docs/PROPOSALS.md`](docs/PROPOSALS.md);
 this file is for "what landed when, and what numbers it moved."
 
+## 2026-06-21 — default polar-night clip → mass-conserving (staged for v2.2.0)
+
+- **`MICASA_POLAR_CLIP` default `plain` → `conserve`** (`diurnalize-ERA5.r`). The plain
+  zero-clip dropped dark-hour GPP, leaving a small high-latitude GPP monthly-mean gap
+  (Check 2.2: ~0.16% median, ~2% p99 cell-month). The new default redistributes that
+  clipped uptake onto each cell's lit hours (`polar.night.renorm`, `lib/diurnal.r`),
+  restoring the monthly mean exactly — so the *delivered* (post-diurnalize) field is now
+  mass-preserving at high latitudes too, closing the one place §0's integral-preservation
+  did not previously hold in the shipped product. `MICASA_POLAR_CLIP=plain` reverts to
+  the legacy zero-clip (byte-identical to the pre-conserve product).
+- **Byte-identity to legacy now needs both diurnal flags:**
+  `MICASA_RESP_DRIVER=airtemp MICASA_POLAR_CLIP=plain`. Docs updated (V1_TO_V2 §0/§2/§3.2,
+  METHODOLOGY, DIURNALIZATION_ALTERNATIVES, PROPOSALS #8). `q10.factor`/clip unit tests
+  unaffected (they test the functions, not the default); diurnal tests pass, script parses.
+- **Not yet shipped:** the on-disk product (`ERA5/`, regenerated to soil + *plain* clip
+  earlier today) still carries the plain clip; baking in `conserve` needs another
+  re-diurnalize, and the tag would be **v2.2.0**.
+
 ## 2026-06-21 — v2.1.0: default respiration driver flipped to soil temperature
 
 - **`MICASA_RESP_DRIVER` default `airtemp` → `soiltemp`** (`diurnalize-ERA5.r`). V2 now

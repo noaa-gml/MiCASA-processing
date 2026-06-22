@@ -168,9 +168,14 @@ Within the month:
   `rtot.mn`.
 
 - **Polar-night clip** (proposal #8): at any cell-hour where
-  `ssrd == 0`, `gpp` is forced to 0 before NEE is summed. This
-  handles the residual `qmod.gpp − gpp.mn` term that would otherwise
-  leak into pure-darkness hours.
+  `ssrd == 0`, `gpp` is forced to 0 before NEE is summed — handling the
+  residual `qmod.gpp − gpp.mn` term that would otherwise leak into
+  pure-darkness hours. By default (`MICASA_POLAR_CLIP=conserve`) the
+  clipped dark-hour uptake is then **redistributed onto each cell's lit
+  hours**, so the monthly mean is preserved exactly even at
+  partial-polar-night latitudes (`polar.night.renorm`, `lib/diurnal.r`).
+  `MICASA_POLAR_CLIP=plain` keeps the legacy zero-clip (drops the
+  dark-hour flux, leaving a ~0.16%-median high-latitude GPP gap).
 
 - **NEE** is then computed as `nee = gpp + resp` — equivalently
   `Rh − NPP`. We do **not** subtract MiCASA's ATMC field; see below.

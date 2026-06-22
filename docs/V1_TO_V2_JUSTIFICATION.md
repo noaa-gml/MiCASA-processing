@@ -69,12 +69,14 @@ The rest of this summary follows the document's structure, one bullet per sectio
   AmeriFlux sites, p=0.003), and the **within-day** relationship the diurnalization
   actually sets is a **tie** (R²≈0.003 for both, below the EC noise floor). So the flip
   has no measured within-day downside and is seasonally + mechanistically correct.
-  The legacy air path stays selectable and byte-identical (`MICASA_RESP_DRIVER=airtemp`),
-  so the change is reversible to the bit. Independent of the V1→V2 fitter switch.
+  The legacy air path stays selectable (`MICASA_RESP_DRIVER=airtemp`), reversible to the
+  bit (byte-identical to the full legacy product together with `MICASA_POLAR_CLIP=plain`,
+  §3.2). Independent of the V1→V2 fitter switch.
 - **§3 — The other number-moving changes are small and correct:** the 0.1°→1°
   aggregation latitude-weight bug fix (V1 mis-weighted; <0.01% typical, larger toward
-  poles), the polar-night GPP = 0 clip (~0.16% median high-latitude GPP gap;
-  mass-conserving variant available opt-in), the ERA5 FastTrack fallback (NRT
+  poles), the polar-night clip now **mass-conserving by default** (closes the ~0.16%
+  median high-latitude GPP gap; `MICASA_POLAR_CLIP=plain` for the legacy zero-clip),
+  the ERA5 FastTrack fallback (NRT
   trailing months only), and per-month climatology auto-detect.
 - **§4 — Everything else is a proven no-op:** 15 library / refactor / compression /
   provenance / manifest / packaging changes, each verified bit-identical or
@@ -102,7 +104,7 @@ the respiration-driver flip — are bold.
 | 1 | Fitter **PIQS → PCHIP** | A | budget unchanged (integral-preserving); sub-monthly sign-flips ~11% → ≤0.9%; NRT-local | §1 |
 | 2 | **Respiration driver: 2-m air → soil temp** | A (shipped) | **default flipped to soil** — soil better *seasonally* (12/13, p=0.003); within-day (what diurnalization sets) a tie (R²≈0.003 both) so no downside; +2.3% NEE diurnal amp; airtemp selectable & byte-identical | §2 |
 | 3.1 | 0.1°→1° aggregation latitude-weight bug fix | A | V1 mis-weighted; <0.01% typical, larger toward poles | §3.1 |
-| 3.2 | Polar-night GPP = 0 clip | A | ~0.16% median GPP gap (mass-conserving clip available opt-in) | §3.2 |
+| 3.2 | Polar-night clip — **mass-conserving by default** | A | closes the ~0.16% median high-latitude GPP gap (redistributes onto lit hours); legacy zero-clip = `MICASA_POLAR_CLIP=plain` | §3.2 |
 | 3.3 | ERA5 FastTrack dual-tree fallback | A | NRT trailing months only; per-day provenance | §3.3 |
 | 3.4 | Per-month climatology auto-detect | A | real-vs-climatology decided per month by file presence | §3.4 |
 | — | 15 library / refactor / compression / provenance / manifest / packaging changes | B | proven no-ops (bit-identical or exact-equivalent) | §4 |
@@ -138,12 +140,14 @@ equals that month's MiCASA mean. Therefore *the monthly-and-longer carbon budget
 COVID signals — is identical across any two fitters* **at the fit level**. Two
 scope caveats:
 - This is a property of the *fitter*. The **shipped** hourly NEE additionally
-  applies a polar-night clip (§3.2) that zeros GPP in dark hours, opening a small
-  **GPP monthly-mean gap** — a property of the clip, not the fitter, and identical
-  PIQS↔PCHIP. It is localized to high latitudes (Check 2.2: ~0.16% median cell-month,
-  ~2% p99) and globally negligible. So "mass-preserving" is exact for the fit and
-  ~0.16%-approximate (median) for the delivered GPP at high latitudes. A
-  **mass-conserving clip** that closes this gap is available opt-in (§3.2).
+  applies a polar-night clip (§3.2). Under the legacy *plain* zero-clip this opened a
+  small **GPP monthly-mean gap** at high latitudes (Check 2.2: ~0.16% median cell-month,
+  ~2% p99) — a property of the clip, not the fitter. **V2's default conserve clip closes
+  it**: it redistributes the clipped dark-hour uptake onto each cell's lit hours,
+  restoring the monthly mean exactly. So "mass-preserving" is exact for the fit and, on
+  the conserve default, for the delivered GPP too (by construction). (`MICASA_POLAR_CLIP=plain`
+  reverts to the legacy gap; the production record is re-diurnalized onto the conserve
+  default for v2.2.0 — see CHANGELOG.)
 - Mass-preservation is exact; **sign-preservation is not** (see §1, claim 2) —
   the two are independent.
 
@@ -160,9 +164,10 @@ two legs:
   match to high precision: **trend +0.0299 (PCHIP) vs +0.0299 (PIQS), Δ = 2×10⁻⁵
   PgC/yr/yr**; 2015-16 El Niño anomaly **+0.091 vs +0.090**; 2020 COVID **−0.042 vs
   −0.041** (Δ < 0.001 PgC). The absolute annual NEE agrees to **≤0.5% (worst year),
-  ~0.4% in the mean** — that residual is the polar-night clip (§3.2) removing slightly
-  different dark-hour GPP from the two fitters' different sub-monthly shapes, *not* a
-  fit-level budget difference. (The +0.0299 trend over this window matches verify_v2
+  ~0.4% in the mean** — that residual was the *plain* polar-night clip (§3.2) removing
+  slightly different dark-hour GPP from the two fitters' different sub-monthly shapes,
+  *not* a fit-level budget difference (and the V2 default conserve clip removes it
+  entirely, since it restores each monthly mean exactly). (The +0.0299 trend over this window matches verify_v2
   Check 16.2's independently-computed v1-only slope, validating the calculation; the
   full-record headline trend is +0.0447, §15.1.)
 
@@ -384,14 +389,15 @@ The regeneration is mass-preserving (GPP monthly mean unchanged to the bit; resp
 monthly means conserved to ~1e-6 vs the airtemp reference, resp July diurnal amplitude
 ratio **0.831**) and leaves the global annual NEE budget unchanged (§0).
 
-The legacy air-temperature path remains fully selectable
-(`MICASA_RESP_DRIVER=airtemp`) and is **byte-identical to the V1 canonical product** —
-verified by a committed `ncdiff` run
+The legacy diurnal product remains fully reproducible by selecting the two legacy
+defaults together — `MICASA_RESP_DRIVER=airtemp MICASA_POLAR_CLIP=plain` — which is
+**byte-identical to the V1 canonical product**, verified by a committed `ncdiff` run
 ([`fitter_diagnostics/bytecheck_resp_driver_default.txt`](../fitter_diagnostics/bytecheck_resp_driver_default.txt):
 max |Δ| = 0 for GPP/resp/NEE, the airtemp-selected code vs the canonical
-`ERA5_2020_pchip/fluxes_202007.nc`), run-and-diffed, not argued from source. So the
-change is **reversible to the bit** by one env var — the soil driver is the new default
-because the evidence (below) supports it, but nothing about V1's behaviour is lost.
+`ERA5_2020_pchip/fluxes_202007.nc`), run-and-diffed, not argued from source. So the V2
+diurnal changes (the soil driver here, the conserve clip in §3.2) are **reversible to
+the bit** by env var — both are new defaults because the evidence supports them, but
+nothing about V1's behaviour is lost.
 (The **Lloyd-Taylor** response function `MICASA_RESP_TEMPFUN` stays **opt-in,
 default-off** — its within-day effect is unvalidated; see that doc §5.3, §5.1–5.2 for
 the measured shadow-diffs.)
@@ -447,7 +453,8 @@ p=0.003), it is the mechanistically correct variable (decomposition responds to 
 not air, temperature), and its damped, lagged imposed cycle (0.80 amplitude ratio,
 +1 h) is the more conservative choice given respiration shows no strong within-night
 temperature response of either kind. The switch is free (`stl1` already loaded), mass-
-conserving, and reversible to the bit (`MICASA_RESP_DRIVER=airtemp`). So V2 defaults to
+conserving, and reversible to the bit (`MICASA_RESP_DRIVER=airtemp`, plus
+`MICASA_POLAR_CLIP=plain` for the full legacy product). So V2 defaults to
 soil. I do **not** overclaim a within-day improvement — there isn't one in the tower
 data; the argument is "principled default, with no measured downside." Caveats, all in the script output: r(TA,TS)=0.87 /
 VIF 4.1, so the competitive-regression betas are variance-inflated and count as **one**
@@ -482,31 +489,33 @@ gradient across a 1° block is largest. **Verification:** `tests/test_aggregate.
 area; `lib/test_ingest_bitident.r` confirms the read path. Justification is not
 "I prefer V2" but "V1 mis-weighted; V2 matches the analytic cos-lat area."
 
-### 3.2 Polar-night GPP = 0 clip
+### 3.2 Polar-night GPP = 0 clip — now mass-conserving by default
 Physical: no incoming shortwave ⇒ no photosynthesis. The clip zeros GPP wherever
 `ssrd == 0`, removing the small residual the sub-monthly quadratic otherwise
 leaks into dark hours (a spot check of `fluxes_202512.nc`: ~2.6% of cells touched,
 max |GPP| = 9.4e-9 mol m⁻² s⁻¹ — illustrative, not a verify_v2 check; Check 12.2
-verifies >75 N GPP = 0). Cost: a small **GPP monthly-mean gap** — zeroing dark-hour
-GPP drops flux the fit had assigned there. It is **not** a global 1.5%: Check 2.2
-measures the GPP monthly-mean rel-diff at **p50 ≈ 0.16%, p99 ≈ 2.0%** (the tail is
-the partial-polar-night high-latitude cells; the "~1.5%" elsewhere in this doc is a
-rough high-latitude figure, refined here). Globally it is negligible, and under
-PCHIP it is smaller still (the fit barely leaks into dark hours). The threshold was
-relaxed (Check 2.2, 1% → 5%) to acknowledge the high-latitude tail; the clip is kept
-as defense-in-depth.
+verifies >75 N GPP = 0). The *plain* zero-clip drops that dark-hour flux outright,
+opening a small **GPP monthly-mean gap** — **not** a global 1.5%: Check 2.2 measured
+the GPP monthly-mean rel-diff at **p50 ≈ 0.16%, p99 ≈ 2.0%** (the tail is the
+partial-polar-night high-latitude cells; the "~1.5%" elsewhere in this doc is a rough
+high-latitude figure, refined here).
 
-**A mass-conserving clip is available (opt-in, byte-identical default).** Setting
-`MICASA_POLAR_CLIP=conserve` invokes `polar.night.renorm` (`lib/diurnal.r`):
-after zeroing dark-hour GPP, it **redistributes the clipped uptake onto each cell's
-remaining lit hours** (a uniform per-cell rescale, preserving the ssrd-proportional
-shape) so the monthly mean is **restored exactly** — precisely at the
-partial-polar-night cells where the gap lives. A cell that is dark *all month* (full
-polar night) has no lit hours to redistribute onto, but its monthly-mean GPP should
-be ≈0 there anyway, so it stays zeroed (the residual removed is the fit's spurious
-leak). Unit-tested (`tests/test_diurnal.r`: mean restored to ~1e-12, dark hours stay
-0, full-dark cells don't blow up); default off so the shipped product is unchanged.
-**Verification:** Checks 2.2, 12.2, 17.1.
+**V2 closes that gap by default.** The default (`MICASA_POLAR_CLIP=conserve`) invokes
+`polar.night.renorm` (`lib/diurnal.r`): after zeroing dark-hour GPP, it
+**redistributes the clipped uptake onto each cell's remaining lit hours** (a uniform
+per-cell rescale, preserving the ssrd-proportional shape) so the monthly mean is
+**restored exactly** — precisely at the partial-polar-night cells where the gap lived.
+A cell that is dark *all month* (full polar night) has no lit hours to redistribute
+onto, but its monthly-mean GPP should be ≈0 there anyway, so it stays zeroed (the
+residual removed is the fit's spurious leak). So on this default the delivered
+(post-diurnalize) field is mass-preserving at high latitudes too — by construction —
+closing the one place §0's integral-preservation did not previously hold in the
+delivered field. Setting
+`MICASA_POLAR_CLIP=plain` restores the legacy zero-clip (byte-identical to the
+pre-conserve product). Unit-tested (`tests/test_diurnal.r`: mean restored to ~1e-12,
+dark hours stay 0, full-dark cells don't blow up). **Verification:** Checks 2.2, 12.2, 17.1.
+*(Staged for v2.2.0: the code default is `conserve`; the production record is
+re-diurnalized onto it on the next pass — see CHANGELOG.)*
 
 ### 3.3 ERA5 dual-tree FastTrack fallback
 Only affects NRT trailing months the primary ERA5 tree has not yet populated;
@@ -753,11 +762,12 @@ behavior-preserving item maps to a proof in the §4 table.
   trend is also **non-stationary** (Check 16.2: first-half 2001–2012 +0.0274,
   second-half 2013–2025 +0.1031 — ~3.8× steeper), which only strengthens the case
   for letting the inversion, not a baked-in correction, resolve it.
-- **Polar-night clip** leaves a small high-latitude GPP monthly-mean gap (Check 2.2:
-  ~0.16% median, ~2% p99 cell-month; globally negligible) — so the *shipped* product
-  is not exactly mass-preserving there (§0/§3.2). A mass-conserving clip that closes
-  it (`MICASA_POLAR_CLIP=conserve`) is available opt-in; the default is the plain
-  zero-clip (largely redundant under PCHIP, kept defensively).
+- **Polar-night clip** — the legacy plain zero-clip left a small high-latitude GPP
+  monthly-mean gap (Check 2.2: ~0.16% median, ~2% p99 cell-month). V2 now defaults to
+  the **mass-conserving clip** (`MICASA_POLAR_CLIP=conserve`), which redistributes the
+  clipped dark-hour uptake to restore the monthly mean exactly, so the *shipped* product
+  is mass-preserving at high latitudes too (§0/§3.2). `MICASA_POLAR_CLIP=plain` reverts
+  to the legacy zero-clip.
 - **PCHIP is not sign-definite everywhere** — it cuts sub-monthly sign flips
   16–60× vs PIQS but leaves a small bounded residual (≤0.94% of GPP cell-hours;
   reproduced in `fitter_diagnostics/pchip_sign_definiteness.r`), mopped up by the

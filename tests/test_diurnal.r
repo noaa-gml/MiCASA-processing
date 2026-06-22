@@ -122,7 +122,7 @@ check("lt.factor: constant prefactor cancels in f/mean(f)",
 check("lt.factor operates element-wise on a matrix",
       is.matrix(lt.factor(Tm)) && all(dim(lt.factor(Tm)) == c(3, 4)))
 
-## ---- polar.night.renorm: mass-conserving polar-night clip (opt-in) ------------
+## ---- polar.night.renorm: mass-conserving polar-night clip (V2 default) --------
 .ns <- 24L; .nd <- 8L
 .g0 <- array(-abs(seq_len(2L*3L*.ns)) * 1e-9, c(2, 3, .ns))   # GPP < 0 (uptake)
 .mn <- apply(.g0, c(1, 2), mean)                              # true monthly mean (pre-clip)

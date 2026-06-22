@@ -392,15 +392,18 @@ for (mon in mon.range) {
     qresp[, , islot] <- qmod.resp
   }
 
-  ## Optional mass-conserving polar-night clip (MICASA_POLAR_CLIP=conserve):
-  ## the plain per-slot clip above drops the dark-hour GPP, opening a small
+  ## Mass-conserving polar-night clip (MICASA_POLAR_CLIP, default "conserve").
+  ## The plain per-slot clip above drops the dark-hour GPP, opening a small
   ## high-latitude mass gap (Check 2.2: ~0.16%% median / ~2%% p99 cell-month).
-  ## When enabled, redistribute that clipped uptake onto each cell's lit hours so
-  ## the monthly mean is preserved. Default off => byte-identical to the zero-clip.
-  if (identical(Sys.getenv("MICASA_POLAR_CLIP"), "conserve")) {
+  ## The V2 default redistributes that clipped uptake onto each cell's lit hours so
+  ## the monthly mean is preserved. Set MICASA_POLAR_CLIP=plain for the legacy
+  ## zero-clip (byte-identical to the pre-conserve product).
+  if (!identical(Sys.getenv("MICASA_POLAR_CLIP", "conserve"), "plain")) {
     gpp <- polar.night.renorm(gpp, gpp.mn)
     nee <- gpp + resp
-    cat("MICASA_POLAR_CLIP=conserve: dark-hour GPP redistributed onto lit hours (mass-conserving)\n")
+    cat("MICASA_POLAR_CLIP=conserve (default): dark-hour GPP redistributed onto lit hours (mass-conserving)\n")
+  } else {
+    cat("MICASA_POLAR_CLIP=plain: legacy zero-clip (dark-hour GPP dropped)\n")
   }
 
   ## One-line per-month diagnostic. Denominators are land cells with the

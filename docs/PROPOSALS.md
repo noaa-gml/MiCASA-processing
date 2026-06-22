@@ -193,6 +193,15 @@ After the PCHIP switch ([#10](#10-landed-2026-05-04-pchip-on-cumulative-as-the-p
 this clip is largely redundant (PCHIP's residual sub-monthly leak is small —
 ≤0.94% of GPP cell-hours, not zero), but kept as a defensive belt-and-suspenders.
 
+**[UPDATE 2026-06-21] Mass-conserving clip is now the default.** Rather than dropping
+the clipped dark-hour uptake (which left a ~0.16%-median / ~2% p99 high-latitude GPP
+monthly-mean gap), the default `MICASA_POLAR_CLIP=conserve` redistributes it onto each
+cell's lit hours via `polar.night.renorm` (`lib/diurnal.r`), restoring the monthly mean
+exactly. `MICASA_POLAR_CLIP=plain` reverts to the legacy zero-clip (byte-identical to
+the pre-conserve product). This makes the delivered (post-diurnalize) field
+mass-preserving at high latitudes, closing the one place §0's integral-preservation did
+not previously hold in the shipped product.
+
 ## (9) [CONSIDERED, NOT PURSUED] Linear PIQS as a sign-flip remedy
 
 Suggested in conversation 2026-04-30: drop the per-piece quadratic to

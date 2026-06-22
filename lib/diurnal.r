@@ -76,8 +76,9 @@ polar.night.clip <- function(gpp, driver) {
 ## per-cell rescale, which preserves the ssrd-proportional diurnal shape. Cells with
 ## no lit hours all month (full polar night) have nothing to redistribute onto and
 ## stay zeroed; their monthly-mean GPP should be ~0 there anyway, so the residual
-## removed is the fit's spurious dark-hour leak. Opt-in via MICASA_POLAR_CLIP=conserve;
-## the default zero-clip (polar.night.clip) is byte-identical.
+## removed is the fit's spurious dark-hour leak. This is the V2 default
+## (MICASA_POLAR_CLIP=conserve); MICASA_POLAR_CLIP=plain falls back to the legacy
+## byte-identical zero-clip (polar.night.clip alone).
 ##   gpp    [lat, lon, nslot] hourly GPP, already dark-clipped
 ##   gpp.mn [lat, lon]        target monthly-mean GPP
 polar.night.renorm <- function(gpp, gpp.mn) {

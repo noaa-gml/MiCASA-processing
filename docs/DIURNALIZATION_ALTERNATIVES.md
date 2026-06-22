@@ -36,7 +36,9 @@ Q10(t)  = 1.5 ^ ( (t2m(t) − 273.15) / 10 )
   factor on **2-m air temperature** `t2m`.
 - `qmod` is the fitter's within-month deviation from the monthly mean; averaged
   over the month each component returns its MiCASA monthly total (exact mass).
-- A **polar-night clip** zeros GPP wherever `ssrd == 0`.
+- A **polar-night clip** zeros GPP wherever `ssrd == 0`; by default
+  (`MICASA_POLAR_CLIP=conserve`) the clipped uptake is redistributed onto the cell's
+  lit hours so the monthly mean is preserved (`MICASA_POLAR_CLIP=plain` = legacy drop).
 
 The diurnal *shape* comes 100% from the driver ratio. `qmod` only modulates the
 slowly-varying monthly envelope.
@@ -343,8 +345,9 @@ gap-fill — raw-only here); 108 candidate sites dropped for lacking a raw soil 
 (selection toward soil-instrumented towers).
 
 **Cost and risk** are nil: zero new inputs (`stl1` already loaded), every monthly total
-conserved, and reversible to the bit — selecting `airtemp` is byte-identical to legacy
-(`fitter_diagnostics/bytecheck_resp_driver_default.txt`, max |Δ| = 0). So I recommend
+conserved, and reversible to the bit — `airtemp` + `MICASA_POLAR_CLIP=plain` is
+byte-identical to legacy (`fitter_diagnostics/bytecheck_resp_driver_default.txt`,
+max |Δ| = 0). So I recommend
 **defaulting to soil**: the within-day tie means no measured downside, while soil is the
 seasonally better and mechanistically correct variable (respiration occurs in the soil;
 its damped 0.80 / +1 h imposed cycle is the *conservative* choice given respiration
