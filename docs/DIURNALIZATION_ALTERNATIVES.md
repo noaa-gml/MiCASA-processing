@@ -320,13 +320,15 @@ total conserved exactly, default-off byte-identical to the current product
 (`fitter_diagnostics/bytecheck_resp_driver_default.txt`, max |Δ| = 0). **The
 eddy-covariance validation — the one independent test that soil is the *correct*
 driver — has now been run** (`fitter_diagnostics/ec_resp_driver_validation.py`,
-AmeriFlux half-hourly): at night (NEE ≈ respiration, no GPP, no partitioning model),
-soil temperature explains nighttime respiration better than air at **11/14 sites
-(79%)** with soil-temp + nighttime flux (median R² 0.315 vs 0.295; ΔR² +0.02–0.05),
-and the partitioned-RECO diurnal amplitude is damped toward soil (0.86× the air-Q10).
-It **supports soil** — modestly, consistent with the small NEE effect; a fuller
-FLUXNET2015 test would sharpen it. The gate is addressed and points the right way;
-default flip pending sign-off.
+AmeriFlux half-hourly, 20 sites): at night (NEE ≈ respiration, no GPP, no
+partitioning model), two converging tests favour soil — separate fits soil>air at
+**16/20 (80%)** (ΔR² +0.02), and a **competitive** multiple regression on both
+standardized temperatures gives soil **80%** with ~1.7× the predictive weight
+(|β_soil| 0.45 vs |β_air| 0.26; Q10 physical). Strongest in forests (ENF 88%,
+DBF 100%) where insulating litter decouples soil from air; ambiguous in water-buffered
+wetlands. It **supports soil** — modestly, consistent with the small NEE effect; a
+fuller FLUXNET2015 test would sharpen it. The gate is addressed and points the right
+way; default flip pending sign-off.
 
 **Lloyd-Taylor stays opt-in:** it swings respiration amplitude 1.5–3.7× but NEE
 only ~1% (§5.3), and its steep low-T sensitivity is the uncertain piece — flip it

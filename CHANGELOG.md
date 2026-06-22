@@ -15,12 +15,14 @@ this file is for "what landed when, and what numbers it moved."
   all 12 months exclude 1. Resp amplitude ratio 0.80 [0.78,0.83] (boreal 0.61). The 3
   resp-driver figures regenerated on full-year 2019.
 - **Eddy-covariance validation of the respiration driver** (`fitter_diagnostics/ec_resp_driver_validation.py`,
-  AmeriFlux half-hourly). The open gate on the soil-temp flip: at night (NEE ≈ respiration,
-  no GPP/partitioning) soil temperature explains nighttime respiration better than air at
-  **11/14 sites (79%)** with soil-temp + nighttime flux (median R² 0.315 vs 0.295, ΔR²
-  +0.02–0.05); partitioned-RECO diurnal amplitude damped toward soil (0.86× air-Q10).
-  Supports the soil-temp driver (modest margin); §2 + DIURNALIZATION_ALTERNATIVES updated
-  to recommend the flip.
+  AmeriFlux half-hourly, 20 sites). The open gate on the soil-temp flip: at night
+  (NEE ≈ respiration, no GPP/partitioning), two converging non-circular tests favour
+  soil — separate fits soil>air at **16/20 (80%)** (ΔR² +0.02), and a **competitive**
+  multiple regression on both standardized temps gives soil **80%** with ~1.7× the
+  predictive weight (|β_soil| 0.45 vs |β_air| 0.26; Q10 physical, soil 2.8 / air 2.1).
+  Strongest in forests (ENF 88%, DBF 100%) where insulating litter decouples soil from
+  air; ambiguous in water-buffered wetlands. Supports the soil-temp driver; §2 +
+  DIURNALIZATION_ALTERNATIVES updated to recommend the flip.
 - **Direct PIQS↔PCHIP product diff** (`fitter_diagnostics/piqs_vs_pchip_section15.py`):
   global annual NEE over 2001-2024 — trend Δ 2e-5 PgC/yr/yr, ENSO/COVID Δ <1e-3 PgC,
   absolute annual ≤0.5% (polar-clip × sub-monthly shape). Converts the §0 budget-invariance

@@ -62,10 +62,11 @@ The rest of this summary follows the document's structure, one bullet per sectio
   decision requested).** Drive respiration off **soil** temperature rather than 2-m
   air: physically correct, small and sign-correct at the NEE level (full-year 2019
   diurnal-amplitude ratio **+2.3%, 95% CI [1.021, 1.024]**, all 12 months exclude 1),
-  and free (`stl1` already loaded). The eddy-covariance gate is now **addressed** —
-  an AmeriFlux night test finds soil temperature explains nighttime respiration
-  better than air at **79% of sites** (modest margin) — so we recommend the flip;
-  Lloyd-Taylor stays opt-in. **Awaiting your sign-off.**
+  and free (`stl1` already loaded). The eddy-covariance gate is now **addressed** — an
+  AmeriFlux night test (20 sites, two independent methods) finds soil temperature beats
+  air for nighttime respiration at **80% of sites**, strongest in forests where the
+  physics predicts — so we recommend the flip; Lloyd-Taylor stays opt-in. **Awaiting
+  your sign-off.**
 - **§3 — The other number-moving changes are small and correct:** the 0.1°→1°
   aggregation latitude-weight bug fix (V1 mis-weighted; <0.01% typical, larger toward
   poles), the polar-night GPP = 0 clip (~0.16% median high-latitude GPP gap;
@@ -396,18 +397,25 @@ driver's own `stl1`/`t2m` amplitude ratio — respiration is a monotone function
 its temperature driver — so that self-consistency confirms the implementation uses
 soil temperature; it is **not** independent evidence that soil temperature is the
 *correct* driver — that takes an independent observation. **We have now run that
-eddy-covariance check** (`fitter_diagnostics/ec_resp_driver_validation.py`, AmeriFlux
-half-hourly): at night, where NEE ≈ ecosystem respiration with no GPP and no
-partitioning model, **soil temperature explains nighttime respiration better than air
-at 11 of 14 sites (79%)** with soil-temp + nighttime flux (median R² 0.315 vs 0.295;
-ΔR² +0.02 to +0.05 on the stricter subset); the few sites that ship partitioned RECO
-also show the observed diurnal amplitude **damped** toward the soil prediction (0.86×
-the air-Q10 amplitude). So the EC evidence **supports soil temperature** — modestly,
-which is consistent with the small (~2%) NEE-level effect. The margin is not large
-and a fuller FLUXNET2015 test would sharpen it, but the gate that was open is now
-addressed and points the right way: **we recommend flipping the default to soil.**
-The change remains free, opt-in, and mass-conserving today
-(`MICASA_RESP_DRIVER=soiltemp`), and is independent of the V2 switch. **Lloyd-Taylor** (the alternative
+eddy-covariance check** (`fitter_diagnostics/ec_resp_driver_validation.py`, **20**
+AmeriFlux sites; at night NEE ≈ ecosystem respiration, no GPP, no partitioning model),
+and two converging non-circular tests both favour soil:
+- **Separate fits:** soil temperature explains nighttime respiration better than air
+  at **16/20 sites (80%)** (median R² 0.35 vs 0.34, ΔR² +0.02).
+- **Competitive** (multiple regression on *both* standardized temperatures, which
+  controls for the air–soil correlation): soil wins at **16/20 (80%)** and carries
+  **~1.7× the predictive weight** (median |β_soil| 0.45 vs |β_air| 0.26); implied Q10
+  is physical for both (soil 2.8, air 2.1).
+
+The signal is **strongest exactly where the physics predicts** — evergreen-needleleaf
+forest (88%, ΔR² +0.04) and deciduous broadleaf (100%), where insulating litter and
+canopy decouple soil from swinging air — and ambiguous only in water-buffered
+wetlands. So the EC evidence **supports soil temperature**; the median margin is
+modest, consistent with the small (~2%) NEE-level effect, and the raw-nighttime-flux
+filter limits N to 20 of the 97 sites with the needed sensors (a FLUXNET2015 run would
+raise it). The gate that was open is addressed and points the right way:
+**we recommend flipping the default to soil.** The change is free, opt-in, and
+mass-conserving today (`MICASA_RESP_DRIVER=soiltemp`), independent of the V2 switch. **Lloyd-Taylor** (the alternative
 temperature-response *function*, orthogonal to the driver choice) stays opt-in: it
 swings respiration amplitude 1.5–3.7× but moves NEE only ~1% outside boreal winter,
 and its steep low-temperature sensitivity is the uncertain piece — flip it only
@@ -717,7 +725,7 @@ behavior-preserving item maps to a proof in the §4 table.
   clip. "Eliminated by construction" would be an overstatement (§1).
 - **Diurnal respiration refinements** (soil-temp, Lloyd-Taylor) are implemented and
   opt-in. The **soil-temp** driver's eddy-covariance gate has now been run and
-  supports it (79% of AmeriFlux night-test sites, modest margin; §2) — flip pending
+  supports it (80% of 20 AmeriFlux night-test sites by two methods, strongest in forests; §2) — flip pending
   sign-off. **Lloyd-Taylor** stays opt-in pending its own EC check (its low-T
   sensitivity is the uncertain piece).
 - **Prior uncertainty is constructed, not native.** MiCASA ships **no per-pixel
