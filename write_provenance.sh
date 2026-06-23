@@ -84,9 +84,24 @@ SAMPLE="$(ls -t "$ERA5_DIR"/fluxes_*.nc 2>/dev/null | head -1)"
 SAMPLE_ATTRS=""
 if [ -n "$SAMPLE" ] && command -v ncdump >/dev/null 2>&1; then
     SAMPLE_ATTRS="$(ncdump -h "$SAMPLE" 2>/dev/null \
-        | grep -E ':(respiration_temperature_(driver|function)|status|source_commit|software_version|date_created|meteo_fallback_used)' \
+        | grep -E ':(processing_pipeline_(commit|version)|respiration_temperature_(driver|function)|status|date_created|meteo_fallback_used)' \
         | sed 's/^[[:space:]]*:/    /; s/ ;[[:space:]]*$//')"
 fi
+
+# The commit that actually PRODUCED the data (from the output files'
+# processing_pipeline_version attribute) -- authoritative, and may differ from
+# the current HEAD if PROVENANCE.txt is (re-)written later.
+PROD_VER="(see per-file processing_pipeline_version attribute)"
+if [ -n "$SAMPLE" ] && command -v ncdump >/dev/null 2>&1; then
+    _pv="$(ncdump -h "$SAMPLE" 2>/dev/null | grep -oE 'processing_pipeline_version = "[^"]+"' | sed 's/.*= "//; s/".*//' | head -1)"
+    [ -n "$_pv" ] && PROD_VER="$_pv"
+fi
+
+# Stream composition of THIS product: which years are vNRT-backed (the monthly
+# v1 input is a symlink to the vNRT stream) -- i.e. near-real-time / revisable.
+NRT_YEARS="$(cd "$MONTHLY_1X1_DIR" 2>/dev/null && for f in MiCASA_v1_flux_x360_y180_monthly_??????.nc; do [ -L "$f" ] && basename "$f"; done 2>/dev/null \
+            | sed -E 's/.*monthly_([0-9]{4})[0-9]{2}\.nc/\1/' | sort -u | tr '\n' ' ' | sed 's/ *$//')"
+[ -n "$NRT_YEARS" ] || NRT_YEARS="(none -- all final v1)"
 
 cat > "$OUT" <<EOF
 ================================================================================
@@ -129,6 +144,11 @@ global attributes ("ncdump -h <file>") and in ${JOBS_DIR}/run_manifest.tsv.
  Climatology-filled and provisional (partial-meteo) months are flagged per file
  (status / meteo_partial attributes), not here.
 
+-- Stream composition (this product) -----------------------------------------
+ NRT years (vNRT input relabelled as v1; near-real-time, MAY BE REVISED): $NRT_YEARS
+ All other years are final v1. Files are labelled micasa_version=v1; for the NRT
+ years the underlying monthly input is the vNRT stream symlinked to a v1 name.
+
 -- Generated -----------------------------------------------------------------
  when : $NOW
  host : $HOST
@@ -169,8 +189,11 @@ global attributes ("ncdump -h <file>") and in ${JOBS_DIR}/run_manifest.tsv.
    sub-monthly and diurnal SHAPE is reconstructed, not native to MiCASA.
 
 -- Code version --------------------------------------------------------------
- git commit   : $GIT_COMMIT
- git describe : $GIT_DESCRIBE
+ product built: $PROD_VER  (code that PRODUCED the data, from the output files'
+                processing_pipeline_version attr -- authoritative)
+ stamp commit : $GIT_COMMIT  (HEAD when this PROVENANCE.txt was (re)written;
+                may be later than the build commit if re-stamped)
+ stamp descr. : $GIT_DESCRIBE
  git branch   : $GIT_BRANCH
  software     : $R_INFO$DIRTY_WARN
 EOF
