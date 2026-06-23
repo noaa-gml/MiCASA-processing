@@ -359,16 +359,15 @@ run_year.sh
 
 ### Verification
 
-- **`tests/build_verify_v2.py`** — Source-of-truth for the verify_v2 notebook;
-  `python3 tests/build_verify_v2.py` regenerates `tests/verify_v2.ipynb` from this
-  file. 24 sections, 60 distinct checks (Section 23 confirms output provenance;
-  Section 24 reads the run manifest).
+- **`tests/verify_v2.py`** — The verification suite: one runnable script,
+  24 sections, 60 distinct checks (Section 23 confirms output provenance;
+  Section 24 reads the run manifest). `cd $WORK_DIR && python3 tests/verify_v2.py`;
+  prints a PASS/WARN/FAIL summary (no non-zero exit code). Needs cluster data, so
+  CI doesn't run it — only syntax-checks it.
 - **`stamp_provenance.py`** — CLI to write CF/ACDD provenance global
   attributes onto a netCDF; backs `cat_monthly.sh` and, with
   `--retrofit`, stamps pre-existing outputs (see "Output provenance
   metadata").
-- **`tests/verify_v2.ipynb`** — Generated. Run via `tests/run_verify_v2.py`.
-- **`tests/run_verify_v2.py`** — Execute `tests/verify_v2.ipynb` as a script.
 - **`tests/verify_pchip_invariants.r`** — Helper for verify_v2 §18 (PCHIP fit
   invariants: per-segment analytic sign + C¹ continuity at knots).
 - **`tests/verify_piqs_invariants.r`** — Helper for verify_v2 §1.2 / §2.1

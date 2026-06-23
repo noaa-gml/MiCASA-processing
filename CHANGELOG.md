@@ -37,6 +37,15 @@ Tier-1 housekeeping (no product-behavior change to existing runs):
   `tests/test_*.{py,r}`, so the data-dependent verify/bakeoff tools are not
   auto-run. (Also restores the notebook to its generator-matched serialization,
   which an editor had re-normalized in the previous commit.)
+- **verify_v2 collapsed to one script.** Replaced the
+  `build_verify_v2.py` → `verify_v2.ipynb` → `run_verify_v2.py` generate/notebook/
+  headless-runner round-trip with a single runnable `tests/verify_v2.py` (markdown
+  cells became comment blocks; code cells verbatim; behavior identical to the old
+  headless run — `plt.show()` stays a no-op under Agg). Deleted `build_verify_v2.py`,
+  `run_verify_v2.py`, `verify_v2.ipynb`, and the CI notebook-sync job (the `.ipynb`
+  JSON round-trip was the fragility that had just broken CI). Run with
+  `cd $WORK_DIR && python3 tests/verify_v2.py`. The `verify_p*_*.r` helpers and
+  bake-offs stay in `tests/`.
 
 ## 2026-06-23 — license corrected to U.S. Government Work (was CC0-1.0)
 

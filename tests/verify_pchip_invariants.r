@@ -11,7 +11,7 @@
 ##   (b) C¹ continuity at interior knots: f from the right of segment k-1
 ##       must equal f from the left of segment k (i.e., a_k).
 ##
-## Outputs JSON; consumed by build_verify_v2.py Checks 18.1 / 18.2.
+## Outputs JSON; consumed by verify_v2.py Checks 18.1 / 18.2.
 
 args <- commandArgs(trailingOnly = TRUE)
 out_path <- if (length(args) > 0) args[1] else "verify_pchip_invariants.json"

@@ -67,7 +67,7 @@ Work on `main`. Use `legacy` only to reproduce a v1-vintage product.
 
 ## Verification
 
-The `verify_v2.ipynb` notebook runs 60 checks across the pipeline output:
+The `tests/verify_v2.py` script runs 60 checks across the pipeline output:
 schema, mass conservation across re-aggregation, sign-flip rates,
 polar-night clipping, biome-cell sanity, climate-signal consistency
 (NEE trend, El Niño anomaly, COVID impact), PCHIP fit invariants,
@@ -76,14 +76,12 @@ global NBE carbon-budget context), output-provenance attributes, and a
 run-manifest / job-log audit.
 
 ```sh
-# Build the notebook from source-of-truth
-python3 build_verify_v2.py
-
-# Execute (requires WORK_DIR set + ERA5 meteo accessible via $CARBONTRACKER)
-python3 run_verify_v2.py verify_v2.ipynb
+# Run (requires WORK_DIR set + ERA5 meteo accessible via $CARBONTRACKER)
+cd $WORK_DIR && python3 tests/verify_v2.py
 ```
 
-The summary cell prints `PASS=N FAIL=N WARN=N INFO=N` at the end.
+It prints `PASS=N FAIL=N WARN=N INFO=N` (and flags any FAILs); it does not set
+a non-zero exit code.
 
 ## License
 

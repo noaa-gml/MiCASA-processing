@@ -10,7 +10,7 @@
 #   - compute_clim.modulo_month_mean, check_bounds.py -- numpy only
 #   - compute_clim.py netCDF I/O   -- xarray + netCDF4
 #   - stamp_provenance.py          -- netCDF4
-#   - verify_v2.ipynb              -- numpy + pandas + xarray + netCDF4
+#   - tests/verify_v2.py                  -- numpy + pandas + xarray + netCDF4
 #
 # Versions below are lower bounds known to work. The Orion `sci` conda env
 # at the v2.0.0 release carried: numpy 2.2.6, xarray 2025.6.1,

@@ -2,7 +2,7 @@
 
 ## verify_piqs_invariants.r
 ##
-## Phase 1 verification helper for verify_v2.ipynb.
+## Phase 1 verification helper for verify_v2.py.
 ##
 ## Loads fit.piqs.rda and the multi-year monthly cat file, computes the
 ## PIQS integral-preservation residual per (i, j, month) for both gpp and

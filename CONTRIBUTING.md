@@ -49,17 +49,24 @@ on failure. When you fix a bug, add a test that would have caught it —
 CI learned the hard way that `bash -n` / `parse()` syntax checks are
 not enough.
 
-## The verify_v2 notebook is generated
+## The verify_v2 suite
 
-`tests/verify_v2.ipynb` is a **derived artifact**; its source of truth is
-`tests/build_verify_v2.py`. To change a check:
+`tests/verify_v2.py` is a single runnable script of ~60 pipeline-output
+checks. To change a check, edit it directly and run it:
 
-1. Edit `tests/build_verify_v2.py`.
-2. Regenerate the notebook: `python3 tests/build_verify_v2.py`.
-3. Commit **both** files.
+```sh
+cd $WORK_DIR && python3 tests/verify_v2.py
+```
 
-CI fails the build if `tests/verify_v2.ipynb` is out of sync with
-`tests/build_verify_v2.py`, so never hand-edit the `.ipynb`.
+It prints a `PASS/WARN/FAIL` summary (it does not set a non-zero exit
+code). It needs cluster data (`WORK_DIR` + ERA5 via `$CARBONTRACKER`), so
+CI does not run it — only `bash -n` / `parse()` / `py_compile` syntax
+checks cover it. Some checks shell out to the `tests/verify_p*_*.r`
+helpers and to NCO / Rscript on `PATH`.
+
+(Historically this was generated as `verify_v2.ipynb` from a
+`build_verify_v2.py` source and run headless by `run_verify_v2.py`; that
+notebook round-trip was collapsed into the one script.)
 
 ## Provenance / citation constants
 
