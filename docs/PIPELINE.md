@@ -427,7 +427,7 @@ attributes are built by `lib/provenance.r` (R writers) and
 | `institution`, `creator_name`, `creator_url` | NOAA GML attribution |
 | `source` | Pipeline + producing step |
 | `references` | Pipeline URL; dataset DOI once registered |
-| `license` | `CC0-1.0` |
+| `license` | `U.S. Government Work (public domain, 17 U.S.C. 105)` |
 | `date_created` | ISO-8601 UTC processing timestamp |
 | `processing_pipeline` / `_url` | `MiCASA-processing` + repository URL |
 | `processing_pipeline_commit` | Full git SHA of the producing code |

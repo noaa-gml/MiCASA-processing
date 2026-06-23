@@ -87,7 +87,9 @@ The summary cell prints `PASS=N FAIL=N WARN=N INFO=N` at the end.
 
 ## License
 
-[CC0 1.0 Universal](LICENSE) — public domain dedication.
+**U.S. Government Work.** This is a work of the U.S. Government (NOAA Global
+Monitoring Laboratory) and is in the public domain in the United States under
+17 U.S.C. § 105. See [LICENSE](LICENSE).
 
 ## Citation
 
@@ -97,8 +99,8 @@ If this pipeline supports your work:
   DOI [10.5067/ZBXSA1LEN453](https://doi.org/10.5067/ZBXSA1LEN453);
   data catalog at https://earth.gov/ghgcenter/data-catalog/micasa-carbonflux-grid-v1
 - **CarbonTracker** — https://gml.noaa.gov/ccgg/carbontracker/
-- **This processing code** — cite this repository (CC0; attribution
-  appreciated, not required)
+- **This processing code** — cite this repository (U.S. Government work /
+  public domain; attribution appreciated, not required)
 
 Authors: Ash Pera, Andy Jacobson, Brad Weir. See
 [`README.notes`](README.notes) for the historical author log.

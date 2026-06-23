@@ -531,7 +531,7 @@ Each item below changes *no flux value*; the proof is in the right column.
 | Download verify scoped to year | Verifies *which* files, not their content; same files for a given year |
 | Op bug fixes: `sbatch_wait` comma, `check_hashes` glob, `compute_daily_clim` nullglob, hardcoded paths | Fix crashes/skips, not numbers; `tests/test_check_hashes.py` (12); 2026-Q1 multi-scenario run |
 | verify_v2 harness edits (6.2→INFO, 11.1 log-age, 5.1/5.2 partial-year, 1.4 dual-tree) | Change what is *checked*, not what is *produced*; each justified in CHANGELOG 2026-05-16 |
-| Public-release packaging (LICENSE CC0, README split, CITATION.cff, CI) | No pipeline effect |
+| Public-release packaging (LICENSE = U.S. Government Work, README split, CITATION.cff, CI) | No pipeline effect |
 
 The CI (`.github/workflows/ci.yml`) byte-compiles Python, `bash -n`s every shell
 script, `parse()`s every R script, and runs the behavior tests on every push — so

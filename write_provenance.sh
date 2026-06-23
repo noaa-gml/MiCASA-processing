@@ -184,7 +184,7 @@ cat >> "$OUT" <<EOF
 
 -- Citation ------------------------------------------------------------------
  DOI          : ${MICASA_DOI:-PENDING}    (this processed product)
- license      : ${MICASA_PROV_LICENSE:-CC0-1.0}
+ license      : ${MICASA_PROV_LICENSE:-U.S. Government Work (public domain, 17 U.S.C. 105)}
  conventions  : ${MICASA_PROV_CONVENTIONS:-CF-1.10, ACDD-1.3}
 ================================================================================
 EOF

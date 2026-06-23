@@ -75,5 +75,6 @@ it is minted, update `lib/provenance.conf` **and** `CITATION.cff`
   (e.g. *"diurnalize: decide climatology per month, not per year"*).
 - **Documentation** — engineering changes go in `CHANGELOG.md`; design
   rationale goes in `docs/PROPOSALS.md` as a numbered ADR.
-- **License** — contributions are accepted under the repository's
-  [CC0-1.0](LICENSE) public-domain dedication.
+- **License** — this is a U.S. Government work, in the public domain in the
+  United States (17 U.S.C. § 105; see [LICENSE](LICENSE)). By contributing you
+  agree that your contribution is released as part of that public-domain work.

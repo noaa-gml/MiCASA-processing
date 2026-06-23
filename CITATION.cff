@@ -17,7 +17,9 @@ authors:
     family-names: Weir
 repository-code: "https://github.com/noaa-gml/MiCASA-processing"
 url: "https://github.com/noaa-gml/MiCASA-processing"
-license: CC0-1.0
+# U.S. Government Work -- public domain in the US (17 U.S.C. 105); no SPDX id,
+# so the statement lives in the LICENSE file rather than the `license:` field.
+license-url: "https://github.com/noaa-gml/MiCASA-processing/blob/main/LICENSE"
 version: "2.2.0"
 date-released: "2026-06-21"
 keywords:

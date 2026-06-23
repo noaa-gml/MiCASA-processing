@@ -4,6 +4,22 @@ Dated engineering entries for the active (`main`) branch. Conceptual /
 methodological reasoning lives in [`docs/PROPOSALS.md`](docs/PROPOSALS.md);
 this file is for "what landed when, and what numbers it moved."
 
+## 2026-06-23 — license corrected to U.S. Government Work (was CC0-1.0)
+
+This is a NOAA federal product, so the license is now stated as a **U.S.
+Government Work** — public domain in the United States under 17 U.S.C. § 105 —
+rather than CC0-1.0. Created the `LICENSE` file (it was referenced from README /
+CITATION but had never actually been committed) with the §105 public-domain
+statement + an "as is" disclaimer. Propagated the change to the single source of
+truth `lib/provenance.conf` (`MICASA_PROV_LICENSE`, which feeds the netCDF
+`license` global attribute and `PROVENANCE.txt`), `CITATION.cff` (dropped the
+non-SPDX `license:` for a `license-url` to LICENSE), `README.md`,
+`CONTRIBUTING.md`, `docs/PIPELINE.md`, and the V1_TO_V2 packaging note. No code
+behavior changes; `lib/provenance.{r,py}` and the provenance tests key on the
+attribute's presence, not its value. Note: netCDF files written before this
+carry `license = "CC0-1.0"`; they pick up the new value on the next run (or via
+`stamp_provenance.py --retrofit`).
+
 ## 2026-06-21 — v2.2.0: respiration driver default reverted to AIR (within-day EC); conserve clip default
 
 Supersedes v2.1.0 (which briefly defaulted the respiration driver to soil). A third EC
