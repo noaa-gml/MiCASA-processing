@@ -11,19 +11,19 @@
 # ---- Per-invocation knobs ---------------------------------------------------
 
 # Year being processed.
-: "${MICASA_YEAR:=2025}"
+MICASA_YEAR="${MICASA_YEAR:-2025}"
 
 # Product version: "v1" (final, archived) or "vNRT" (near-real-time).
-: "${MICASA_VERSION:=v1}"
+MICASA_VERSION="${MICASA_VERSION:-v1}"
 
 # Year range for bulk operations (climatologies, multi-year ingest, etc.).
-: "${MICASA_YEAR_START:=2001}"
-: "${MICASA_YEAR_END:=${MICASA_YEAR}}"
+MICASA_YEAR_START="${MICASA_YEAR_START:-2001}"
+MICASA_YEAR_END="${MICASA_YEAR_END:-${MICASA_YEAR}}"
 
 # Month range for partial-year operations (e.g. mid-year NRT updates).
 # Defaults to all of $MICASA_YEAR; override for FastTrack-style runs.
-: "${MICASA_MONTH_START:=1}"
-: "${MICASA_MONTH_END:=12}"
+MICASA_MONTH_START="${MICASA_MONTH_START:-1}"
+MICASA_MONTH_END="${MICASA_MONTH_END:-12}"
 
 # ---- Site config ------------------------------------------------------------
 
