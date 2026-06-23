@@ -69,11 +69,11 @@ profile).
 | `MICASA_CLIM_YEARS` | `2000 $(date +%Y)` | Years `link_daily_clim.sh` fills with day-of-year climatology symlinks (diurnalize auto-detects clim per month, see below) |
 | `WORK_DIR` | auto-detect | Set explicitly to point at a different checkout |
 | `PORTAL_URL_BASE` | NCCS portal | Source download URL |
-| `DAILY_1X1_DIR` | `daily_1x1` | Layout knobs (rarely changed) |
-| `MONTHLY_1X1_DIR` | `monthly_1x1` | |
-| `ERA5_DIR` | `ERA5` | |
-| `RAW_SRC_DIR` | `portal.nccs.nasa.gov` | Raw 0.1° mirror |
-| `JOBS_DIR` | `jobs` | |
+| `DAILY_1X1_DIR` | `daily_1x1` | Output/work locations — default to subdirs of `WORK_DIR`; **set absolute to redirect results** (see "Output locations" below) |
+| `MONTHLY_1X1_DIR` | `monthly_1x1` | " |
+| `ERA5_DIR` | `ERA5` | " — hourly `fluxes_*` **and** daily `*.nee.*` |
+| `RAW_SRC_DIR` | `portal.nccs.nasa.gov` | " — raw 0.1° download mirror |
+| `JOBS_DIR` | `jobs` | " — SLURM logs |
 
 `MICASA_CLIM_YEARS` is consumed only by `link_daily_clim.sh` (which days
 to fill with climatology symlinks); its default covers (a) years before
@@ -82,6 +82,37 @@ phase). `diurnalize-ERA5.r` no longer uses it — it auto-detects
 real-vs-climatology per month from monthly-file presence (proposal #14).
 Independent of `MICASA_YEAR` so backfilling an earlier year
 doesn't accidentally clim a fully-published year.
+
+### Output locations
+
+By default all results land in subdirectories of `WORK_DIR` (your checkout):
+`$ERA5_DIR/` (hourly `fluxes_YYYYMM.nc` **and** the daily `MiCASA_*.nee.*.nc` —
+the products CarbonTracker ingests), `$DAILY_1X1_DIR/` and `$MONTHLY_1X1_DIR/`
+(the 1° ingested fields), `$JOBS_DIR/` (SLURM logs), and `$RAW_SRC_DIR/` (raw
+0.1° downloads).
+
+To send results elsewhere — e.g. heavy output on `/work2` while the repo stays on
+`home` — **export absolute paths** for these layout knobs before running.
+`config.sh` honours the environment (the defaults apply only when unset), and
+`run_year.sh`'s SBATCH `--export=ALL` carries them to the R workers, which read
+the same names (`config.r`) and accept absolute paths:
+
+```sh
+OUT=/work2/noaa/co2/$USER/micasa_out
+mkdir -p "$OUT"/{ERA5,daily_1x1,monthly_1x1,jobs}     # create targets first
+export ERA5_DIR="$OUT/ERA5"  DAILY_1X1_DIR="$OUT/daily_1x1" \
+       MONTHLY_1X1_DIR="$OUT/monthly_1x1"  JOBS_DIR="$OUT/jobs"
+./run_year.sh 2026
+```
+
+- **Pre-create the targets** (`mkdir -p`). Ingest creates its
+  `daily_1x1`/`monthly_1x1` if absent, but `$JOBS_DIR` must exist before SBATCH
+  writes its `%x.o%j` logs.
+- These control **output**. The raw-download mirror is `RAW_SRC_DIR`; the ERA5
+  **input** meteo is separate (`$CARBONTRACKER/METEO/…`, override via
+  `MICASA_ERA5_DIR`).
+- `WORK_DIR` is *not* the knob for this — the R scripts source `config.r` and
+  `lib/` from it, so it must point at the checkout, not a data dir.
 
 ### Runtime-only knobs (driver-set; do not set manually)
 
