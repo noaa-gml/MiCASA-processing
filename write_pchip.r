@@ -20,7 +20,7 @@
 ## for the polar-night clip in diurnalize-ERA5.r.
 ##
 ## See:
-##   - bakeoff_pchip.py (Python reference + diagnostic)
+##   - tests/bakeoff_pchip.py (Python reference + diagnostic)
 ##   - README.ash methodological note (10) for the full reasoning
 ##   - Fritsch & Carlson 1980, "Monotone Piecewise Cubic Interpolation",
 ##     SIAM J. Numer. Anal. 17(2) pp 238-246.

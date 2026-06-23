@@ -32,7 +32,7 @@
 ##     discretization is leaky between sample points.
 ##
 ## See:
-##   - bakeoff_mss.py (Python prototype with quadprog)
+##   - tests/bakeoff_mss.py (Python prototype with quadprog)
 ##   - README.ash methodological note (10) for the broader context
 ##   - Pya & Wood 2015, "Shape constrained additive models" / He & Shi
 ##     1998, "Monotone B-spline smoothing", for related literature.

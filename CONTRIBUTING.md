@@ -51,15 +51,15 @@ not enough.
 
 ## The verify_v2 notebook is generated
 
-`verify_v2.ipynb` is a **derived artifact**; its source of truth is
-`build_verify_v2.py`. To change a check:
+`tests/verify_v2.ipynb` is a **derived artifact**; its source of truth is
+`tests/build_verify_v2.py`. To change a check:
 
-1. Edit `build_verify_v2.py`.
-2. Regenerate the notebook: `python3 build_verify_v2.py`.
+1. Edit `tests/build_verify_v2.py`.
+2. Regenerate the notebook: `python3 tests/build_verify_v2.py`.
 3. Commit **both** files.
 
-CI fails the build if `verify_v2.ipynb` is out of sync with
-`build_verify_v2.py`, so never hand-edit the `.ipynb`.
+CI fails the build if `tests/verify_v2.ipynb` is out of sync with
+`tests/build_verify_v2.py`, so never hand-edit the `.ipynb`.
 
 ## Provenance / citation constants
 

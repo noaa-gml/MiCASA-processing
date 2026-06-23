@@ -4,7 +4,7 @@ Dated engineering entries for the active (`main`) branch. Conceptual /
 methodological reasoning lives in [`docs/PROPOSALS.md`](docs/PROPOSALS.md);
 this file is for "what landed when, and what numbers it moved."
 
-## 2026-06-23 — repo cleanup: cat_monthly cwd bug, run_record.sh, archive/
+## 2026-06-23 — repo cleanup: cat_monthly cwd bug, run_record.sh, archive/, tests/
 
 Tier-1 housekeeping (no product-behavior change to existing runs):
 - **`cat_monthly.sh`** — the `stamp_provenance.py` / `check_bounds.sh` calls used
@@ -25,6 +25,18 @@ Tier-1 housekeeping (no product-behavior change to existing runs):
   out of the root. CI still syntax-checks them (recursive `find`). Updated the
   references in `docs/PIPELINE.md`, `docs/PROPOSALS.md`, and `build_verify_v2.py`
   (notebook regenerated).
+- **`tests/`** — moved the bake-off and verification scripts out of the root into
+  `tests/`: `bakeoff_pchip.py`, `bakeoff_mss.py`, `build_verify_v2.py`,
+  `run_verify_v2.py`, `verify_v2.ipynb`, and the four `verify_p{chip,iqs}_*.r`
+  helpers. The verify_v2 notebook shells out to the R helpers, so
+  `build_verify_v2.py` now resolves them at `WORK_DIR/tests/verify_*.r` and writes
+  the notebook next to itself; `run_verify_v2.py` likewise. Updated the CI
+  notebook-sync job (`python3 tests/build_verify_v2.py`, `tests/verify_v2.ipynb`),
+  `CONTRIBUTING.md`, the `docs/` references, and the `bakeoff_*.py` mentions in
+  `write_pchip.r` / `write_mss.r`. The CI behavior-test runner only globs
+  `tests/test_*.{py,r}`, so the data-dependent verify/bakeoff tools are not
+  auto-run. (Also restores the notebook to its generator-matched serialization,
+  which an editor had re-normalized in the previous commit.)
 
 ## 2026-06-23 — license corrected to U.S. Government Work (was CC0-1.0)
 

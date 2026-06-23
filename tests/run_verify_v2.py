@@ -1,6 +1,7 @@
 """Execute verify_v2.ipynb as a script (no jupyter available)."""
-import json, sys
-nb = json.load(open(sys.argv[1] if len(sys.argv) > 1 else "verify_v2.ipynb"))
+import json, sys, os
+_default_nb = os.path.join(os.path.dirname(os.path.abspath(__file__)), "verify_v2.ipynb")
+nb = json.load(open(sys.argv[1] if len(sys.argv) > 1 else _default_nb))
 import matplotlib
 matplotlib.use("Agg")  # no display
 combined = []

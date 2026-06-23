@@ -26,19 +26,19 @@ jobs:
           set -e
           find . -name '*.py' -print0 | xargs -0 -n1 python -m py_compile
           echo "all Python files compile"
-      - name: verify_v2.ipynb is in sync with build_verify_v2.py
+      - name: tests/verify_v2.ipynb is in sync with tests/build_verify_v2.py
         run: |
-          if [ ! -f build_verify_v2.py ]; then
-            echo "build_verify_v2.py not present (legacy branch) -- skipping"
+          if [ ! -f tests/build_verify_v2.py ]; then
+            echo "tests/build_verify_v2.py not present (legacy branch) -- skipping"
             exit 0
           fi
-          python3 build_verify_v2.py
-          if ! git diff --quiet verify_v2.ipynb; then
-            echo "::error::verify_v2.ipynb is stale -- run 'python3 build_verify_v2.py' and commit the result"
-            git diff --stat verify_v2.ipynb
+          python3 tests/build_verify_v2.py
+          if ! git diff --quiet tests/verify_v2.ipynb; then
+            echo "::error::tests/verify_v2.ipynb is stale -- run 'python3 tests/build_verify_v2.py' and commit the result"
+            git diff --stat tests/verify_v2.ipynb
             exit 1
           fi
-          echo "verify_v2.ipynb matches build_verify_v2.py"
+          echo "tests/verify_v2.ipynb matches tests/build_verify_v2.py"
 
   shell:
     name: Shell — bash -n

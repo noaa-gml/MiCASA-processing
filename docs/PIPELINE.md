@@ -291,7 +291,7 @@ run_year.sh
   overshoots, but residual ~1% from constraint discretization.
   Slower (~30–450 ms/cell vs <1 ms for PCHIP/PIQS). Requires the R
   `quadprog` package.
-- **`bakeoff_pchip.py`** / **`bakeoff_mss.py`** — Cell-level fitter
+- **`tests/bakeoff_pchip.py`** / **`tests/bakeoff_mss.py`** — Cell-level fitter
   comparisons used to evaluate write_pchip / write_mss before promotion.
 
 ### Stage 5 — Diurnalize (apply ERA5 hourly meteo)
@@ -359,23 +359,23 @@ run_year.sh
 
 ### Verification
 
-- **`build_verify_v2.py`** — Source-of-truth for the verify_v2 notebook;
-  `python3 build_verify_v2.py` regenerates `verify_v2.ipynb` from this
+- **`tests/build_verify_v2.py`** — Source-of-truth for the verify_v2 notebook;
+  `python3 tests/build_verify_v2.py` regenerates `tests/verify_v2.ipynb` from this
   file. 24 sections, 60 distinct checks (Section 23 confirms output provenance;
   Section 24 reads the run manifest).
 - **`stamp_provenance.py`** — CLI to write CF/ACDD provenance global
   attributes onto a netCDF; backs `cat_monthly.sh` and, with
   `--retrofit`, stamps pre-existing outputs (see "Output provenance
   metadata").
-- **`verify_v2.ipynb`** — Generated. Run via `run_verify_v2.py`.
-- **`run_verify_v2.py`** — Execute `verify_v2.ipynb` as a script.
-- **`verify_pchip_invariants.r`** — Helper for verify_v2 §18 (PCHIP fit
+- **`tests/verify_v2.ipynb`** — Generated. Run via `tests/run_verify_v2.py`.
+- **`tests/run_verify_v2.py`** — Execute `tests/verify_v2.ipynb` as a script.
+- **`tests/verify_pchip_invariants.r`** — Helper for verify_v2 §18 (PCHIP fit
   invariants: per-segment analytic sign + C¹ continuity at knots).
-- **`verify_piqs_invariants.r`** — Helper for verify_v2 §1.2 / §2.1
+- **`tests/verify_piqs_invariants.r`** — Helper for verify_v2 §1.2 / §2.1
   (PIQS metadata + integral preservation).
-- **`verify_piqs_tail_horizon.r`** — Helper for verify_v2 §16.4 (tail-coef
+- **`tests/verify_piqs_tail_horizon.r`** — Helper for verify_v2 §16.4 (tail-coef
   propagation horizon).
-- **`verify_piqs_tail_stability.r`** — Helper for verify_v2 §11.2
+- **`tests/verify_piqs_tail_stability.r`** — Helper for verify_v2 §11.2
   (tail-coef stability across re-fits).
 - **`archive/diag_v1_vNRT_handoff.r`** — *Archived.* Splice-continuity diagnostic ([proposal
   #3](PROPOSALS.md)).

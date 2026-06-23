@@ -275,7 +275,7 @@ cells; in the cells we actually care about (polar, semi-arid,
 transition months), PCHIP is more sensible because it produces flat
 segments at zero rather than oscillating through it.
 
-Bake-off (`bakeoff_pchip.py`) on 6 representative cells confirmed PCHIP
+Bake-off (`tests/bakeoff_pchip.py`) on 6 representative cells confirmed PCHIP
 gives 0% flips *on those cells* (PCHIP is sign-definite at the knots only,
 not 0 by construction; full-grid residual ≤0.94% of GPP cell-hours) vs PIQS
 up to 30.91% (AK Tundra), with absolute flux differences <2e-11 invisible at

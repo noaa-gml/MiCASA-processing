@@ -38,7 +38,7 @@ md("""
     **Run from the v2 working directory**:
     ```sh
     cd $WORK_DIR     # i.e. wherever you checked out this repo
-    jupyter nbconvert --to notebook --execute verify_v2.ipynb \\
+    jupyter nbconvert --to notebook --execute tests/verify_v2.ipynb \\
         --output verify_v2.executed.ipynb
     ```
 
@@ -140,7 +140,7 @@ md("""
 """)
 code('''
     cid, cname = "1.2", "PIQS fit metadata"
-    helper = WORK_DIR / "verify_piqs_invariants.r"
+    helper = WORK_DIR / "tests" / "verify_piqs_invariants.r"
     out_json = WORK_DIR / "verify_piqs_invariants.json"
     if not helper.exists():
         record(cid, cname, FAIL, f"helper script missing: {helper}")
@@ -1562,7 +1562,7 @@ md("""
 """)
 code('''
     cid, cname = "11.2", "PIQS tail-coefficient stability"
-    helper = WORK_DIR / "verify_piqs_tail_stability.r"
+    helper = WORK_DIR / "tests" / "verify_piqs_tail_stability.r"
     out_json = WORK_DIR / "verify_piqs_tail_stability.json"
     if not FIT_RDA.exists():
         record(cid, cname, INFO, "no fit.piqs.rda yet")
@@ -2247,7 +2247,7 @@ md("""
 """)
 code('''
     cid, cname = "16.4", "tail-instability propagation horizon"
-    helper = WORK_DIR / "verify_piqs_tail_horizon.r"
+    helper = WORK_DIR / "tests" / "verify_piqs_tail_horizon.r"
     out_json = WORK_DIR / "verify_piqs_tail_horizon.json"
     if not helper.exists():
         record(cid, cname, INFO, f"helper {helper.name} not present; skipping")
@@ -2455,7 +2455,7 @@ md("""
 """)
 code('''
     cid, cname = "18.1", "PCHIP per-segment analytic sign"
-    helper   = WORK_DIR / "verify_pchip_invariants.r"
+    helper   = WORK_DIR / "tests" / "verify_pchip_invariants.r"
     out_json = WORK_DIR / "verify_pchip_invariants.json"
     if not helper.exists():
         record(cid, cname, INFO, f"helper {helper.name} not present; skipping")
@@ -3166,8 +3166,9 @@ nb = {
     "nbformat": 4,
     "nbformat_minor": 5,
 }
-import sys
-out = sys.argv[1] if len(sys.argv) > 1 else "verify_v2.ipynb"
+import os, sys
+out = sys.argv[1] if len(sys.argv) > 1 else \
+      os.path.join(os.path.dirname(os.path.abspath(__file__)), "verify_v2.ipynb")
 with open(out, "w") as fp:
     json.dump(nb, fp, indent=1)
     fp.write("\n")

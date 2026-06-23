@@ -70,7 +70,7 @@ References:
   SIAM J. Numer. Anal. 17(2) pp 238-246
 - R: `stats::splinefun(method="monoH.FC")`
 - Python: `scipy.interpolate.PchipInterpolator`
-- See [`bakeoff_pchip.py`](../bakeoff_pchip.py) for the cell-level
+- See [`bakeoff_pchip.py`](../tests/bakeoff_pchip.py) for the cell-level
   diagnostic and [proposal #10](PROPOSALS.md) for the rationale.
 
 ### PIQS — Piecewise Integral Quadratic Splines (legacy)
@@ -121,7 +121,7 @@ via the R `quadprog` package.
 - Slower (~180–370 ms/cell vs <1 ms for PIQS / PCHIP), ~hours for the full
   grid. The QP's banded Hessian keeps it NRT-local (footprint ≤1 month).
 
-See [`bakeoff_mss.py`](../bakeoff_mss.py) for the cell-level diagnostic
+See [`bakeoff_mss.py`](../tests/bakeoff_mss.py) for the cell-level diagnostic
 and [proposal #11](PROPOSALS.md) for why we did not adopt this as the
 default.
 
