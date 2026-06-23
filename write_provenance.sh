@@ -59,6 +59,13 @@ NOW="$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo unknown)"
 HOST="$(hostname 2>/dev/null || echo unknown)"
 WHO="$(id -un 2>/dev/null || echo unknown)"
 
+# Software stack (best-effort; one R startup, skipped cleanly if R is absent).
+R_INFO="(R not on PATH; not captured)"
+if command -v Rscript >/dev/null 2>&1; then
+    _ri="$(Rscript -e 'cat(R.version.string); cat(" | ncdf4", tryCatch(as.character(packageVersion("ncdf4")), error = function(e) "n/a"))' 2>/dev/null)"
+    [ -n "$_ri" ] && R_INFO="$_ri"
+fi
+
 # On-disk coverage (cheap: filename parse, no per-file ncdump).
 fmt_ym() { echo "$1" | sed -E 's/.*fluxes_([0-9]{4})([0-9]{2})\.nc$/\1-\2/'; }
 N_HOURLY="$(ls "$ERA5_DIR"/fluxes_*.nc 2>/dev/null | wc -l | tr -d ' ')"
@@ -161,7 +168,8 @@ global attributes ("ncdump -h <file>") and in ${JOBS_DIR}/run_manifest.tsv.
 -- Code version --------------------------------------------------------------
  git commit   : $GIT_COMMIT
  git describe : $GIT_DESCRIBE
- git branch   : $GIT_BRANCH$DIRTY_WARN
+ git branch   : $GIT_BRANCH
+ software     : $R_INFO$DIRTY_WARN
 EOF
 
 if [ -n "$SAMPLE_ATTRS" ]; then
