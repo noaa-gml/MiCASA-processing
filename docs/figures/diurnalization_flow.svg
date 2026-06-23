@@ -1,0 +1,110 @@
+<svg viewBox="0 0 840 760" xmlns="http://www.w3.org/2000/svg" font-family="Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="arrow" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L7,3 L0,6 z" fill="#003366"/>
+    </marker>
+    <marker id="arrowg" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L7,3 L0,6 z" fill="#8a8a8a"/>
+    </marker>
+  </defs>
+  <style>
+    .box  { fill:#eef3f8; stroke:#003366; stroke-width:1.4; rx:8; }
+    .inp  { fill:#e2edf6; stroke:#003366; stroke-width:1.6; }
+    .core { fill:#f4f9fc; stroke:#003366; stroke-width:1.8; }
+    .sub  { fill:#ffffff; stroke:#5b7fa6; stroke-width:1.2; }
+    .out  { fill:#f1f3f6; stroke:#444; stroke-width:1.3; }
+    .byp  { fill:#fbf4ec; stroke:#b07a30; stroke-width:1.2; stroke-dasharray:4 3; }
+    .t    { font-size:13px; fill:#1a1a1a; }
+    .tb   { font-size:13px; fill:#10243b; font-weight:bold; }
+    .ti   { font-size:11px; fill:#555; }
+    .hd   { font-size:14px; fill:#003366; font-weight:bold; }
+    .mono { font-family:"Courier New", monospace; font-size:12px; fill:#10243b; }
+    .ax   { font-size:11px; fill:#7a5; }
+    .e    { stroke:#003366; stroke-width:1.6; fill:none; }
+    .eg   { stroke:#8a8a8a; stroke-width:1.4; fill:none; }
+  </style>
+
+  <!-- ===== Row 1: inputs ===== -->
+  <rect class="inp" x="55"  y="34" width="300" height="48" rx="8"/>
+  <text class="tb" x="205" y="55" text-anchor="middle">Monthly NPP / Rh</text>
+  <text class="ti" x="205" y="71" text-anchor="middle">1° monthly product (real file or climatology)</text>
+
+  <rect class="inp" x="485" y="34" width="300" height="48" rx="8"/>
+  <text class="tb" x="635" y="55" text-anchor="middle">ERA5 hourly meteo (1°)</text>
+  <text class="mono" x="635" y="71" text-anchor="middle">ssrd · t2m · stl1 · swvl1</text>
+
+  <!-- ===== Row 2: fit / role labels ===== -->
+  <rect class="box" x="55" y="120" width="300" height="58" rx="8"/>
+  <text class="tb" x="205" y="141" text-anchor="middle">PCHIP-on-cumulative fit</text>
+  <text class="mono" x="205" y="158" text-anchor="middle">fit.piqs.rda: (a,b,c) per cell·month</text>
+  <text class="ti" x="205" y="172" text-anchor="middle">smooth SUB-MONTHLY shape  qmod(t),  preserves monthly mean</text>
+
+  <rect class="box" x="485" y="120" width="300" height="58" rx="8" fill="#eef3f8"/>
+  <text class="tb" x="635" y="144" text-anchor="middle">imposes WITHIN-DAY shape</text>
+  <text class="ti" x="635" y="162" text-anchor="middle">shortwave drives GPP · temperature drives respiration</text>
+
+  <text class="ax" x="60"  y="200" text-anchor="start">the fit owns the sub-monthly axis</text>
+  <text class="ax" x="780" y="200" text-anchor="end">the meteo owns the sub-daily axis</text>
+
+  <!-- ===== Row 3: core transform ===== -->
+  <rect class="core" x="90" y="214" width="660" height="172" rx="10"/>
+  <text class="hd" x="420" y="238" text-anchor="middle">diurnalize per cell, per hour  (lib/diurnal.r :: diurnal.flux)</text>
+  <text class="mono" x="420" y="262" text-anchor="middle">f(t) = driver(t) · mn / mean(driver)  −  mn  +  qmod(t)</text>
+  <text class="ti" x="420" y="281" text-anchor="middle">meteo modulates the monthly mean (diurnal shape); the fit swaps the flat baseline for the sub-monthly curve</text>
+
+  <rect class="sub" x="120" y="296" width="285" height="72" rx="7"/>
+  <text class="tb" x="262" y="318" text-anchor="middle">GPP path</text>
+  <text class="t"  x="262" y="336" text-anchor="middle">driver = shortwave (ssrd)</text>
+  <text class="ti" x="262" y="353" text-anchor="middle">light-driven: zero at night, noon peak</text>
+
+  <rect class="sub" x="435" y="296" width="285" height="72" rx="7"/>
+  <text class="tb" x="577" y="318" text-anchor="middle">respiration path</text>
+  <text class="t"  x="577" y="336" text-anchor="middle">driver = Q10(temperature)</text>
+  <text class="ti" x="577" y="353" text-anchor="middle">air t2m (default) · always on</text>
+
+  <!-- mass-preserve badge -->
+  <rect x="250" y="396" width="340" height="26" rx="13" fill="#e8f5ea" stroke="#3a7d44" stroke-width="1.2"/>
+  <text x="420" y="413" text-anchor="middle" font-size="12px" fill="#235e2c">monthly mean of f  =  mean(qmod)  =  monthly mean  →  mass-preserved</text>
+
+  <!-- ===== Row 4: clip ===== -->
+  <rect class="box" x="150" y="450" width="540" height="48" rx="8"/>
+  <text class="tb" x="420" y="471" text-anchor="middle">polar-night clip  +  conserve renorm</text>
+  <text class="ti" x="420" y="488" text-anchor="middle">GPP = 0 where ssrd = 0, then redistribute onto lit hours to restore the monthly mean</text>
+
+  <!-- ===== Row 5: NEE ===== -->
+  <rect class="box" x="270" y="524" width="300" height="46" rx="8" fill="#e2edf6"/>
+  <text class="tb" x="420" y="546" text-anchor="middle">NEE = GPP + resp</text>
+  <text class="mono" x="420" y="562" text-anchor="middle">( = Rh − NPP )</text>
+
+  <!-- ===== Row 6: hourly file ===== -->
+  <rect class="out" x="240" y="596" width="360" height="42" rx="8"/>
+  <text class="tb" x="420" y="616" text-anchor="middle">ERA5/fluxes_YYYYMM.nc</text>
+  <text class="ti" x="420" y="631" text-anchor="middle">hourly 1° GPP · resp · NEE · meteo · provenance</text>
+
+  <!-- ===== Row 7: daysplit ===== -->
+  <rect class="out" x="210" y="664" width="420" height="44" rx="8"/>
+  <text class="tb" x="420" y="685" text-anchor="middle">daysplitter → MiCASA_v2.nee.YYYYMMDD.nc</text>
+  <text class="ti" x="420" y="700" text-anchor="middle">daily NEE — the product CarbonTracker ingests</text>
+
+  <!-- ===== Fire bypass ===== -->
+  <rect class="byp" x="640" y="520" width="180" height="50" rx="8"/>
+  <text class="tb" x="730" y="540" text-anchor="middle" font-size="12px">Fire / fuel</text>
+  <text class="ti" x="730" y="556" text-anchor="middle">bypass diurnalization</text>
+
+  <!-- ===== edges ===== -->
+  <!-- inputs -> row2 -->
+  <path class="e"  d="M205,82 L205,118" marker-end="url(#arrow)"/>
+  <path class="e"  d="M635,82 L635,118" marker-end="url(#arrow)"/>
+  <!-- row2 -> core -->
+  <path class="e"  d="M205,178 L205,200 Q205,214 262,214 L262,294" marker-end="url(#arrow)"/>
+  <path class="eg" d="M635,178 L635,200 Q635,214 577,214 L577,294" marker-end="url(#arrowg)"/>
+  <text class="ti" x="150" y="250" text-anchor="middle" transform="rotate(0)">qmod</text>
+  <text class="ti" x="690" y="250" text-anchor="middle">drivers</text>
+  <!-- core -> clip -> nee -> file -> daysplit -->
+  <path class="e" d="M420,422 L420,448" marker-end="url(#arrow)"/>
+  <path class="e" d="M420,498 L420,522" marker-end="url(#arrow)"/>
+  <path class="e" d="M420,570 L420,594" marker-end="url(#arrow)"/>
+  <path class="e" d="M420,638 L420,662" marker-end="url(#arrow)"/>
+  <!-- fire bypass -> nee -->
+  <path d="M640,545 Q580,545 570,547" stroke="#b07a30" stroke-width="1.4" fill="none" stroke-dasharray="4 3" marker-end="url(#arrowg)"/>
+</svg>

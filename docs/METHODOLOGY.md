@@ -131,6 +131,11 @@ The fit gives a smooth monthly NPP and Rh per grid cell. Within each
 month, `diurnalize-ERA5.r` redistributes those totals across the 24
 hours of each day using ERA5 surface meteo.
 
+The pipeline at a glance — the **fit** owns the sub-monthly axis, the **meteo**
+owns the sub-daily axis, and the splice is algebraically mass-preserving:
+
+![Diurnalization pipeline: monthly fit + ERA5 meteo → per-driver diurnal.flux (shortwave for GPP, Q10-temperature for respiration, mass-preserving) → polar-night clip/renorm → NEE = GPP + resp → hourly file → daily NEE for CarbonTracker](figures/diurnalization_flow.png)
+
 The hourly meteo (t2m, ssrd, stl1, swvl1) is resolved per day from the
 primary ERA5 tree, falling back to the FastTrack (`ea_0005`) tree for
 the NRT trailing window where the primary is not yet populated. Each
