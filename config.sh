@@ -49,13 +49,17 @@ fi
 # Upstream NCCS portal (no trailing slash).
 : "${PORTAL_URL_BASE:=https://portal.nccs.nasa.gov/datashare/gmao/geos_carb/MiCASA}"
 
-# ---- Layout (paths relative to WORK_DIR) ------------------------------------
+# ---- Layout (output/work locations) -----------------------------------------
+# Default to subdirs of WORK_DIR; override from the environment to send results
+# elsewhere (absolute paths work, e.g. ERA5_DIR=/work2/.../micasa_out/ERA5).
+# run_year.sh's SBATCH --export=ALL carries these to the R workers, which read
+# the same names (config.r) and accept absolute paths.
 
-DAILY_1X1_DIR="daily_1x1"
-MONTHLY_1X1_DIR="monthly_1x1"
-ERA5_DIR="ERA5"
-RAW_SRC_DIR="portal.nccs.nasa.gov"
-JOBS_DIR="jobs"
+DAILY_1X1_DIR="${DAILY_1X1_DIR:-daily_1x1}"
+MONTHLY_1X1_DIR="${MONTHLY_1X1_DIR:-monthly_1x1}"
+ERA5_DIR="${ERA5_DIR:-ERA5}"
+RAW_SRC_DIR="${RAW_SRC_DIR:-portal.nccs.nasa.gov}"
+JOBS_DIR="${JOBS_DIR:-jobs}"
 
 export MICASA_YEAR MICASA_VERSION MICASA_YEAR_START MICASA_YEAR_END
 export MICASA_MONTH_START MICASA_MONTH_END
