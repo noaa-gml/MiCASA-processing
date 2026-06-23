@@ -25,6 +25,7 @@
 #   4. Fitter             — fit smooth seasonal cycles (--fitter; default pchip)
 #   5. Diurnalize         — apply ERA5 hourly meteo to get hourly NEE
 #   6. Day-split          — split hourly monthly files to daily NEE files
+#   7. Provenance         — write PROVENANCE.txt (streams, config, git, time)
 #
 # SBATCH stages (ingest_byyear, diurnalize-ERA5) are submitted with
 # --wait so the driver blocks until they complete.
@@ -216,7 +217,13 @@ else
     echo "==> [skip] daysplit stage"
 fi
 
-# ---- Stage 7 (optional): vNRT → v1 link ------------------------------------
+# ---- Stage 7: Provenance stamp ---------------------------------------------
+# Drop a human-readable PROVENANCE.txt into the output dir (data streams,
+# resolved config, git commit, timestamp). Best-effort — always exits 0, so it
+# never aborts the run.
+run sh write_provenance.sh
+
+# ---- vNRT → v1 link (tip) --------------------------------------------------
 
 if [ "${MICASA_VERSION}" = "vNRT" ]; then
     echo

@@ -89,7 +89,8 @@ By default all results land in subdirectories of `WORK_DIR` (your checkout):
 `$ERA5_DIR/` (hourly `fluxes_YYYYMM.nc` **and** the daily `MiCASA_*.nee.*.nc` —
 the products CarbonTracker ingests), `$DAILY_1X1_DIR/` and `$MONTHLY_1X1_DIR/`
 (the 1° ingested fields), `$JOBS_DIR/` (SLURM logs), and `$RAW_SRC_DIR/` (raw
-0.1° downloads).
+0.1° downloads). A human-readable `PROVENANCE.txt` (streams, config, git commit,
+timestamp) is written into `$ERA5_DIR` by `write_provenance.sh` — see Stage 7.
 
 To send results elsewhere — e.g. heavy output on `/work2` while the repo stays on
 `home` — **export absolute paths** for these layout knobs before running.
@@ -326,6 +327,20 @@ run_year.sh
   global attributes, so each daily file inherits the hourly file's
   provenance; `daily_split_from` markers are added (see "Output
   provenance metadata").
+
+### Stage 7 — Provenance stamp
+
+- **`write_provenance.sh`** — Drop a human-readable `PROVENANCE.txt` into the
+  output dir (`$ERA5_DIR` by default; pass a dir as `$1` to override). It
+  records what the data streams mean (**v1 / vNRT / FastTrack**), when/where/by
+  whom it was generated, the resolved run configuration (version, year/month
+  range, respiration driver / response function / polar-clip, fitter pointer,
+  meteo root, output dirs), and the **git commit / describe / branch**. Reuses
+  the citation constants from `lib/provenance.conf`. This is the top-level
+  orientation file; it complements (does not replace) the per-file CF/ACDD
+  netCDF attributes and `$JOBS_DIR/run_manifest.tsv`. `run_year.sh` runs it last;
+  it is best-effort (always exits 0) and safe to run standalone (does not need
+  `MAIL_USER` / `BASE_DIR`).
 
 ### Symlink helpers
 
