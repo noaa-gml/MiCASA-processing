@@ -4,6 +4,28 @@ Dated engineering entries for the active (`main`) branch. Conceptual /
 methodological reasoning lives in [`docs/PROPOSALS.md`](docs/PROPOSALS.md);
 this file is for "what landed when, and what numbers it moved."
 
+## 2026-06-23 — repo cleanup: cat_monthly cwd bug, run_record.sh, archive/
+
+Tier-1 housekeeping (no product-behavior change to existing runs):
+- **`cat_monthly.sh`** — the `stamp_provenance.py` / `check_bounds.sh` calls used
+  `cd $MONTHLY_1X1_DIR; cd ..; ./helper`, which only resolved when the monthly
+  output dir sat directly under the checkout. With an env-redirected absolute
+  `MONTHLY_1X1_DIR` (the output-redirect feature, e.g. the `MiCASA.0` build),
+  `cd ..` landed in the product dir and the helper 404'd (a spurious warning;
+  the concat itself always succeeded). Now references both by absolute `$WORK_DIR`.
+- **`run_record.sh`** (new) — multi-year full-record driver. Splits a range into
+  v1 and vNRT groups, ingests each (per-year SBATCH fan-out for dailies, per-version
+  range for monthlies), symlinks vNRT→v1 (daily + monthly), then runs
+  cat/clim/fit/diurnalize/daysplit/provenance as one continuous v1 stream. Reuses
+  `run_year.sh`'s `run`/`sbatch_wait` helpers + `--fitter` mapping and a new
+  `fanout_wait`. Generalizes the year-pinned `produce_2025_2026.sh`.
+- **`archive/`** (new) — moved the year-pinned one-offs `produce_2025_2026.sh`
+  (fixed its `cd $(dirname $0)/..` so it still runs from the new location; kept for
+  the NRT trailing-edge completion it special-cases) and `diag_v1_vNRT_handoff.r`
+  out of the root. CI still syntax-checks them (recursive `find`). Updated the
+  references in `docs/PIPELINE.md`, `docs/PROPOSALS.md`, and `build_verify_v2.py`
+  (notebook regenerated).
+
 ## 2026-06-23 — license corrected to U.S. Government Work (was CC0-1.0)
 
 This is a NOAA federal product, so the license is now stated as a **U.S.

@@ -1,6 +1,6 @@
 #!/bin/bash
 # Drive the full MiCASA pipeline over a MULTI-YEAR range into the configured
-# output dirs. Generalizes the year-pinned produce_2025_2026.sh and the manual
+# output dirs. Generalizes the year-pinned archive/produce_2025_2026.sh and the manual
 # full-record orchestration used to build /work2/.../2026/MiCASA.0.
 #
 # Usage:

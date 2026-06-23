@@ -2,6 +2,14 @@
 # produce_2025_2026.sh — Phase 2 of v2 generation, after ingest_byyear has
 # brought the 1° vNRT dailies up to date.
 #
+# ARCHIVED (lives in archive/). This is the year-pinned one-off that built the
+# 2025-2026 NRT tail; the general multi-year driver is ../run_record.sh. It is
+# kept for the NRT trailing-edge completion it special-cases (steps 5-6: the
+# day-of-year clim-fill of the partial final month + the synthetic monthly file
+# with a patched time coordinate), which run_record.sh deliberately omits.
+# Still runnable: it cd's to the repo root ("$(dirname "$0")/..") so its
+# repo-root-relative calls (./config.sh, ./link_vNRT_to_v1.sh, ...) resolve.
+#
 # Steps:
 #   1. ingest_monthly vNRT 2025 (Jan..Nov, raw exists)
 #   2. ingest_monthly vNRT 2026 (Jan..Mar, raw exists)
@@ -27,7 +35,7 @@
 # overwrite the synthetic Dec file.
 
 set -euo pipefail
-cd "$(dirname "$0")"
+cd "$(dirname "$0")/.."   # archive/ -> repo root, so ./config.sh etc. resolve
 . ./config.sh
 . ./lib/manifest.sh
 _prod_t0=$(date +%s)

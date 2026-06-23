@@ -163,14 +163,19 @@ run_year.sh
 
 ### Drivers
 
-- **`run_year.sh`** — Top-level driver. Sets `MICASA_YEAR`, sources
+- **`run_year.sh`** — Single-year driver. Sets `MICASA_YEAR`, sources
   `config.sh`, calls each pipeline stage in order. SBATCH stages
   submitted with `--wait`.
-- **`produce_2025_2026.sh`** — Phase-2 NRT batch driver: ingest_monthly,
-  v1/vNRT symlinking, climatology fill for the trailing partial month,
-  `cat_monthly.sh`, `write_pchip.r`, then submits diurnalize drivers for
-  2025 (full year) and 2026 Q1. Day-splitting is run separately
-  (`daysplit_array.sbatch`).
+- **`run_record.sh`** — Multi-year full-record driver. Splits a range
+  into v1 and vNRT groups, ingests each (per-year SBATCH fan-out for
+  dailies, per-version range for monthlies), symlinks vNRT→v1, then runs
+  cat/clim/fit/diurnalize/daysplit/provenance as one continuous v1
+  stream. Generalizes the archived `produce_2025_2026.sh`.
+- **`archive/produce_2025_2026.sh`** — *Archived.* Year-pinned Phase-2
+  NRT batch driver (ingest_monthly, v1/vNRT symlinking, climatology fill
+  for the trailing partial month, `cat_monthly.sh`, `write_pchip.r`, then
+  diurnalize 2025/2026). Kept for the NRT trailing-edge completion it
+  special-cases; superseded by `run_record.sh` for clean rebuilds.
 - **`daysplit_array.sbatch`** — SLURM array wrapper around
   `daysplitter.sh` (one task per year). Useful for parallel backfills.
 - **`config.sh` / `config.r`** — Single source of truth for env-driven
@@ -372,7 +377,7 @@ run_year.sh
   propagation horizon).
 - **`verify_piqs_tail_stability.r`** — Helper for verify_v2 §11.2
   (tail-coef stability across re-fits).
-- **`diag_v1_vNRT_handoff.r`** — Splice-continuity diagnostic ([proposal
+- **`archive/diag_v1_vNRT_handoff.r`** — *Archived.* Splice-continuity diagnostic ([proposal
   #3](PROPOSALS.md)).
 
 ### Deprecated / one-time scripts (kept for reference)
@@ -481,7 +486,7 @@ timestamp  step  status  host  commit  elapsed_s  detail
 (`diurnalize-ERA5.r`, `daysplitter.sh`) record themselves — a `start`
 when the worker begins and an `ok` (or `fail`, via an error handler or
 `EXIT` trap) when it finishes, with the elapsed seconds and the year.
-The orchestrators `run_year.sh` and `produce_2025_2026.sh` record every
+The orchestrators `run_year.sh`, `run_record.sh` and `archive/produce_2025_2026.sh` record every
 stage they run. The helpers are failure-tolerant: a logging call never
 aborts the pipeline, even under `set -e`.
 

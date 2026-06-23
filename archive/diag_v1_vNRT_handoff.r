@@ -2,6 +2,10 @@
 
 # diag_v1_vNRT_handoff.r
 #
+# ARCHIVED (lives in archive/). A one-off splice-continuity diagnostic for the
+# v1→vNRT (2024-12 / 2025-01) handoff. Paths are cwd-relative, so it still runs
+# from the working directory regardless of the script's location.
+#
 # Proposal #3 in README.ash: sanity-check that splicing MiCASA v1 (final,
 # through 2024-12) and vNRT (2025-01 onward) into a single monthly record
 # does not introduce a step in absolute scale that PIQS would smooth across.
@@ -12,8 +16,8 @@
 # if present) around the Dec 2024 / Jan 2025 boundary. Saves a PDF plot and a
 # CSV table to the working directory.
 #
-# Run on Orion from the same working directory as write_piqs.r:
-#     Rscript diag_v1_vNRT_handoff.r
+# Run on Orion from the MiCASA working directory:
+#     Rscript archive/diag_v1_vNRT_handoff.r
 #
 # Optional env vars:
 #   MICASA_DIAG_FROM=YYYYMM   start month for the plot window (default 202301)

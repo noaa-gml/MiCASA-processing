@@ -540,7 +540,7 @@ md("## Section 4 — Cross-Boundary Sanity")
 md("""
     ### Check 4.1 — v1↔vNRT splice continuity at Dec 2024 / Jan 2025
 
-    Reads `diag_v1_vNRT_handoff.csv` (produced by `diag_v1_vNRT_handoff.r`)
+    Reads `diag_v1_vNRT_handoff.csv` (produced by `archive/diag_v1_vNRT_handoff.r`)
     and looks for a step-change in monthly global totals across the
     splice boundary. A jump > 10% in NPP or Rh between months adjacent to
     the boundary is suspicious.
@@ -550,7 +550,7 @@ code('''
     csv_path = WORK_DIR / "diag_v1_vNRT_handoff.csv"
     if not csv_path.exists():
         record(cid, cname, INFO,
-               "diag_v1_vNRT_handoff.csv not found -- run diag_v1_vNRT_handoff.r first")
+               "diag_v1_vNRT_handoff.csv not found -- run archive/diag_v1_vNRT_handoff.r first")
     else:
         df = pd.read_csv(csv_path)
         df["yyyymm"] = df["year"]*100 + df["month"]
@@ -1302,7 +1302,7 @@ md("""
     `MiCASA_vNRT_*_YYYYMMDD.nc` as a `MiCASA_v1_*_YYYYMMDD.nc` so
     downstream consumers (cat_monthly, write_piqs, diurnalize) read it
     under the v1 prefix. Same for monthlies via the inline loop in
-    `produce_2025_2026.sh`. This check asserts every such symlink in
+    `archive/produce_2025_2026.sh`. This check asserts every such symlink in
     daily_1x1/ and monthly_1x1/ resolves to a real file (not a dangling
     or circular symlink).
 """)
@@ -3060,7 +3060,7 @@ md("""
     Pipeline steps now append a structured record to
     `jobs/run_manifest.tsv` via the `lib/manifest.{sh,r}` helpers —
     `diurnalize-ERA5.r`, `daysplitter.sh`, and the `run_year.sh` /
-    `produce_2025_2026.sh` orchestrators each write a `start` / `ok` /
+    `run_record.sh` / `archive/produce_2025_2026.sh` orchestrators each write a `start` / `ok` /
     `fail` row per step, with timestamp, host, git commit and elapsed
     seconds. verify_v2 reads this manifest (Check 22.1 and the checks
     below) instead of regex-scraping job logs. The manifest does not

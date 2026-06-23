@@ -57,7 +57,7 @@ per-month with proposal #14.
 
 ## (3) [STAGED] v1 → vNRT handoff sanity check
 
-`diag_v1_vNRT_handoff.r` reads the spliced monthly file, computes
+`archive/diag_v1_vNRT_handoff.r` reads the spliced monthly file, computes
 area-weighted global monthly totals of NPP, Rh, and (if present) ATMC,
 prints the values straddling the boundary so any step is immediately
 visible, and saves a CSV plus a multi-panel PDF. Run from the working
@@ -283,7 +283,7 @@ hourly sampling.
 Full-record diurnalize confirmation (25 years, 300 months) shows GPP
 cell-hour mean flip rate 6.55% → 0.12% and Rh effectively zero.
 
-`write_pchip.r` is now invoked by both `produce_2025_2026.sh` and
+`write_pchip.r` is now invoked by both `run_record.sh` / `archive/produce_2025_2026.sh` and
 `run_year.sh`; the polar-night clip in `diurnalize-ERA5.r` (note 8) is
 now redundant for new diurnalizes but kept as a defensive
 belt-and-suspenders. `write_piqs.r` and `write_mss.r` remain in the
@@ -505,7 +505,7 @@ with `status` one of `start` / `ok` / `fail`. `diurnalize-ERA5.r` and
 the orchestrator cannot time inline -- record themselves: a `start`
 when the worker begins and an `ok` (or `fail`, via an R error handler /
 shell `EXIT` trap) when it finishes, carrying the elapsed seconds and
-the year. The orchestrators `run_year.sh` and `produce_2025_2026.sh`
+the year. The orchestrators `run_year.sh`, `run_record.sh` and `archive/produce_2025_2026.sh`
 record every stage they run.
 
 The helpers are deliberately failure-tolerant: a logging call must
