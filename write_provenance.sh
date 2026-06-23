@@ -62,7 +62,10 @@ WHO="$(id -un 2>/dev/null || echo unknown)"
 # Software stack (best-effort; one R startup, skipped cleanly if R is absent).
 R_INFO="(R not on PATH; not captured)"
 if command -v Rscript >/dev/null 2>&1; then
-    _ri="$(Rscript -e 'cat(R.version.string); cat(" | ncdf4", tryCatch(as.character(packageVersion("ncdf4")), error = function(e) "n/a"))' 2>/dev/null)"
+    # Some site Rprofiles print a startup banner to stdout; sanitize by
+    # extracting just the "R version ... | ncdf4 ..." substring.
+    _ri="$(Rscript -e 'cat(R.version.string); cat(" | ncdf4", tryCatch(as.character(packageVersion("ncdf4")), error = function(e) "n/a"))' 2>/dev/null \
+           | tr '\n' ' ' | sed -nE 's/.*(R version[^[]*).*/\1/p' | head -1 | sed 's/ *$//')"
     [ -n "$_ri" ] && R_INFO="$_ri"
 fi
 
