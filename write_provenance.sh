@@ -103,6 +103,17 @@ NRT_YEARS="$(cd "$MONTHLY_1X1_DIR" 2>/dev/null && for f in MiCASA_v1_flux_x360_y
             | sed -E 's/.*monthly_([0-9]{4})[0-9]{2}\.nc/\1/' | sort -u | tr '\n' ' ' | sed 's/ *$//')"
 [ -n "$NRT_YEARS" ] || NRT_YEARS="(none -- all final v1)"
 
+# Climatology spin-up: the real MiCASA record begins MICASA_RECORD_START (2001).
+# Any years on disk earlier than that are not real MiCASA biology -- they are the
+# day-of-year NPP/Rh climatology diurnalized with that year's real ERA5 meteo
+# (each such file carries flux_from_climatology="yes"). List them from the
+# hourly filenames so the caveat names the exact spin-up years present.
+RECORD_START="${MICASA_RECORD_START:-2001}"
+SPINUP_YEARS="$(ls "$ERA5_DIR"/fluxes_*.nc 2>/dev/null \
+            | sed -E 's/.*fluxes_([0-9]{4})[0-9]{2}\.nc$/\1/' | sort -u \
+            | awk -v r="$RECORD_START" '$1 < r' | tr '\n' ' ' | sed 's/ *$//')"
+[ -n "$SPINUP_YEARS" ] || SPINUP_YEARS="(none -- record starts ${RECORD_START})"
+
 cat > "$OUT" <<EOF
 ================================================================================
  MiCASA processed carbon-flux product -- PROVENANCE
@@ -149,6 +160,14 @@ global attributes ("ncdump -h <file>") and in ${JOBS_DIR}/run_manifest.tsv.
  All other years are final v1. Files are labelled micasa_version=v1; for the NRT
  years the underlying monthly input is the vNRT stream symlinked to a v1 name.
 
+-- Climatology spin-up (pre-$RECORD_START years) --------------------------------------
+ The real MiCASA record begins $RECORD_START-01. Any earlier years present here are
+ CLIMATOLOGY SPIN-UP: the day-of-year NPP/Rh climatology (mean over the real
+ record) diurnalized with that year's real ERA5 meteo. They carry NO interannual
+ MiCASA signal -- the same seasonal cycle repeats each year -- and are intended
+ for transport spin-up only. Each such file is flagged flux_from_climatology="yes".
+ spin-up years on disk : $SPINUP_YEARS
+
 -- Generated -----------------------------------------------------------------
  when : $NOW
  host : $HOST
@@ -184,6 +203,8 @@ global attributes ("ncdump -h <file>") and in ${JOBS_DIR}/run_manifest.tsv.
  * NEE excludes the MiCASA ATMC term (NEE = Rh - NPP, not - ATMC): ATMC is an
    atmospheric-inversion correction; subtracting it would double-count the
    constraint a downstream CO2 inversion applies. See docs/METHODOLOGY.md.
+ * Years before $RECORD_START are climatology spin-up, not real MiCASA biology
+   (flux_from_climatology="yes" per file) -- see "Climatology spin-up" above.
  * Single deterministic realization -- no per-pixel uncertainty is provided.
  * Monthly means are preserved exactly (fit + mass-conserving polar clip); the
    sub-monthly and diurnal SHAPE is reconstructed, not native to MiCASA.
