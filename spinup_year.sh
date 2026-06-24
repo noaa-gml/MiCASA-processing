@@ -46,11 +46,15 @@ SPLIT_TIME="${SPINUP_SPLIT_TIME:-00:45:00}"
 RECORD_START="${MICASA_RECORD_START:-2001}"
 METEO_ROOT="${MICASA_ERA5_DIR:-${CARBONTRACKER:-}/METEO/tm5-nc/ec/ea/h06h18tr1/sfc/glb100x100}"
 
-# sbatch wrapper: in --dry-run, print the command and return a placeholder id.
-_n=0
+# sbatch wrapper: in --dry-run, print the command and return a placeholder id
+# derived from the job's -J name (so the afterok wiring is legible); otherwise
+# submit and return the real job id. (A counter won't work -- submit() runs in a
+# $(...) subshell, so increments wouldn't persist to the caller.)
 submit() {
     if [ "$DRY" = 1 ]; then
-        _n=$((_n + 1)); echo "  [dry] sbatch $*" >&2; echo "DRY$_n"
+        jn=job; prev=
+        for a in "$@"; do [ "$prev" = "-J" ] && jn="$a"; prev="$a"; done
+        echo "  [dry] sbatch $*" >&2; echo "DRY:$jn"
     else
         sbatch --parsable "$@"
     fi
