@@ -334,6 +334,8 @@ the NEE amplitude is correspondingly reduced.
 soil is the correct driver (`fitter_diagnostics/ec_resp_driver_validation.py`,
 AmeriFlux half-hourly; **14** sites after a u\*>0.2 turbulence filter and raw —
 non-gap-filled — flux only; at night NEE ≈ respiration, no GPP, no partitioning model).
+The AmeriFlux BASE data for these 14 sites are cited individually (per-site DOIs +
+the required AmeriFlux/DOE acknowledgment) in [DATA_SOURCES.md](DATA_SOURCES.md).
 The first pass conflated two questions; separated, with by-night block-bootstrap CIs:
 
 (Tests A/B/C are tabulated in the §5.4 opening above.) The decisive point: the

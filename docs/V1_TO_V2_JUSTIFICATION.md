@@ -413,6 +413,10 @@ mismatch flagged in adversarial review.)
 
 ![Mean nighttime respiration cycle: observed (AmeriFlux) vs air- vs soil-driven — soil is too damped](figures/ec_diurnal_shape_overlay.png)
 
+> *Data:* the eddy-covariance data are AmeriFlux BASE from 14 U.S. sites — see
+> [DATA_SOURCES.md](DATA_SOURCES.md) for the per-site DOIs and the required
+> AmeriFlux / U.S.-DOE acknowledgment.
+
 **So air remains the default; soil stays opt-in.** Soil's measured effect, if selected,
 is a damping of the imposed respiration diurnal cycle (full-year-2019 spatial
 block-bootstrap, `fitter_diagnostics/resp_driver_blockboot.py`): respiration amplitude
