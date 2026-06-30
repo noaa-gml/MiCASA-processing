@@ -1,10 +1,40 @@
 # Data Sources & Acknowledgments
 
-Third-party datasets used in this repository's analyses, with the citations and
+Third-party datasets used in this repository — both the **input** meteorology
+that drives the product and the **validation** data — with the citations and
 acknowledgments their data-use policies require. (The MiCASA model product
-itself and the ERA5 meteorology are cited in the per-file netCDF attributes and
-in `PROVENANCE.txt`; this file covers the *external observational* data used for
-**validation**, not as product input.)
+itself is cited via its upstream DOI in `PROVENANCE.txt` and the per-file netCDF
+attributes; the same files also record the exact ERA5 meteo paths per output.)
+
+## ERA5 meteorology (model input)
+
+The diurnalization step (`diurnalize-ERA5.r`) drives the sub-daily shape of GPP
+and respiration with hourly **ECMWF ERA5** surface reanalysis — downward solar
+radiation (`ssrd`), 2 m air temperature (`t2m`), and (for the opt-in soil-temp
+driver) level-1 soil temperature (`stl1`) and soil water (`swvl1`). Unlike the
+AmeriFlux data below, ERA5 **is an input to the product**, not just validation.
+
+- **Source:** ECMWF ERA5, from the Copernicus Climate Change Service (C3S),
+  preprocessed/regridded to the TM5 1° meteo grid (the `ea` surface stream under
+  `$CARBONTRACKER/METEO/tm5-nc/ec/ea/...`; the FastTrack `ea_0005` tree is the
+  near-real-time fallback). The per-day tree that fed each output is recorded in
+  its `meteo_source_*` netCDF attributes.
+- **Coverage used:** hourly, 1989–present (the 1999–2000 spin-up plus the full
+  2001-onward record).
+
+**Citations:**
+
+- Hersbach, H., et al. (2020), *The ERA5 global reanalysis*, Quarterly Journal of
+  the Royal Meteorological Society 146:1999–2049, https://doi.org/10.1002/qj.3803.
+- Hersbach, H., et al. (2023), *ERA5 hourly data on single levels from 1940 to
+  present*, Copernicus Climate Change Service (C3S) Climate Data Store (CDS),
+  https://doi.org/10.24381/cds.adbb2d47.
+
+**Acknowledgment / disclaimer** (per the Copernicus licence):
+
+> Generated using Copernicus Climate Change Service information [year(s) of the
+> data used]. Neither the European Commission nor ECMWF is responsible for any
+> use that may be made of the Copernicus information or data it contains.
 
 ## AmeriFlux eddy-covariance towers
 
