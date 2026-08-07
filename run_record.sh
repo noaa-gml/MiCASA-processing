@@ -227,6 +227,35 @@ echo "  LOG          ${LOG}"
 [ "$dry_run" -eq 1 ] && echo "  *** DRY RUN — nothing will execute ***"
 echo "========================================================================"
 
+# ---- Stage 0: upstream freshness preflight ---------------------------------
+# NASA silently republishes raw files under the same name. Re-ingesting a
+# pinned mirror therefore reproduces a SUPERSEDED vintage with every gate
+# green -- which is exactly how the 2025-06-17 FIRE fix was missed for a year.
+# This preflight runs on the submit (login) node, where there is network, and
+# is FATAL: a stale mirror must not silently become a shipped product.
+# Override with MICASA_ALLOW_STALE=1 when you deliberately want the old vintage
+# (e.g. reproducing a historical release).
+echo
+echo "==> [stage 0] upstream freshness preflight"
+if [ "$dry_run" -eq 1 ]; then
+    echo "    [dry] check_upstream_fresh.py --version ${POST_VERSION}"
+elif [ -n "${MICASA_ALLOW_STALE:-}" ]; then
+    echo "    [skip] MICASA_ALLOW_STALE set -- NOT verifying against upstream."
+else
+    if MICASA_YEAR_START="$YEAR_START" MICASA_YEAR_END="$YEAR_END" \
+       "${WORK_DIR}/check_upstream_fresh.py" --version both --quiet; then
+        echo "    mirror matches upstream."
+    else
+        echo
+        echo "*** ABORT: the raw mirror is STALE or INCOMPLETE (see above)."
+        echo "*** Refresh it, then re-run:"
+        echo "***     MICASA_REFRESH=1 ./download.sh     # per year"
+        echo "*** or set MICASA_ALLOW_STALE=1 to build the old vintage anyway."
+        manifest_record run_record.sh fail - "aborted: stale raw mirror"
+        exit 1
+    fi
+fi
+
 # ---- Stage 1: Download (opt-in) --------------------------------------------
 
 if [ "$do_download" -eq 1 ]; then

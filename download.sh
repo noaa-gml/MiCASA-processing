@@ -30,12 +30,34 @@
 # (controlled via $MICASA_VERSION at ingest time, or via downstream
 # `link_vNRT_to_v1.sh` to expose vNRT as v1 for CarbonTracker).
 #
-# Server doesn't provide timestamps so wget -N is useless;
-# --no-clobber gets new files only.
+# Refresh vs. no-clobber (MICASA_REFRESH)
+# ---------------------------------------
+# Default is --no-clobber: fetch only files we don't already have. Fast, but it
+# PINS the mirror to whatever version landed first -- and NASA silently
+# REPUBLISHES raw files under the same name when it reprocesses.
+#
+#   2025-06-17: 47 daily vNRT files (2025-01..2025-05) were republished to fix
+#   a 35-day spurious FIRE smear (2025-01-07..02-10, ~20-29x the global fire
+#   flux). Our mirror, fetched 2025-05-08, kept the broken vintage; the
+#   June-2026 rebuild re-ingested it and shipped it.
+#
+# An earlier version of this comment asserted "server doesn't provide
+# timestamps so wget -N is useless". That is FALSE -- the NCCS portal does
+# serve Last-Modified -- and that false premise is why the pin went unnoticed.
+# Set MICASA_REFRESH=1 to use wget -N (timestamping) so republished files are
+# re-fetched; run ./check_upstream_fresh.py to detect staleness first.
 
 set -e
 
 . "$(dirname "$0")/config.sh"
+
+# --no-clobber (pin) by default; -N (re-fetch when upstream is newer) on refresh.
+if [ -n "${MICASA_REFRESH:-}" ]; then
+    FETCH_MODE="--timestamping"
+    echo "MICASA_REFRESH set: re-fetching any file whose upstream copy is newer."
+else
+    FETCH_MODE="--no-clobber"
+fi
 
 download_one() {
     local version="$1"
@@ -53,12 +75,20 @@ download_one() {
     find portal.nccs.nasa.gov/daily/${MICASA_YEAR}   -name index.html -delete 2>/dev/null
     find portal.nccs.nasa.gov/monthly/${MICASA_YEAR} -name index.html -delete 2>/dev/null
     #
+    # Purge the cached _sha256.txt manifests too. --no-clobber skips them just
+    # like the data, so a STALE manifest validates STALE data and the
+    # check_hashes.py gate below goes green on a superseded vintage -- the
+    # exact way the 2025-06-17 republication slipped through. Re-fetching the
+    # manifest every run makes that gate able to fail.
+    find portal.nccs.nasa.gov/daily/${MICASA_YEAR}   -name '*_sha256.txt' -delete 2>/dev/null
+    find portal.nccs.nasa.gov/monthly/${MICASA_YEAR} -name '*_sha256.txt' -delete 2>/dev/null
+    #
     # rc=8 (server 4xx) is the expected response when this version hasn't
     # published $MICASA_YEAR yet (e.g. v1 has no 2025/ until late 2026).
     # Treat as a non-fatal "not yet published" so the caller can keep going.
     local rc
     set +e
-    wget --recursive --no-parent --no-clobber --cut-dirs=6 \
+    wget --recursive --no-parent ${FETCH_MODE} --cut-dirs=6 \
          "${base}/daily/${MICASA_YEAR}/"
     rc=$?
     if [ $rc -eq 8 ]; then
@@ -69,7 +99,7 @@ download_one() {
         set -e
         return $rc
     fi
-    wget --recursive --no-parent --no-clobber --cut-dirs=6 \
+    wget --recursive --no-parent ${FETCH_MODE} --cut-dirs=6 \
          "${base}/monthly/${MICASA_YEAR}/"
     rc=$?
     set -e
