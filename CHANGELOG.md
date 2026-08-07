@@ -4,6 +4,53 @@ Dated engineering entries for the active (`main`) branch. Conceptual /
 methodological reasoning lives in [`docs/PROPOSALS.md`](docs/PROPOSALS.md);
 this file is for "what landed when, and what numbers it moved."
 
+## 2026-08-07 — INCIDENT: shipped a superseded upstream vintage (spurious FIRE)
+
+**Symptom.** A CT2026 P8 prior showed a 35-day global fire excursion,
+2025-01-07 → 2025-02-10: ~40–58 PgC/yr against a ~2 PgC/yr global fire
+baseline, abrupt on/off (2.65 → 57.87; 38.88 → 2.36) with a smooth decay
+between and the active-cell count pinned at ~13,170 throughout — a decaying
+stuck field, not a fire season. Integrated excess ≈ **4.2 PgC** in five weeks.
+
+**Not our regridding.** Aggregating NASA's raw 0.1° to 1° independently
+reproduces our ingested product cell-for-cell (4,830/4,830 active and
+64.2%/64.2% top-100 concentration on a normal day; 13,174/13,174 and
+19.6%/19.6% on a spike day), mass ratio exactly `1000.000000` — the documented
+`kg m-2 s-1` → `gC m^-2 s^-1` conversion. The smear is in the raw at native
+0.1° (61,558 → 592,159 active cells at onset).
+
+**Root cause: a stale mirror.** NASA republished the affected files on
+**2025-06-17**, fixing FIRE (2025-01-10: 54.79 → 2.47 PgC/yr, −95.5%). Our
+mirror was fetched **2025-05-08**; the June-2026 rebuild re-ingested the
+pre-fix vintage. Three compounding causes, all now fixed:
+
+1. `download.sh` pinned the mirror with `--no-clobber`, justified by a comment
+   asserting the server sends no timestamps — **false**; the portal serves
+   `Last-Modified`. Added `MICASA_REFRESH=1` → `wget --timestamping`, and
+   corrected the comment.
+2. `--no-clobber` also skipped the `_sha256.txt` manifests, so a stale manifest
+   validated stale data and `check_hashes.py` went **green on a superseded
+   vintage**. The manifests are now purged and re-fetched every run, so that
+   gate can actually fail.
+3. Nothing checked freshness when **re-ingesting without downloading** — our
+   actual failure mode. Added **`check_upstream_fresh.py`** (compares the local
+   mirror against the portal listing; exits 1 on stale/missing) and wired it as
+   a **fatal stage-0 preflight** in `run_record.sh`, on the login node where
+   there is network. `MICASA_ALLOW_STALE=1` to rebuild an old vintage on
+   purpose. Liveness-tested both ways: 2025 vNRT → 47 STALE, exit 1;
+   2012 v1 → 378 match, exit 0.
+
+**Blast radius — daily FIRE only.** The monthly stream, which drives the NEE
+product via the fit, is clean (Jan/Feb 2025 FIRE 2.29 / 2.22 PgC/yr, in line
+with 1.68 / 1.96 / 2.00 neighbours; NPP and Rh smooth). The shipped `ERA5/`
+product carries `GPP, resp, NEE, QGPP, qresp` + meteo and **no FIRE**, so
+downstream NEE is unaffected. Staleness audit: **47 stale daily files, all
+2025-01…2025-05**; 2025-06 onward clean; vNRT monthly 12/12 clean; v1 final
+2001–2024 clean (4 spot-checks, 124 files).
+
+**Still outstanding:** the 47 stale files have *not* yet been refreshed, so
+`daily_1x1` / `monthly_1x1` `FIRE` for 2025-01…05 remains the bad vintage.
+
 ## 2026-06-23 — repo cleanup: cat_monthly cwd bug, run_record.sh, archive/, tests/
 
 Tier-1 housekeeping (no product-behavior change to existing runs):
