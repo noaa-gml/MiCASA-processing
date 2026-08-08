@@ -36,6 +36,29 @@ micasa.tracers     <- c("NPP", "Rh", "FIRE", "FUEL")
 micasa.diagnostics <- c("ATMC")
 micasa.ingest.vars <- c(micasa.tracers, micasa.diagnostics)
 
+# Sign / composition convention, stamped onto every output. These 1° files are
+# where downstream consumers take FIRE and FUEL from, and until 2026-08-07 they
+# documented no sign convention at all -- the only "positive is source to atm"
+# statement lived in the hourly ERA5 NEE long_name, a different product that
+# does not even carry FIRE. Inferring a flux sign is how sign errors happen, so
+# state it in the file.
+micasa.sign.convention <- paste(
+  "POSITIVE = flux TO the atmosphere (source); negative = uptake.",
+  "This product's NEE is formed as (Rh - NPP) and does NOT include FIRE, FUEL",
+  "or ATMC. Add FIRE (and FUEL) separately for net biosphere exchange.")
+micasa.var.notes <- list(
+  NPP  = paste("Stored POSITIVE, but this is an UPTAKE term: NEE is formed as",
+               "(Rh - NPP), so the stored sign is NOT this term's sign in the",
+               "atmospheric budget."),
+  Rh   = "Stored POSITIVE = source to the atmosphere.",
+  FIRE = paste("Stored POSITIVE = source to the atmosphere; non-negative",
+               "everywhere, matching the upstream 0.1 deg field. NOT included in",
+               "this product's NEE (NEE = Rh - NPP) -- add it separately for NBE,",
+               "and do not also carry a second fire inventory (GFED/QFED) or you",
+               "will double-count."),
+  FUEL = paste("Fuel-wood emission. Stored POSITIVE = source to the atmosphere.",
+               "NOT included in this product's NEE; add separately."))
+
 # Earth mean radius (m), per the MiCASA dataset documentation.
 EARTH_RADIUS_M <- 6371007.2
 
@@ -187,6 +210,14 @@ write.netcdf <- function(ncout, vars, vals, srcnm, script.name) {
             prec = "text")
   ncatt_put(ncf, 0, "Source", attval = srcnm, prec = "text")
   for (nm in names(vars)) ncvar_put(ncf, vars[[nm]], vals[[nm]])
+  # Sign / composition convention: one global statement plus a per-variable
+  # note, so a consumer reading only this file never has to infer a flux sign.
+  ncatt_put(ncf, 0, "sign_convention", attval = micasa.sign.convention,
+            prec = "text")
+  for (nm in intersect(names(micasa.var.notes), names(vars))) {
+    ncatt_put(ncf, nm, "sign_and_usage", attval = micasa.var.notes[[nm]],
+              prec = "text")
+  }
   # Diagnostics carry an explicit "do not add this" note, so the distinction
   # survives into the file and does not live only in this repo's comments.
   for (nm in intersect(micasa.diagnostics, names(vars))) {
