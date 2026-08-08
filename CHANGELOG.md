@@ -48,8 +48,30 @@ downstream NEE is unaffected. Staleness audit: **47 stale daily files, all
 2025-01…2025-05**; 2025-06 onward clean; vNRT monthly 12/12 clean; v1 final
 2001–2024 clean (4 spot-checks, 124 files).
 
-**Still outstanding:** the 47 stale files have *not* yet been refreshed, so
-`daily_1x1` / `monthly_1x1` `FIRE` for 2025-01…05 remains the bad vintage.
+**Resolved same day.** The 47 pre-fix files were quarantined with SHA-256
+checksums (`MiCASA.0/quarantine/2025-06-17_superseded_vintage/`, 0.86 GiB,
+do-not-ingest README) as evidence for the upstream report, then refreshed via
+the new `MICASA_REFRESH=1` path (`check_hashes.py`: 377 verified, 0 mismatch,
+now against re-fetched manifests) and re-ingested.
+
+One trap worth recording: `wget --timestamping` stamps the refreshed raw with
+**upstream's** `Last-Modified` (2025-06-17), which is OLDER than the 1° outputs
+it must replace (2026-06-23) — so ingest's mtime-aware skip-existing would have
+silently skipped the whole re-ingest. **`RECOMPUTE_EXISTING=1` is mandatory
+after a refresh.** (Also: `ingest_byyear.r` probes the grid using
+`cfg$year.start`, not `INGEST_YEAR`, so a single-year vNRT re-ingest needs
+`MICASA_YEAR_START/END` pinned or it looks for a 2001 vNRT file and dies.)
+
+Verified after: 2025-01-07 57.87 → **2.42** PgC/yr, 2025-01-10 54.79 → **2.47**,
+2025-02-10 38.88 → **2.61**; days >10 PgC/yr **35 → 0**; 2025 max 57.87 →
+**5.96**, median 1.95 (2022 reference: median 1.82, max 7.57). The monthly
+stream is bit-for-bit unchanged (NPP 60.25 / Rh 59.88 / FIRE 2.13 PgC/yr), so
+NEE and the whole `ERA5/` product were unaffected and needed no rerun.
+
+**Still open (upstream, reported):** the v1 month-boundary FIRE dropouts
+(2022–2024, ~17 days/yr at near-zero) and the ~12× fire spatial-spread change
+at the v1→vNRT handoff (median active 1° cells 521 → 6,540 at comparable total
+mass). Neither is ours — both verified against the raw.
 
 ## 2026-06-23 — repo cleanup: cat_monthly cwd bug, run_record.sh, archive/, tests/
 
