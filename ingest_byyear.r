@@ -98,11 +98,11 @@ for (month in 1:12) {
     }
 
     ## Read only the 4 tracers we aggregate (raw file also has ATMC, NEE).
-    ncin <- load.ncdf(srcnm, vars = micasa.tracers, quiet = TRUE)
+    ncin <- load.ncdf(srcnm, vars = micasa.ingest.vars, quiet = TRUE)
     vars <- make.tracer.vars(ncin, dim.lon, dim.lat, dim.time)
 
     vals <- list()
-    for (nm in micasa.tracers) {
+    for (nm in micasa.ingest.vars) {
       ## Source units kg C m-2 s-1 → output gC m-2 s-1.
       vals[[nm]] <- aggregate.to.1x1(ncin[[nm]], gca) * 1e3
     }

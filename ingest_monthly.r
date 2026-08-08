@@ -63,11 +63,11 @@ for (year in cfg$year.start:cfg$year.end) {
       file.remove(ncout)
     }
 
-    ncin <- load.ncdf(srcnm, vars = micasa.tracers, quiet = TRUE)
+    ncin <- load.ncdf(srcnm, vars = micasa.ingest.vars, quiet = TRUE)
     vars <- make.tracer.vars(ncin, dim.lon, dim.lat, dim.time)
 
     vals <- list()
-    for (nm in micasa.tracers) {
+    for (nm in micasa.ingest.vars) {
       ## Source units kg C m-2 s-1 → output gC m-2 s-1.
       vals[[nm]] <- aggregate.to.1x1(ncin[[nm]], gca) * 1e3
     }

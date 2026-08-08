@@ -7,20 +7,34 @@
 
 ## ---- Constants -------------------------------------------------------------
 
-# MiCASA tracers we ingest from the raw 0.1° files.
+# MiCASA fields we ingest from the raw 0.1° files, in TWO classes.
 #
-# ATMC ("Atmospheric correction") is intentionally NOT included. It was
-# tried in the v2 stream 2026-04-29 (proposal #2) and reverted the same
-# day -- ATMC is the LoFI empirical sink of Weir et al. 2021a (ACP,
-# doi:10.5194/acp-21-9609-2021) tuned annually to the observed
-# atmospheric CO2 growth rate, and these fluxes are consumed as priors
-# in a global atmospheric inversion that ALSO assimilates atmospheric
-# CO2 measurements. Pre-correcting with ATMC would smuggle observational
-# information from the same data class into the prior -- a textbook
-# data-leakage / double-dipping mistake. The inversion can learn the
-# same correction from the data side. See README.ash entry (7) for the
-# full reasoning.
-micasa.tracers <- c("NPP", "Rh", "FIRE", "FUEL")
+# micasa.tracers -- the carbon flux components. Physical fluxes; the
+# consumer combines them (NEE = Rh - NPP, with fire/fuel added separately).
+#
+# micasa.diagnostics -- CARRIED FOR REFERENCE, NEVER ADDED TO A FLUX.
+# ATMC ("Atmospheric correction") is the LoFI empirical sink of Weir et
+# al. 2021a (ACP, doi:10.5194/acp-21-9609-2021), rescaled ANNUALLY so the
+# global biospheric total matches the observed atmospheric CO2 growth
+# rate. MiCASA's own NEE is (Rh - NPP - ATMC); ours is deliberately
+# (Rh - NPP) -- ATMC is NOT subtracted -- because these fluxes are the
+# PRIOR to a global inversion that itself assimilates atmospheric CO2.
+# Pre-correcting would smuggle observational information from the same
+# data class into the prior (data leakage), after which the inversion can
+# no longer independently constrain the long-term sink. Subtracting it
+# was tried 2026-04-29 (proposal #2) and reverted the same day; full
+# reasoning in docs/V1_TO_V2_JUSTIFICATION.md section 5.2.
+#
+# It IS ingested and shipped as its own variable so the choice is
+# REVERSIBLE by the consumer without re-reading the 0.1° archive: a
+# forward/diagnostic user outside an inversion (no double-dipping) can
+# form MiCASA's NEE as (Rh - NPP - ATMC) themselves. Nothing in this
+# pipeline ever adds or subtracts it. Same units as the tracers
+# (kg m-2 s-1 carbon upstream -> gC m^-2 s^-1 here), so it rides the
+# generic aggregation and x1e3 conversion unchanged.
+micasa.tracers     <- c("NPP", "Rh", "FIRE", "FUEL")
+micasa.diagnostics <- c("ATMC")
+micasa.ingest.vars <- c(micasa.tracers, micasa.diagnostics)
 
 # Earth mean radius (m), per the MiCASA dataset documentation.
 EARTH_RADIUS_M <- 6371007.2
@@ -116,9 +130,16 @@ aggregate.to.1x1 <- function(fld, gca) {
 #
 # Why mtime, not just file.exists: NASA republishes source files (especially
 # vNRT). A pure file.exists skip would silently keep stale aggregates.
-# wget in download.sh sets local mtime to download time, so a re-download
-# of a republished file makes mtime(srcnm) > mtime(ncout) and triggers
-# correct re-ingest on the next pipeline pass.
+#
+# *** WARNING -- this check is NOT sufficient after a MICASA_REFRESH=1 run. ***
+# Plain wget (--no-clobber) sets local mtime to the DOWNLOAD time, so a
+# re-download did make mtime(srcnm) > mtime(ncout). But `wget --timestamping`
+# (the MICASA_REFRESH path added after the 2025-06-17 republication incident)
+# sets mtime to UPSTREAM's Last-Modified, which is typically OLDER than the
+# 1° output it must replace -- so this returns "fresh" and the re-ingest is
+# silently skipped. Measured 2026-08-07: refreshed raw 2025-06-17 vs output
+# 2026-06-23. ALWAYS pass RECOMPUTE_EXISTING=1 when re-ingesting after a
+# refresh; see CHANGELOG 2026-08-07.
 out.is.fresh <- function(ncout, srcnm) {
   file.exists(ncout) && file.mtime(ncout) > file.mtime(srcnm)
 }
@@ -143,7 +164,7 @@ micasa.time.dim <- function(date) {
 # `ncin` is the loaded raw input (used only for long_name passthrough).
 make.tracer.vars <- function(ncin, dim.lon, dim.lat, dim.time) {
   vars <- list()
-  for (nm in micasa.tracers) {
+  for (nm in micasa.ingest.vars) {
     vars[[nm]] <- ncvar_def(name = nm, units = "gC m^-2 s^-1",
                             dim = list(dim.lon, dim.lat, dim.time),
                             missval = -1e34, compression = 9,
