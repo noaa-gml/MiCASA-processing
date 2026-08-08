@@ -187,5 +187,17 @@ write.netcdf <- function(ncout, vars, vals, srcnm, script.name) {
             prec = "text")
   ncatt_put(ncf, 0, "Source", attval = srcnm, prec = "text")
   for (nm in names(vars)) ncvar_put(ncf, vars[[nm]], vals[[nm]])
+  # Diagnostics carry an explicit "do not add this" note, so the distinction
+  # survives into the file and does not live only in this repo's comments.
+  for (nm in intersect(micasa.diagnostics, names(vars))) {
+    ncatt_put(ncf, nm, "usage", prec = "text", attval = paste(
+      "DIAGNOSTIC -- carried for reference only. NOT subtracted from, or added",
+      "to, any flux in this product. MiCASA's own published NEE is",
+      "(Rh - NPP - ATMC); this product's NEE is (Rh - NPP), because these fluxes",
+      "are the prior to an inversion that assimilates the same atmospheric CO2",
+      "the ATMC correction was tuned to. Subtract it yourself ONLY for",
+      "forward/diagnostic use outside an inversion. See",
+      "docs/V1_TO_V2_JUSTIFICATION.md 5.2."))
+  }
   nc_close(ncf)
 }

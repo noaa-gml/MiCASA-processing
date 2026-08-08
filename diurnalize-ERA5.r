@@ -508,6 +508,24 @@ for (mon in mon.range) {
   ## Olsen & Randerson 2-m air path; "soiltemp" drives Q10 off 0-7cm stl1 (opt-in).
   ncatt_put(ncf, 0, "respiration_temperature_driver", attval = resp.driver, prec = "text")
   ncatt_put(ncf, 0, "respiration_temperature_function", attval = resp.tempfun, prec = "text")
+  ## NEE definition vs MiCASA's own -- stated explicitly because the variable
+  ## name collides. MiCASA publishes NEE = (Rh - NPP - ATMC); this product ships
+  ## NEE = (Rh - NPP). A consumer comparing the two without knowing that sees a
+  ## ~4 PgC/yr discrepancy (2022: +0.85 vs -3.14 PgC/yr land burden once fire is
+  ## included) and would reasonably conclude the product is broken.
+  .nee.note <- paste(
+    "NEE = Rh - NPP. The MiCASA ATMC atmospheric correction is NOT subtracted.",
+    "MiCASA's own published NEE is (Rh - NPP - ATMC) and is a substantially larger",
+    "sink (global difference ~4 PgC/yr; ATMC 2022 = +3.99 PgC/yr, 68% of it in",
+    "30-90N peaking May-June). ATMC is omitted deliberately: it is rescaled",
+    "annually so the global biospheric total matches the OBSERVED atmospheric CO2",
+    "growth rate, and these fluxes are the prior to an inversion that assimilates",
+    "that same data class -- subtracting it would pre-load the prior with the",
+    "constraint the inversion exists to apply. For forward/diagnostic use OUTSIDE",
+    "an inversion, subtract ATMC yourself: it is shipped as its own variable in",
+    "the 1-degree daily/monthly files. See docs/V1_TO_V2_JUSTIFICATION.md 5.2.")
+  ncatt_put(ncf, 0,     "nee_atmc_convention", attval = .nee.note, prec = "text")
+  ncatt_put(ncf, "NEE", "atmc_convention",     attval = .nee.note, prec = "text")
   if (partial.month) {
     ncatt_put(ncf, 0, "status", attval = "provisional", prec = "text")
     ncatt_put(ncf, 0, "meteo_partial",
