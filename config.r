@@ -23,7 +23,15 @@ micasa.config <- function() {
     monthly.1x1  = Sys.getenv("MONTHLY_1X1_DIR", "monthly_1x1"),
     era5.dir     = Sys.getenv("ERA5_DIR",        "ERA5"),
     raw.dir      = Sys.getenv("RAW_SRC_DIR",     "portal.nccs.nasa.gov"),
-    jobs.dir     = Sys.getenv("JOBS_DIR",        "jobs")
+    jobs.dir     = Sys.getenv("JOBS_DIR",        "jobs"),
+    ## Climatology-prior mode (run_climatology_prior.sh). Inert otherwise; see
+    ## docs/CLIMATOLOGY_PRIOR.md.
+    clim.baseline.start = as.integer(Sys.getenv("MICASA_CLIM_BASELINE_START", "2001")),
+    clim.baseline.end   = as.integer(Sys.getenv("MICASA_CLIM_BASELINE_END",   "2020")),
+    clim.span.start     = Sys.getenv("MICASA_CLIM_SPAN_START", "2020-01"),
+    clim.span.end       = Sys.getenv("MICASA_CLIM_SPAN_END",   "2026-12"),
+    clim.year.start     = as.integer(Sys.getenv("MICASA_CLIM_YEAR_START", "2021")),
+    clim.year.end       = as.integer(Sys.getenv("MICASA_CLIM_YEAR_END",   "2025"))
   )
 }
 

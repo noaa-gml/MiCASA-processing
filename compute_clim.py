@@ -18,49 +18,23 @@ The variable names, dimension order (month first), and gC m-2 s-1 units
 match the old PyFerret output, so diurnalize-ERA5.r picks them up unchanged.
 
 `modulo_month_mean` is a pure-NumPy function (no xarray / netCDF) so it can
-be unit-tested standalone -- see tests/test_compute_clim.py.
+be unit-tested standalone -- see tests/test_compute_clim.py. It now lives in
+lib/climatology.py, shared with make_climatology_series.py, and is re-exported
+here so existing callers and tests are unaffected.
 """
 import os
 import sys
-import warnings
 
 import numpy as np
 
-# lib/ holds provenance.py -- the CF/ACDD global-attribute helper. Resolve it
-# relative to this file so the import works from any working directory.
+# lib/ holds provenance.py (CF/ACDD global attributes) and climatology.py (the
+# modulo-month core). Resolve it relative to this file so the import works from
+# any working directory.
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "lib"))
 from provenance import provenance_attrs
+from climatology import modulo_month_mean          # noqa: F401  (re-exported)
 
 FILL = -1.0e34
-
-
-def modulo_month_mean(values, months):
-    """Mean of each calendar month across the time axis.
-
-    values : ndarray, axis 0 is time.
-    months : 1-D int array (calendar month 1..12), length == values.shape[0].
-    returns: ndarray, axis 0 length 12 (Jan..Dec), other axes preserved.
-             NaN / fill values are skipped per cell; a month with no data
-             (or an all-missing cell) yields NaN.
-
-    Equivalent to PyFerret's <var>[GT=MONTH_IRREG@MOD] and to
-    xarray's `da.groupby("time.month").mean("time")`.
-    """
-    values = np.asarray(values, dtype="float64")
-    months = np.asarray(months)
-    if months.shape[0] != values.shape[0]:
-        raise ValueError("months length must match values' time axis")
-    out = np.full((12,) + values.shape[1:], np.nan, dtype="float64")
-    for m in range(1, 13):
-        sel = months == m
-        if np.any(sel):
-            # An all-NaN cell (e.g. ocean) yields NaN via nanmean -- that is
-            # the intended result, so silence the "Mean of empty slice"
-            # RuntimeWarning rather than letting it spam the log.
-            with warnings.catch_warnings(), np.errstate(invalid="ignore"):
-                warnings.simplefilter("ignore", RuntimeWarning)
-                out[m - 1] = np.nanmean(values[sel], axis=0)
-    return out
 
 
 def main():

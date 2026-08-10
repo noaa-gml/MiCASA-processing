@@ -25,6 +25,31 @@ MICASA_YEAR_END="${MICASA_YEAR_END:-${MICASA_YEAR}}"
 MICASA_MONTH_START="${MICASA_MONTH_START:-1}"
 MICASA_MONTH_END="${MICASA_MONTH_END:-12}"
 
+# ---- Climatology-prior mode -------------------------------------------------
+# A prior whose monthly MAGNITUDE is a multi-year climatology but whose
+# sub-daily structure comes from real meteorology (run_climatology_prior.sh;
+# see docs/CLIMATOLOGY_PRIOR.md). These are inert unless that driver is used.
+
+# Baseline years averaged into the climatology. The MiCASA record starts in
+# 2001, so a request for a "2000-2020" climatology resolves to 2001-2020 --
+# make_climatology_series.py warns and records the ACTUAL window it used.
+MICASA_CLIM_BASELINE_START="${MICASA_CLIM_BASELINE_START:-2001}"
+MICASA_CLIM_BASELINE_END="${MICASA_CLIM_BASELINE_END:-2020}"
+
+# Span of the synthetic monthly series (YYYY-MM). Pad at least one year either
+# side of the delivered years so the sub-monthly fit's edge slopes have
+# climatological neighbours instead of inheriting one from real data.
+MICASA_CLIM_SPAN_START="${MICASA_CLIM_SPAN_START:-2020-01}"
+MICASA_CLIM_SPAN_END="${MICASA_CLIM_SPAN_END:-2026-12}"
+
+# Years actually diurnalized and day-split (the delivered product).
+MICASA_CLIM_YEAR_START="${MICASA_CLIM_YEAR_START:-2021}"
+MICASA_CLIM_YEAR_END="${MICASA_CLIM_YEAR_END:-2025}"
+
+# Concatenated monthly file to average. Empty -> the driver points it at
+# $MONTHLY_1X1_DIR of the SOURCE tree being climatologized.
+MICASA_CLIM_SOURCE="${MICASA_CLIM_SOURCE:-}"
+
 # ---- Site config ------------------------------------------------------------
 
 # SLURM mail contact -- required (no default; set in your shell profile).
@@ -63,5 +88,8 @@ JOBS_DIR="${JOBS_DIR:-jobs}"
 
 export MICASA_YEAR MICASA_VERSION MICASA_YEAR_START MICASA_YEAR_END
 export MICASA_MONTH_START MICASA_MONTH_END
+export MICASA_CLIM_BASELINE_START MICASA_CLIM_BASELINE_END
+export MICASA_CLIM_SPAN_START MICASA_CLIM_SPAN_END
+export MICASA_CLIM_YEAR_START MICASA_CLIM_YEAR_END MICASA_CLIM_SOURCE
 export MAIL_USER BASE_DIR WORK_DIR PORTAL_URL_BASE
 export DAILY_1X1_DIR MONTHLY_1X1_DIR ERA5_DIR RAW_SRC_DIR JOBS_DIR

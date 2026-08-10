@@ -4,6 +4,92 @@ Dated engineering entries for the active (`main`) branch. Conceptual /
 methodological reasoning lives in [`docs/PROPOSALS.md`](docs/PROPOSALS.md);
 this file is for "what landed when, and what numbers it moved."
 
+## 2026-08-10 — FEATURE: the climatology prior (climatological fluxes, real meteorology)
+
+**What.** A new pipeline mode producing MiCASA fluxes whose monthly magnitude is
+a multi-year climatology but whose sub-daily structure comes from each target
+day's own ERA5 meteorology. Requested by Andy Jacobson for CT2026: a prior that
+does not carry MiCASA's 2021-2025 bio trend (global land net weakening from
+−2.18 to −0.42 PgC/yr, ≈ +0.4 PgC/yr per year) while keeping the weather-driven
+structure an inversion needs.
+
+Driver `run_climatology_prior.sh` (series → fit → diurnalize → day-split →
+verify). Full write-up in [`docs/CLIMATOLOGY_PRIOR.md`](docs/CLIMATOLOGY_PRIOR.md).
+
+**The trap this feature is mostly about.** `diurnalize-ERA5.r` builds
+`f(t) = driver(t)*mean/mean_driver − mean + qmod(t)`, so the **monthly mean of
+the output is `mean(qmod)`** — taken entirely from `fit.piqs.rda`, not from the
+monthly-mean array, which only sets the diurnal amplitude. Handing
+climatological monthly means to a fit built on the *real* monthly series
+therefore reinstates the real interannual signal through `qmod` **while
+producing a complete, correct-looking set of files**: right count, right
+headers, no errors, not a climatology. Stage 2 rebuilds the fit on the
+climatological series for exactly this reason, and
+`tests/verify_climatology_fit.r` asserts per delivered month that the fit's
+analytic month-mean reproduces the climatological mean and that the same
+calendar month is identical across years. Measured separation on that flatness
+statistic: **7e-14 (climatological fit) vs 2.6 (production fit)**.
+
+**Numbers.** 2001-2020 baseline (the record starts 2001, so a "2000-2020"
+request resolves to 2001-2020 and the files record both). Delivered annual
+global land net bio flux: **−2.4756 PgC/yr flat** (−2.4633 in leap-year 2024,
+the extra weak-sink February day), trend **+0.001 PgC/yr per yr** against the
+raw product's **+0.40**. The climatology lands within **0.001 PgC/yr** of the
+raw archive's own 2001-2020 mean (−2.4721).
+
+**Scope: only bio is climatologized.** The hourly product is bio only.
+CarbonTracker reads bio and fire through separate rc keys and separate
+directories, so adopting this prior is a one-key change (`bio.input.dir`) and
+fire keeps reading the unmodified `daily_1x1` tree.
+
+The **monthly** product carries the full variable set via `--carry-imposed`
+(default `FIRE,FUEL,ATMC`), copied **unchanged and year-specific** from the
+source — consumers read FIRE from the monthly files, and a bio-only monthly
+product fails them on a missing variable. Deliberately mixed provenance, made
+machine-readable: every variable carries `climatology = "yes"|"no"` and the
+global `carried_imposed_variables` lists what was passed through. Check 1.7
+asserts both halves (climatological variables identical across years, carried
+ones not) from the file's own labels. The concatenation carries none — it is
+the fitter's input and a partially populated FIRE would read as real data with
+silent holes.
+
+**Added**
+
+- `make_climatology_series.py` — builds the synthetic climatological monthly
+  series (per-month + concatenated), padded a year either side of the delivery
+  window so the fit's edge slopes have climatological neighbours.
+- `run_climatology_prior.sh` — the driver. Refuses to write into a tree it did
+  not create (`.micasa-climatology-prior` marker); pins the diurnalization to
+  production settings so the climatology is the only difference; forces
+  `MICASA_STRICT_PIQS=1`.
+- `climatology_diurnalize.sbatch`, `climatology_daysplit.sbatch` — per-year
+  array stages, each gating on **artefact counts, never the stage's exit code**.
+  The day-split stamps the climatology provenance onto the monthly files before
+  splitting, so every daily file inherits it.
+- `lib/climatology.py` + `tests/test_climatology.py` — the modulo-month core,
+  now with an optional baseline-year window.
+- `lib/budget.py` + `tests/test_budget.py` — area weighting, unit conversion and
+  the NEE sign convention in one place, so a climatology and the product it
+  replaces are never measured by two different routines.
+- `tests/verify_climatology_prior.py` — 5-section battery (series, fit,
+  completeness, format parity, science). **Exits non-zero on failure**, unlike
+  `verify_v2.py`; `--selftest` builds known-bad fixtures and asserts they fail.
+- `tests/verify_climatology_fit.r` — the fit assertions, invoked by the battery.
+- `docs/CLIMATOLOGY_PRIOR.md`.
+
+**Changed**
+
+- `compute_clim.py` — `modulo_month_mean` moved to `lib/climatology.py` and
+  re-exported; behaviour unchanged, `tests/test_compute_clim.py` still passes
+  untouched.
+- `diurnalize-ERA5.r` — `MICASA_FIT_RDA` may now be **absolute**. `file.path()`
+  does not special-case an absolute second component, so an absolute value
+  previously became `<work.dir>//abs/path` and died on a missing file; relative
+  values behave exactly as before. Also added an explicit existence check that
+  names both the setting and the resolved path.
+- `config.sh` / `config.r` — additive `MICASA_CLIM_*` knobs, inert unless the
+  climatology driver is used.
+
 ## 2026-08-07 — INCIDENT: shipped a superseded upstream vintage (spurious FIRE)
 
 **Symptom.** A CT2026 P8 prior showed a 35-day global fire excursion,
