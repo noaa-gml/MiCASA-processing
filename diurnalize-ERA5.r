@@ -119,7 +119,17 @@ ct.setup()
 ## Load PIQS coefficients to smooth month-month variability. The fit file
 ## defaults to fit.piqs.rda; MICASA_FIT_RDA overrides it (e.g. fit.linmm.rda)
 ## to A/B an alternative fitter without clobbering the production fit.
-fit.rda.path <- file.path(work.dir, Sys.getenv("MICASA_FIT_RDA", "fit.piqs.rda"))
+## MICASA_FIT_RDA may be ABSOLUTE or relative to WORK_DIR. file.path() does not
+## special-case an absolute second component -- it just joins with "/" -- so an
+## absolute path handed to the old form produced "<work.dir>//abs/path" and died
+## on a missing file. Relative values (e.g. run.env's
+## "../2026/MiCASA.0/fit.piqs.rda") behave exactly as before.
+.fit.rda <- Sys.getenv("MICASA_FIT_RDA", "fit.piqs.rda")
+fit.rda.path <- if (substr(.fit.rda, 1, 1) == "/") .fit.rda else
+                  file.path(work.dir, .fit.rda)
+if (!file.exists(fit.rda.path))
+  stop(sprintf("MICASA_FIT_RDA=%s resolves to %s, which does not exist",
+               .fit.rda, fit.rda.path))
 load(fit.rda.path)
 piqsfit.time <- epoch.seconds.to.POSIX(piqsfit.time)
 piqsfit.lts  <- as.POSIXlt(piqsfit.time)
