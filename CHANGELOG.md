@@ -4,6 +4,45 @@ Dated engineering entries for the active (`main`) branch. Conceptual /
 methodological reasoning lives in [`docs/PROPOSALS.md`](docs/PROPOSALS.md);
 this file is for "what landed when, and what numbers it moved."
 
+## 2026-08-12 — FIX: report negativity of the DELIVERED respiration, not the fit's
+
+**What.** `diurnalize-ERA5.r` now prints, every month:
+
+```
+delivered resp < 0: 1156 / 48211200 cell-hours (0.0024%), most negative -1.715e-08 against a field of 1.838e-05
+```
+
+and warns if the most negative value exceeds 1 % of the field scale.
+`lib/diurnal.r :: resp.negativity` holds the arithmetic so it is unit-testable.
+
+**Why.** The existing `PIQS sign-flip [resp < 0]` counter tests `qmod.resp` — the
+*fitted* sub-monthly value, evaluated at the top of the slot loop and therefore
+**before** the ATMC subtraction further down. It is structurally blind to
+`MICASA_ATMC`, and the proof is empirical rather than argued: the `off`, `q10` and
+`flat` arms of 2021-07 printed **identical** sign-flip lines despite different physics.
+A gate that cannot distinguish the arms cannot fail on them. Answering Andy's "does
+this term ever go negative?" at hourly resolution required measuring the written files
+by hand — a gap that should not sit inside a shipped option.
+
+**Reported unconditionally**, not only when a removal is on, because the delta is
+meaningless without the baseline. That baseline is the actual finding: 2021-07 has
+**1,156 negative cell-hours with no removal at all**, against 2,333 with `q10` and
+2,563 with `flat`. Negative hourly respiration is a pre-existing property of the
+diurnalization; ATMC roughly doubles a 0.002 % occurrence while leaving the magnitude
+untouched (−1.715e−08 → −1.716e−08 against 1.8e−05). Hence a *warning* on magnitude
+rather than a hard stop on count — a stop would fire on the untreated product.
+
+**Validated against an independent measurement**, not just self-consistent: the
+in-pipeline counter reproduces the offline `compare_arms.py` numbers to the digit
+(1156 / 2333, same worst values). The `off` arm still reproduces the production
+`fluxes_202107.nc` at **max|d| = 0** on all nine 3-D variables, so the diagnostic
+perturbs nothing.
+
+**Tests.** Six checks in `tests/test_atmc.r`, including the load-bearing one: a
+mean-preserving removal must **change** the count (0 → 7 in the fixture) while the
+monthly mean stays positive and the old-style test sees nothing. That contrast is the
+bug, reproduced as an assertion.
+
 ## 2026-08-12 — TOOL: verify months appended to an existing climatology tree
 
 **What.** `tests/verify_climatology_extension.py` — checks a *partial* year added to an

@@ -119,3 +119,38 @@ polar.night.renorm <- function(gpp, gpp.mn) {
         sign(clipped.total) != sign(target.total)] <- 1
   sweep(gpp, c(1, 2), scale, "*")
 }
+
+## Negativity of the DELIVERED respiration field.
+##
+## diurnalize-ERA5.r already prints `PIQS sign-flip [resp < 0]`, but that counter
+## tests `qmod.resp` -- the fitted sub-monthly value, evaluated at the top of the
+## slot loop and therefore BEFORE the ATMC subtraction further down. It is
+## structurally blind to MICASA_ATMC, and the proof is empirical: the off, q10 and
+## flat arms of 2021-07 printed identical sign-flip lines despite different
+## physics. A gate that cannot distinguish the arms cannot fail on them.
+##
+## This counts the array that is actually written. It is reported for EVERY mode,
+## not just when a removal is on, because the delta is meaningless without the
+## baseline: 2021-07 has 1,156 negative cell-hours with no removal at all, against
+## 2,333 with q10 -- so negative hourly respiration is a pre-existing property of
+## the diurnalization, and ATMC roughly doubles a 0.002% occurrence rather than
+## creating one.
+##
+## `worst.frac` is what makes this a gate rather than a readout: the magnitude, not
+## the count, is what would matter. Through the whole 2021-07 test the most negative
+## value held at -1.7e-08 against a field of 1.8e-05 (worst.frac ~ 1e-3) whether
+## ATMC was removed or not; a removal that started driving respiration meaningfully
+## negative would move that ratio, and the caller warns on it.
+resp.negativity <- function(resp) {
+  fin   <- is.finite(resp)
+  neg   <- fin & resp < 0
+  n     <- sum(neg)
+  scale <- if (any(fin)) max(abs(resp[fin])) else 0
+  worst <- if (n > 0) min(resp[neg]) else 0
+  list(n          = n,
+       total      = sum(fin),
+       frac       = if (any(fin)) n / sum(fin) else 0,
+       worst      = worst,
+       scale      = scale,
+       worst.frac = if (scale > 0) abs(worst) / scale else 0)
+}

@@ -524,6 +524,22 @@ for (mon in mon.range) {
               flip.hours.resp, n.land.resp * nslots,
               100 * flip.hours.resp / max(n.land.resp * nslots, 1L)))
 
+  ## ...and the same question about the array we are about to WRITE. The counter
+  ## above tests qmod.resp, the fitted value, before the ATMC subtraction -- so it
+  ## is blind to MICASA_ATMC by construction and printed identical numbers for all
+  ## three arms of the 2021-07 test. See lib/diurnal.r :: resp.negativity.
+  ## Unconditional, because the ATMC delta only means anything against the
+  ## no-removal baseline.
+  rn <- resp.negativity(resp)
+  cat(sprintf("delivered resp < 0: %d / %d cell-hours (%.4f%%), most negative %.3e against a field of %.3e\n",
+              rn$n, rn$total, 100 * rn$frac, rn$worst, rn$scale))
+  ## Counts are expected and pre-existing (2021-07: 1,156 with no removal at all).
+  ## The MAGNITUDE is what would matter, and it held at ~0.1% of the field with and
+  ## without ATMC removal, so this warns rather than reporting into the void.
+  if (rn$worst.frac > 0.01)
+    warning(sprintf("%d-%02d: delivered respiration reaches %.3e, %.1f%% of the field scale -- far beyond the ~0.1%% seen with and without ATMC removal. Check MICASA_ATMC and the respiration driver.",
+                    yr, mon, rn$worst, 100 * rn$worst.frac), immediate. = TRUE)
+
   lx <- which(is.na(nee))
   if (length(lx) > 0) nee[lx] <- 0
 
