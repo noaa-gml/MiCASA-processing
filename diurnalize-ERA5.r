@@ -64,6 +64,11 @@ source(file.path(Sys.getenv("WORK_DIR", getwd()), "lib", "provenance.r"))
 ## fail to jobs/run_manifest.tsv, which verify_v2 reads. See lib/manifest.r.
 source(file.path(Sys.getenv("WORK_DIR", getwd()), "lib", "manifest.r"))
 
+## Product-identity guard (product.identity.enforce): refuses to write into a
+## tree whose files were made with different product-defining settings. See
+## lib/product_identity.r.
+source(file.path(Sys.getenv("WORK_DIR", getwd()), "lib", "product_identity.r"))
+
 ## Diurnalize flux transform (diurnal.flux, polar.night.clip): the pure
 ## arithmetic core, extracted so its invariants can be unit-tested
 ## (tests/test_diurnal.r). See lib/diurnal.r.
@@ -211,6 +216,24 @@ if (.diurn.only.mon > 0) {
   cat(sprintf("** Test mode: restricted to month %d **\n", .diurn.only.mon))
 }
 n.written <- 0L
+## Product identity, checked ONCE before any work: refuse a tree whose files
+## were made with different physics. At startup rather than at write time, so a
+## mismatch costs a second instead of a month of computation -- the write-time
+## placement was safe (the existing file was never touched) but wasteful.
+##
+## `from_climatology` is deliberately NOT part of the identity: whether a month
+## falls back to the NPP/Rh climatology is a per-month property of the input
+## data, not a configuration choice. It stays in the per-file attributes.
+product.identity.enforce(
+  out.dir,
+  list(micasa_version  = cfg$version,
+       flux_fit_method = fit.method,
+       resp_driver     = Sys.getenv("MICASA_RESP_DRIVER", "airtemp"),
+       resp_tempfun    = Sys.getenv("MICASA_RESP_TEMPFUN", "q10"),
+       polar_clip      = Sys.getenv("MICASA_POLAR_CLIP", "conserve"),
+       atmc_removal    = atmc.mode),
+  allow.mixed = nzchar(Sys.getenv("MICASA_ALLOW_MIXED")))
+
 for (mon in mon.range) {
 
   cat(sprintf("%d/%02d\n", yr, mon))
@@ -566,6 +589,17 @@ for (mon in mon.range) {
     extra = list(micasa_version         = cfg$version,
                  flux_fit_method        = fit.method,
                  flux_from_climatology  = if (use.clim) "yes" else "no",
+                 ## The physics knobs, stamped per FILE. The tree-level
+                 ## provenance text reflects whatever environment last ran
+                 ## write_provenance.sh, not what produced this month -- so a
+                 ## tree assembled from runs with different settings could not
+                 ## previously be told apart from a homogeneous one. Recording
+                 ## them here makes a mixed tree detectable by reading the
+                 ## files, which is the only durable record.
+                 resp_driver            = resp.driver,
+                 resp_tempfun           = resp.tempfun,
+                 polar_clip             = Sys.getenv("MICASA_POLAR_CLIP", "conserve"),
+                 atmc_removal           = atmc.mode,
                  input_pchip_fit        = fit.rda.path,
                  input_pchip_fit_sha256 = if (is.na(fit.rda.sha256))
                                             "unavailable" else fit.rda.sha256))

@@ -4,6 +4,45 @@ Dated engineering entries for the active (`main`) branch. Conceptual /
 methodological reasoning lives in [`docs/PROPOSALS.md`](docs/PROPOSALS.md);
 this file is for "what landed when, and what numbers it moved."
 
+## 2026-08-12 — FEATURE: product identity (`.micasa-product`), and why the ATMC option needed it
+
+**What.** Every output tree now carries a `.micasa-product` marker recording the
+settings its files were made with — version, fitter, respiration driver and response
+function, polar clip, ATMC mode. `diurnalize-ERA5.r` writes it on first output and
+**refuses to write into a tree whose marker disagrees**, naming the offending keys.
+`MICASA_ALLOW_MIXED=1` downgrades the refusal to a warning.
+
+**Why.** Adding `MICASA_ATMC` red-teamed the option model and found the real gap: the
+product-defining knobs were ambient environment, the output path was the same
+whatever they were set to, and **nothing stopped a tree being assembled from runs with
+different physics.** Re-diurnalizing one month with a different `MICASA_RESP_TEMPFUN`,
+or with ATMC on, silently produced a product whose months do not share a
+configuration — an ~4 PgC/yr discontinuity in the ATMC case — indistinguishable from a
+homogeneous one from the outside. That exposure predates ATMC and applied to every
+knob; the new option would have been the fifth to inherit it.
+`run_climatology_prior.sh` had already solved it for its own output with a
+`.micasa-climatology-prior` marker; this generalizes that idea to every knob and puts
+it in the **writer**, so it holds however diurnalize is invoked — driver, sbatch, or a
+bare `Rscript`.
+
+**Also**: the physics knobs are now stamped into every output file's global attributes
+(`resp_driver`, `resp_tempfun`, `polar_clip`, `atmc_removal`). The tree-level
+provenance text reflects whatever environment last ran `write_provenance.sh`, not what
+produced each month, so per-file attributes are the only durable record — and they
+make a mixed tree detectable by reading the data even where the marker is absent.
+
+**Costs and limits, measured.** The check runs after the ~187 MB fit is loaded, because
+the fitter name comes from the fit metadata: a mismatch is refused in ~2 minutes rather
+than ~5 (the first implementation checked at write time, which was safe — the existing
+file was never touched — but wasteful). A marker written by an older version may carry
+keys this version no longer tracks; those are ignored rather than refused, so an
+upgrade does not strand existing trees. The corollary is deliberate: a key dropped from
+the identity stops being enforced.
+
+**Tests.** `tests/test_product_identity.r` — create, match, round-trip, refusal on
+*each* product-defining key with the key named in the message, the allow-mixed
+override, adoption of a pre-existing unmarked tree, and a schema-evolution regression.
+
 ## 2026-08-12 — FEATURE: optional ATMC removal (`MICASA_ATMC`)
 
 **What.** `MICASA_ATMC=q10|flat` subtracts MiCASA's GMAO atmospheric-closure term
