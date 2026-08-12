@@ -4,6 +4,35 @@ Dated engineering entries for the active (`main`) branch. Conceptual /
 methodological reasoning lives in [`docs/PROPOSALS.md`](docs/PROPOSALS.md);
 this file is for "what landed when, and what numbers it moved."
 
+## 2026-08-12 — TOOL: verify months appended to an existing climatology tree
+
+**What.** `tests/verify_climatology_extension.py` — checks a *partial* year added to an
+already-verified climatology prior. `tests/verify_climatology_prior.py` iterates
+`for m in range(1, 13)` in three places and can only verify whole years, which every
+extension by definition is not.
+
+**Why the gates are different.** The full battery asks "is this tree a climatology
+prior?"; an extension asks "are these new months the **same product** as the ones
+already delivered?" Because the series is climatological and the fit is interior, that
+has a sharp answer: the monthly mean must equal the same calendar month of the
+reference year cell by cell (**MEAN** — the delivered mean comes from the fit, so a
+refit, a padding change, a trend leak or a wrong series file all break this and nothing
+else catches them), the hourly fields must nevertheless all differ (**LIVE** — identical
+hours would mean the year's real meteorology was never read), and MEAN is also run
+against the **wrong** calendar month (**FALSIFY**).
+
+**Two tolerance traps, both hit and both recorded in the module docstring.** An
+absolute `1e-16` tolerance sat three orders of magnitude *below one float32 tick* at
+these magnitudes and could not have passed any correct product — the tolerance has to
+be derived from the storage precision (`ULP_TOL * eps32 * max|ref|`). And `np.nanmean`
+over a float32 stack made the **checker** the dominant error term, reporting `3.4e-12`
+where float64 accumulation gives `4.8e-14`, a 70× inflation that briefly made a clean
+product look broken.
+
+**First use.** The 2026 Q1 extension of `/work2/noaa/co2/ash/micasa-clim`: monthly means
+matched 2025 to **0.17 ULP** (global integral to 7e-9 PgC/yr out of 6.77) with 100 % of
+land cell-hours differing, against a wrong-month control of 5.3e6 ULP.
+
 ## 2026-08-12 — FEATURE: product identity (`.micasa-product`), and why the ATMC option needed it
 
 **What.** Every output tree now carries a `.micasa-product` marker recording the
