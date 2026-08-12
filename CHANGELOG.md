@@ -4,6 +4,57 @@ Dated engineering entries for the active (`main`) branch. Conceptual /
 methodological reasoning lives in [`docs/PROPOSALS.md`](docs/PROPOSALS.md);
 this file is for "what landed when, and what numbers it moved."
 
+## 2026-08-12 — FEATURE: optional ATMC removal (`MICASA_ATMC`)
+
+**What.** `MICASA_ATMC=q10|flat` subtracts MiCASA's GMAO atmospheric-closure term
+from the respiration channel, so the delivered flux is the product's own
+`NEE = Rh − NPP − ATMC` rather than the `Rh − NPP` the CT prep has always ingested.
+Default `off` is byte-identical to the previous behaviour — every new branch is
+gated on the mode. Requested by Andy Jacobson for CT2026, where the dropped term
+(≈ +3.9 PgC/yr of uptake) is implicated in the p8 prior-error drift.
+
+**How.** `lib/diurnal.r :: atmc.removal()` builds the hourly removal; the slot loop
+subtracts it from `resp` before `NEE = GPP + resp`. In `q10` mode it is handed the
+**same** `q10` array and the **same** `q10.mn` the respiration channel was just
+weighted with, so the removal cannot drift from the flux it is subtracted from
+however `MICASA_RESP_DRIVER` / `MICASA_RESP_TEMPFUN` are set. Both modes are
+mean-preserving, which is what makes this correct **without refitting piqs**:
+`diurnal.flux`'s own monthly mean comes from `qmod`, so a change made only to the
+monthly array would move the diurnal amplitude and leave the budget untouched — the
+same silent no-op the climatology prior's fit trap describes. A run-time gate asserts
+the applied removal averages to the monthly ATMC cell by cell and stops if it does
+not. The removal is written out as an `ATMC` variable so it stays inspectable, and
+`write_provenance.sh` records the mode.
+
+**Numbers.** The monthly mass removed is identical in both modes; what differs is
+which hours it lands in. Measured over Jan/Apr/Jul/Oct 2021, ATMC- and area-weighted
+at 12–16 local solar time (a flat subtraction is 1.000 by definition): airtemp+q10
+1.173, soiltemp+q10 1.121, airtemp+lloydtaylor 1.381. So `q10` places the removal
+~17 % heavier in the hours CT samples than `flat`, and the span across response
+functions is ~1 PgC/yr of afternoon-weighted correction.
+
+**Caveat, deliberately not hidden.** ATMC is an inverse residual delivered as a
+monthly total, so *neither* shape is transmitted by the source. Over 2001–2020 it
+correlates with `Rh` at only **+0.52** while swinging ~7× Rh's relative seasonal
+amplitude — the respiration styling is bookkeeping, not physics. `flat` is therefore
+a genuine alternative rather than a control: it also introduces no meaningful
+negative respiration (~1,400 cell-hours in 12 million, at 1e-8 against a 1e-6 field),
+though only `q10` introduces exactly zero. Run the pair and price the assumption.
+Reasoning: `docs/atmc_diurnalization_scoping.md` in the tm5-zoom repo.
+
+**Configuration.** `MICASA_ATMC` is declared, documented and *validated* in
+`config.sh` — a bad value is refused at config time by every entry point rather than
+surviving to the R stage — and exported with the other pipeline knobs. `run_year.sh`
+takes `--atmc off|q10|flat` (both `--atmc q10` and `--atmc=q10` forms, matching
+`--fitter`). `run_climatology_prior.sh` pins and reports it, so clim+ATMC composes:
+the climatological series is built from NPP/Rh only and ATMC is carried through real
+and year-specific, meaning that combination removes the *real* monthly ATMC from a
+climatological bio — deliberate, and stated in the run banner rather than inherited.
+
+**Tests.** `tests/test_atmc.r` — mean preservation in both modes, q10 shape identical
+to the respiration weighting, flat uniformity, unknown modes refused, and a
+FALSIFY check showing a plausibly mis-normalised removal fails the mean assertion.
+
 ## 2026-08-10 — FEATURE: the climatology prior (climatological fluxes, real meteorology)
 
 **What.** A new pipeline mode producing MiCASA fluxes whose monthly magnitude is

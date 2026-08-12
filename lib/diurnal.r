@@ -27,6 +27,34 @@ diurnal.flux <- function(driver, monthly.mean, mean.driver, qmod) {
   driver * monthly.mean / mean.driver - monthly.mean + qmod
 }
 
+## ATMC removal weighting.
+##
+##   mode         "q10"  -- distribute the removal on the supplied temperature
+##                          weighting (pass the SAME driver array and monthly
+##                          mean the respiration channel was weighted with, so
+##                          the two cannot drift apart)
+##                "flat" -- distribute it uniformly across the day
+##   atmc.mn      monthly-mean ATMC for this cell-month (mol m-2 s-1)
+##   driver       the temperature factor at this slot (q10 or Lloyd-Taylor)
+##   mean.driver  that factor's monthly mean
+##
+## Both modes are MEAN-PRESERVING: mean_t(driver/mean.driver) = 1, so averaging
+## the returned removal over the month recovers atmc.mn exactly. That property
+## is what makes the removal correct without refitting piqs -- diurnal.flux's
+## own monthly mean comes from qmod, not from the monthly array, so a change
+## made only to the monthly array would alter the diurnal amplitude and leave
+## the budget untouched. Element-wise; arrays must be conformable.
+atmc.removal <- function(mode, atmc.mn, driver = NULL, mean.driver = NULL) {
+  switch(mode,
+         q10  = {
+           if (is.null(driver) || is.null(mean.driver))
+             stop("atmc.removal(mode='q10') needs driver and mean.driver")
+           atmc.mn * driver / mean.driver
+         },
+         flat = atmc.mn * (if (is.null(driver)) 1 else driver * 0 + 1),
+         stop(sprintf("atmc.removal: mode='%s' not in {q10, flat}", mode)))
+}
+
 ## Q10 temperature factor for the respiration driver.
 ##
 ##   temp.K    temperature in Kelvin (2-m air t2m, or 0-7cm soil stl1)

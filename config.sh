@@ -50,6 +50,34 @@ MICASA_CLIM_YEAR_END="${MICASA_CLIM_YEAR_END:-2025}"
 # $MONTHLY_1X1_DIR of the SOURCE tree being climatologized.
 MICASA_CLIM_SOURCE="${MICASA_CLIM_SOURCE:-}"
 
+# ---- ATMC removal -----------------------------------------------------------
+
+# MiCASA's product defines NEE = Rh - NPP - ATMC, where ATMC is GMAO's
+# atmospheric-closure term (~3.9 PgC/yr of uptake). The CT prep has always
+# ingested Rh - NPP, i.e. with ATMC dropped -- deliberately, to avoid
+# double-counting an inversion-derived correction while CT's own network could
+# re-derive it. MICASA_ATMC subtracts it back, so the delivered flux is the
+# product's own NEE.
+#
+#   off  (default) legacy behaviour: ATMC left in the file, not applied.
+#   q10            remove it on the SAME temperature weighting the respiration
+#                  channel uses (whatever MICASA_RESP_DRIVER / _TEMPFUN are set
+#                  to), so the removal and the flux cannot drift apart.
+#   flat           remove it uniformly across the day.
+#
+# Both modes remove the identical monthly MASS -- they differ only in which
+# hours it comes out of, which matters because CT assimilates afternoon
+# well-mixed air. ATMC is an inverse residual delivered as a monthly total, so
+# NEITHER shape is transmitted by the source: over 2001-2020 ATMC correlates
+# with Rh at only +0.52 while swinging ~7x its relative seasonal amplitude.
+# Treat `flat` as a genuine alternative, not a control, and run the pair.
+MICASA_ATMC="${MICASA_ATMC:-off}"
+case "$MICASA_ATMC" in
+    off|q10|flat) ;;
+    *) echo "config.sh: MICASA_ATMC='$MICASA_ATMC' not in {off, q10, flat}" >&2
+       exit 2 ;;
+esac
+
 # ---- Site config ------------------------------------------------------------
 
 # SLURM mail contact -- required (no default; set in your shell profile).
@@ -93,3 +121,4 @@ export MICASA_CLIM_SPAN_START MICASA_CLIM_SPAN_END
 export MICASA_CLIM_YEAR_START MICASA_CLIM_YEAR_END MICASA_CLIM_SOURCE
 export MAIL_USER BASE_DIR WORK_DIR PORTAL_URL_BASE
 export DAILY_1X1_DIR MONTHLY_1X1_DIR ERA5_DIR RAW_SRC_DIR JOBS_DIR
+export MICASA_ATMC

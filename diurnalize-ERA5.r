@@ -168,6 +168,30 @@ if (exists("piqsfit.meta")) {
 cat(sprintf("Active diurnalization year: %d\n", yr))
 
 strict.piqs <- as.integer(Sys.getenv("MICASA_STRICT_PIQS", unset = "0")) == 1
+
+## ---- ATMC removal (MICASA_ATMC; default "off" = byte-identical legacy) ----
+##
+## MiCASA's product defines NEE = Rh - NPP - ATMC, but the CT prep ingests
+## Rh - NPP: the GMAO atmospheric-closure term is dropped. Setting MICASA_ATMC
+## subtracts it back, so the delivered flux is the product's own NEE.
+##
+##   off  (default) -- legacy behaviour, ATMC untouched
+##   q10            -- remove ATMC on the SAME temperature weighting the
+##                     respiration channel uses, so the two cancel exactly
+##   flat           -- remove ATMC uniformly across the day
+##
+## ATMC is an *inverse residual* delivered as a monthly total, so neither shape
+## is transmitted by the source: `q10` asserts it is distributed like
+## temperature-driven respiration, `flat` asserts nothing. Over 2001-2020 ATMC
+## correlates with Rh at only +0.52 while swinging ~7x Rh's relative seasonal
+## amplitude, so the respiration styling is bookkeeping rather than physics --
+## run the pair and price the assumption. See
+## docs/atmc_diurnalization_scoping.md in the tm5-zoom repo.
+atmc.mode <- Sys.getenv("MICASA_ATMC", "off")
+if (!atmc.mode %in% c("off", "q10", "flat"))
+  stop(sprintf("MICASA_ATMC='%s' not in {off, q10, flat}", atmc.mode))
+if (atmc.mode != "off")
+  cat(sprintf("ATMC removal: %s (NEE = Rh - NPP - ATMC)\n", atmc.mode))
 ## The fit-edge check is per month, in the loop below: a month with real
 ## monthly data but past the fit window gets climatological sub-monthly
 ## coefficients (MICASA_STRICT_PIQS=1 escalates that to a hard error).
@@ -225,6 +249,13 @@ for (mon in mon.range) {
 
     rtot.mn <- rtot.clim[, , mon]
     gpp.mn  <- gpp.clim[, , mon]
+    atmc.mn <- NULL
+    ## The NPP/Rh climatology carries no ATMC, so a clim month cannot be
+    ## treated. Refuse rather than silently deliver one untreated month in an
+    ## otherwise treated year -- that is the silent-void class of bug.
+    if (atmc.mode != "off")
+      stop(sprintf("%d-%02d falls back to the NPP/Rh climatology, which carries no ATMC, but MICASA_ATMC='%s'. Publish the real monthly file or run with MICASA_ATMC=off.",
+                   yr, mon, atmc.mode))
     rm(foo)
   } else {
     fname <- sprintf("%s/%s_%s.nc", in.dir, product.name, monstr)
@@ -232,6 +263,13 @@ for (mon in mon.range) {
     gpp.mn  <- -2 * foo$NPP / 12
     rh.mn   <- foo$Rh / 12
     rtot.mn <- rh.mn - 0.5 * gpp.mn
+    ## gC m-2 s-1 -> mol m-2 s-1, same conversion as Rh above.
+    atmc.mn <- if (atmc.mode != "off") {
+      if (is.null(foo$ATMC))
+        stop(sprintf("MICASA_ATMC='%s' but %s carries no ATMC variable.",
+                     atmc.mode, fname))
+      foo$ATMC / 12
+    } else NULL
     rm(foo)
   }
   cat(sprintf("Finished reading %s...\n", fname))
@@ -342,6 +380,7 @@ for (mon in mon.range) {
   nee   <- array(NA, dim = dim(mets$ssrd))
   qgpp  <- array(NA, dim = dim(mets$ssrd))
   qresp <- array(NA, dim = dim(mets$ssrd))
+  atmc  <- if (atmc.mode != "off") array(NA, dim = dim(mets$ssrd)) else NULL
 
   ## Subtract monthly mean and insert smoothed PIQS fit.
   if ((current.time >= min(piqsfit.time)) & (current.time <= max(piqsfit.time))) {
@@ -397,6 +436,21 @@ for (mon in mon.range) {
     ## cells in fluxes_202512.nc, max |GPP|=9.4e-9 mol m-2 s-1). resp /
     ## qgpp / qresp are unaffected (Rh has no reason to vanish in dark).
     gpp[ , , islot] <- polar.night.clip(gpp[, , islot], mets$ssrd[, , islot])
+
+    ## ATMC removal. `q10` reuses the SAME q10 array and the SAME q10.mn the
+    ## respiration channel was just weighted with, so the removal cannot drift
+    ## from the flux it is subtracted from however MICASA_RESP_DRIVER and
+    ## MICASA_RESP_TEMPFUN are set. Both modes are mean-preserving by
+    ## construction: mean_t(q10/q10.mn) = 1, so the delivered monthly mean drops
+    ## by exactly atmc.mn -- which is what makes this correct without refitting
+    ## piqs (diurnal.flux's own monthly mean comes from qmod, not from the
+    ## monthly array).
+    if (atmc.mode != "off") {
+      atmc[, , islot] <- atmc.removal(atmc.mode, atmc.mn,
+                                      q10[, , islot], q10.mn)
+      resp[, , islot] <- resp[, , islot] - atmc[, , islot]
+    }
+
     nee[ , , islot] <- gpp[, , islot] + resp[, , islot]
     qgpp[ , , islot] <- qmod.gpp
     qresp[, , islot] <- qmod.resp
@@ -408,6 +462,22 @@ for (mon in mon.range) {
   ## The V2 default redistributes that clipped uptake onto each cell's lit hours so
   ## the monthly mean is preserved. Set MICASA_POLAR_CLIP=plain for the legacy
   ## zero-clip (byte-identical to the pre-conserve product).
+  ## Gate: the applied removal must average to the monthly ATMC over the
+  ## month, cell by cell. This is the check the fit trap would otherwise slip
+  ## past -- a shape-only change would leave the monthly budget untouched and
+  ## still produce a complete, plausible file.
+  if (atmc.mode != "off") {
+    atmc.applied <- apply(atmc, c(1, 2), mean)
+    finite.cells <- is.finite(atmc.applied) & is.finite(atmc.mn)
+    atmc.err <- max(abs(atmc.applied[finite.cells] - atmc.mn[finite.cells]))
+    atmc.scale <- max(abs(atmc.mn[finite.cells]))
+    if (!is.finite(atmc.err) || atmc.err > 1e-12 * max(atmc.scale, 1e-12))
+      stop(sprintf("ATMC removal is not mean-preserving: max|applied - monthly| = %.3e against a field of %.3e",
+                   atmc.err, atmc.scale))
+    cat(sprintf("ATMC removal mean-preserving to %.2e (field %.2e)\n",
+                atmc.err, atmc.scale))
+  }
+
   if (!identical(Sys.getenv("MICASA_POLAR_CLIP", "conserve"), "plain")) {
     gpp <- polar.night.renorm(gpp, gpp.mn)
     nee <- gpp + resp
@@ -462,6 +532,10 @@ for (mon in mon.range) {
   vars$t2m   <- ncvar("t2m",   "K",           "ERA5 2-meter air temperature")
   vars$stl1  <- ncvar("stl1",  "K",           "ERA5 soil level 1 temperature (0-7 cm)")
   vars$swvl1 <- ncvar("swvl1", "m3/m3",       "ERA5 soil level 1 volumetric moisture content (0-7 cm)")
+  if (atmc.mode != "off")
+    vars$atmc <- ncvar("ATMC", "mol m-2 s-1",
+                       sprintf("GMAO atmospheric-closure term removed from the respiration channel (MICASA_ATMC=%s), positive is the amount subtracted",
+                               atmc.mode))
   if (write.flux.sd)
     vars$nee_sd <- ncvar("NEE_sd", "mol m-2 s-1", "prior 1-sigma uncertainty on the smoothed sub-monthly NEE flux (ATP kriging variance, sqrt(var_GPP+var_RESP); constant within a month)")
 
@@ -554,6 +628,7 @@ for (mon in mon.range) {
   ncvar_put(ncf, vars$t2m,   vals = mets$t2m)
   ncvar_put(ncf, vars$stl1,  vals = mets$stl1)
   ncvar_put(ncf, vars$swvl1, vals = mets$swvl1)
+  if (atmc.mode != "off") ncvar_put(ncf, vars$atmc, vals = atmc)
   if (write.flux.sd)                                    # per-month sd broadcast to all hour slots
     ncvar_put(ncf, vars$nee_sd, vals = array(nee.sd.mn, dim = dim(nee)))
   nc_close(ncf)

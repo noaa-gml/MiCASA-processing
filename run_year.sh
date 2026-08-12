@@ -53,9 +53,11 @@ skip_piqs=0;     skip_diurnalize=0; skip_daysplit=0
 dry_run=0
 fitter=pchip          # production default; --fitter swaps the stage-4 smoother
 expect_fitter=0       # set when the previous token was a bare "--fitter"
+expect_atmc=0         # set when the previous token was a bare "--atmc"
 
 for arg in "$@"; do
     if [ "$expect_fitter" -eq 1 ]; then fitter="$arg"; expect_fitter=0; continue; fi
+    if [ "$expect_atmc" -eq 1 ]; then MICASA_ATMC="$arg"; expect_atmc=0; continue; fi
     case "$arg" in
         --skip-download)   skip_download=1   ;;
         --skip-ingest)     skip_ingest=1     ;;
@@ -65,11 +67,16 @@ for arg in "$@"; do
         --skip-daysplit)   skip_daysplit=1   ;;
         --fitter)          expect_fitter=1   ;;   # "--fitter piqs"
         --fitter=*)        fitter="${arg#*=}" ;;  # "--fitter=piqs"
+        --atmc)            expect_atmc=1     ;;   # "--atmc q10"
+        --atmc=*)          MICASA_ATMC="${arg#*=}" ;;
         --dry-run)         dry_run=1         ;;
         *) echo "Unknown flag: $arg"; exit 2 ;;
     esac
 done
 if [ "$expect_fitter" -eq 1 ]; then echo "--fitter needs a value"; exit 2; fi
+if [ "$expect_atmc" -eq 1 ]; then echo "--atmc needs a value (off|q10|flat)"; exit 2; fi
+# Export before config.sh so the flag becomes the default config.sh validates.
+[ -n "${MICASA_ATMC:-}" ] && export MICASA_ATMC
 
 # Map --fitter to its writer. All writers emit fit.piqs.rda (recording the
 # fitter in piqsfit.meta), which the diurnalize stage reads by default.

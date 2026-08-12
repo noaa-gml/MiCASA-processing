@@ -140,6 +140,11 @@ export MICASA_FIT_RDA="${outdir}/fit.piqs.rda"      # absolute is fine (see diur
 # climatology is the ONLY difference from the ordinary product.
 export MICASA_RESP_DRIVER="${MICASA_RESP_DRIVER:-airtemp}"
 export MICASA_RESP_TEMPFUN="${MICASA_RESP_TEMPFUN:-q10}"
+# ATMC removal composes with the climatology: the climatological series is built
+# from NPP/Rh only and ATMC is carried through real and year-specific, so a
+# clim+ATMC product removes the REAL monthly ATMC from a climatological bio.
+# That is a deliberate combination -- pin it rather than inherit it silently.
+export MICASA_ATMC="${MICASA_ATMC:-off}"
 export MICASA_POLAR_CLIP="${MICASA_POLAR_CLIP:-conserve}"
 export MICASA_STRICT_PIQS="${MICASA_STRICT_PIQS:-1}"
 
@@ -157,6 +162,7 @@ echo "  VERSION     ${MICASA_VERSION}"
 echo "  FITTER      ${fitter}  (${fitter_script})"
 echo "  WORK_DIR    ${WORK_DIR}"
 echo "  DIURNAL     driver=${MICASA_RESP_DRIVER} tempfun=${MICASA_RESP_TEMPFUN} clip=${MICASA_POLAR_CLIP}"
+echo "  ATMC        ${MICASA_ATMC}"
 [ "$dry_run" -eq 1 ] && echo "  *** DRY RUN — nothing will execute ***"
 echo "========================================================================"
 

@@ -37,6 +37,7 @@ JOBS_DIR="${JOBS_DIR:-jobs}"
 RESP_DRIVER="${MICASA_RESP_DRIVER:-airtemp}"
 RESP_TEMPFUN="${MICASA_RESP_TEMPFUN:-q10}"
 POLAR_CLIP="${MICASA_POLAR_CLIP:-conserve}"
+ATMC_MODE="${MICASA_ATMC:-off}"
 PORTAL="${PORTAL_URL_BASE:-https://portal.nccs.nasa.gov/datashare/gmao/geos_carb/MiCASA}"
 METEO_ROOT="${MICASA_ERA5_DIR:-${CARBONTRACKER:-<CARBONTRACKER unset>}/METEO/tm5-nc/ec/ea/h06h18tr1/sfc/glb100x100}"
 
@@ -180,6 +181,9 @@ global attributes ("ncdump -h <file>") and in ${JOBS_DIR}/run_manifest.tsv.
  respiration driver  : $RESP_DRIVER   (MICASA_RESP_DRIVER; soiltemp = opt-in)
  resp. response fn   : $RESP_TEMPFUN   (MICASA_RESP_TEMPFUN; lloydtaylor = opt-in)
  polar-night clip    : $POLAR_CLIP   (MICASA_POLAR_CLIP; plain = legacy zero-clip)
+ ATMC removal        : $ATMC_MODE   (MICASA_ATMC; off = legacy, term left in.
+                       q10/flat subtract GMAO's atmospheric-closure term so the
+                       delivered flux is the product's own NEE = Rh - NPP - ATMC)
  sub-monthly fitter  : recorded in fit.piqs.rda (piqsfit.meta\$fitter) and the
                        per-file attributes; default pchip (PCHIP-on-cumulative)
  output locations    : ERA5_DIR=$ERA5_DIR  DAILY_1X1_DIR=$DAILY_1X1_DIR
@@ -188,6 +192,7 @@ global attributes ("ncdump -h <file>") and in ${JOBS_DIR}/run_manifest.tsv.
  reproduce (per year YYYY):
    MICASA_VERSION=$VERSION MICASA_RESP_DRIVER=$RESP_DRIVER \\
    MICASA_RESP_TEMPFUN=$RESP_TEMPFUN MICASA_POLAR_CLIP=$POLAR_CLIP \\
+   MICASA_ATMC=$ATMC_MODE \\
    ./run_year.sh YYYY            # + export the output-dir vars above as needed
 
 -- Inputs --------------------------------------------------------------------
