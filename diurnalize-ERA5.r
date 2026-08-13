@@ -533,11 +533,23 @@ for (mon in mon.range) {
   rn <- resp.negativity(resp)
   cat(sprintf("delivered resp < 0: %d / %d cell-hours (%.4f%%), most negative %.3e against a field of %.3e\n",
               rn$n, rn$total, 100 * rn$frac, rn$worst, rn$scale))
-  ## Counts are expected and pre-existing (2021-07: 1,156 with no removal at all).
-  ## The MAGNITUDE is what would matter, and it held at ~0.1% of the field with and
-  ## without ATMC removal, so this warns rather than reporting into the void.
-  if (rn$worst.frac > 0.01)
-    warning(sprintf("%d-%02d: delivered respiration reaches %.3e, %.1f%% of the field scale -- far beyond the ~0.1%% seen with and without ATMC removal. Check MICASA_ATMC and the respiration driver.",
+  ## Counts are expected and pre-existing, and both count and magnitude are
+  ## STRONGLY SEASONAL -- calibrated on 120 delivered months (2021-2025, q10 and
+  ## flat, against the untreated production baseline), not on one July:
+  ##
+  ##            Aug-Feb        Mar-Jun peak (Apr-May)
+  ##   off       < 0.12 %      0.46 - 0.72 %
+  ##   q10       < 0.13 %      0.83 - 2.24 %
+  ##   flat      < 0.26 %      2.01 - 3.60 %
+  ##
+  ## Spring is the adversarial season: ATMC peaks in Apr-May (7-9 PgC/yr) while
+  ## northern respiration is still small, so the removal takes hours that were
+  ## near zero below it. That is expected behaviour, so the threshold sits ABOVE
+  ## the measured envelope -- a 1 % threshold fired on 30 of those 120 months and
+  ## would be noise. This is here to catch a misconfiguration (a mismatched
+  ## driver/tempfun pair, a mis-scaled ATMC), not to re-report the spring cycle.
+  if (rn$worst.frac > 0.05)
+    warning(sprintf("%d-%02d: delivered respiration reaches %.3e, %.1f%% of the field scale. The measured envelope over 2021-2025 tops out near 3.6%% (flat, Apr-May); beyond 5%% suggests a misconfiguration. Check MICASA_ATMC against MICASA_RESP_DRIVER/MICASA_RESP_TEMPFUN.",
                     yr, mon, rn$worst, 100 * rn$worst.frac), immediate. = TRUE)
 
   lx <- which(is.na(nee))

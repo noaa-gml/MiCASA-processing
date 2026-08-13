@@ -137,10 +137,11 @@ polar.night.renorm <- function(gpp, gpp.mn) {
 ## creating one.
 ##
 ## `worst.frac` is what makes this a gate rather than a readout: the magnitude, not
-## the count, is what would matter. Through the whole 2021-07 test the most negative
-## value held at -1.7e-08 against a field of 1.8e-05 (worst.frac ~ 1e-3) whether
-## ATMC was removed or not; a removal that started driving respiration meaningfully
-## negative would move that ratio, and the caller warns on it.
+## the count, is what would matter. Both are STRONGLY SEASONAL, which one month does
+## not show -- over 120 delivered months the worst magnitude runs below 0.13% of the
+## field from August to February and reaches 2.2% (q10) to 3.6% (flat) in April-May,
+## when ATMC peaks against a still-small northern respiration. The caller's threshold
+## sits above that envelope so it flags a misconfiguration rather than the season.
 resp.negativity <- function(resp) {
   fin   <- is.finite(resp)
   neg   <- fin & resp < 0
